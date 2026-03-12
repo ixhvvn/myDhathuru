@@ -1,0 +1,82 @@
+name: mydhathuru
+
+services:
+  reverse-proxy:
+    image: nginx:1.29-alpine
+    container_name: mydhathuru-reverse-proxy
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-81}:80"
+
+  postgres:
+    image: postgres:17
+    container_name: mydhathuru-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: mydhathuru-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mydhathuru-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES}
+      Jwt__RefreshTokenDays: ${JWT_REFRESH_TOKEN_DAYS}
+      App__FrontendBaseUrl: ${FRONTEND_URL}
+      App__AdminFrontendBaseUrl: ${ADMIN_FRONTEND_URL}
+      App__BugReportRecipient: ${BUG_REPORT_RECIPIENT}
+      PortalAdmin__Email: ${PORTAL_ADMIN_EMAIL}
+      PortalAdmin__Password: ${PORTAL_ADMIN_PASSWORD}
+      PortalAdmin__FullName: ${PORTAL_ADMIN_FULL_NAME}
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT}
+      Smtp__Username: ${SMTP_USERNAME}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__FromEmail: ${SMTP_FROM_EMAIL}
+      Smtp__FromName: ${SMTP_FROM_NAME}
+      Smtp__UseSsl: ${SMTP_USE_SSL}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN_0}
+      Cors__AllowedOrigins__1: ${CORS_ALLOWED_ORIGIN_1}
+      Cors__AllowedOrigins__2: ${CORS_ALLOWED_ORIGIN_2}
+      Cors__AllowedOrigins__3: ${CORS_ALLOWED_ORIGIN_3}
+      Cors__AllowedOrigins__4: ${CORS_ALLOWED_ORIGIN_4}
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8081}:8080"
+
+  frontend:
+    image: mydhathuru-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mydhathuru-frontend
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${FRONTEND_APP_PORT:-4201}:80"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,17 @@
+name: mydhathuru
+
+services:
+  reverse-proxy:
+    profiles:
+      - local-proxy
+
+  postgres:
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  frontend:
+    restart: unless-stopped

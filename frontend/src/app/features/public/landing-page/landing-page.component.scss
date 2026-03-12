@@ -1,0 +1,36 @@
+@font-face {
+  font-family: 'Inter';
+  src: url('/assets/fonts/Inter-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sora';
+  src: url('/assets/fonts/Sora-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:host {
+  display: block;
+  color: #14213d;
+  --landing-body-font: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --landing-heading-font: 'Sora', 'Inter', 'Segoe UI', sans-serif;
+  --ink-900: #132448;
+  --ink-700: #2d4677;
+  --ink-600: #4c618f;
+  --ink-500: #6175a1;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-soft: rgba(255, 255, 255, 0.72);
+  --border-soft: rgba(174, 193, 235, 0.54);
+  --border-strong: rgba(139, 161, 216, 0.56);
+  --brand-start: #4f79ff;
+  --brand-end: #1eb7be;
+  --ring: rgba(90, 123, 220, 0.3);
+  --shadow-lg: 0 24px 48px rgba(37, 64, 128, 0.16);
+  --shadow-md: 0 16px 32px rgba(42, 67, 124, 0.12);
+  --shadow-sm: 0 10px 24px rgba(53, 83, 141, 0.08);
+}

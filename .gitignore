@@ -1,0 +1,78 @@
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Environment / Secrets
+# =========================
+
+
+# =========================
+# ASP.NET / .NET
+# =========================
+**/bin/
+**/obj/
+**/out/
+**/publish/
+**/TestResults/
+**/.vs/
+*.dbmdl
+*.jfm
+*.publishsettings
+
+# User-specific app settings
+
+
+# EF / local tools
+**/.config/dotnet-tools.json
+
+# =========================
+# Angular / Node
+# =========================
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+**/.cache/
+**/.npm/
+**/.eslintcache
+
+# =========================
+# Docker
+# =========================
+docker-data/
+postgres_data/
+*.tar
+
+# =========================
+# Uploads / Generated files
+# =========================
+uploads/
+tmp/
+temp/
+*.tmp
+
+# =========================
+# Testing / reports
+# =========================
+coverage/
+*.trx
+*.coverage

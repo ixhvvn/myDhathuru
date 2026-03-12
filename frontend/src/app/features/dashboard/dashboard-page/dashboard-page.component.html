@@ -1,0 +1,217 @@
+<section class="dashboard-analytics">
+  <app-page-header
+    title="Dashboard Analytics"
+    subtitle="Current-month business performance across invoices, sales, pending balances, delivery notes, customers, and payroll.">
+  </app-page-header>
+
+  <ng-container *ngIf="loading(); else contentTpl">
+    <div class="dashboard-skeleton">
+      <div class="skeleton-kpi-grid">
+        <div *ngFor="let _ of skeletonMetricCards" class="skeleton-block"></div>
+      </div>
+      <div class="skeleton-chart-grid">
+        <div class="skeleton-block tall"></div>
+        <div class="skeleton-block tall"></div>
+      </div>
+      <div class="skeleton-block list"></div>
+    </div>
+  </ng-container>
+
+  <ng-template #contentTpl>
+    <ng-container *ngIf="analytics(); else errorStateTpl">
+      <div class="kpi-grid">
+        <app-card
+          *ngFor="let card of metricCards()"
+          class="kpi-card"
+          [class.indigo]="card.tone === 'indigo'"
+          [class.teal]="card.tone === 'teal'"
+          [class.sky]="card.tone === 'sky'"
+          [class.violet]="card.tone === 'violet'"
+          [class.rose]="card.tone === 'rose'"
+          [class.emerald]="card.tone === 'emerald'">
+          <div class="kpi-top">
+            <p class="kpi-label">{{ card.label }}</p>
+            <span
+              *ngIf="card.summaryTrend"
+              class="trend-chip"
+              [class.up]="card.summaryTrend.direction === 'up'"
+              [class.down]="card.summaryTrend.direction === 'down'"
+              [class.neutral]="card.summaryTrend.direction === 'neutral'">
+              {{ card.summaryTrend.label }}
+            </span>
+          </div>
+
+          <div class="kpi-lines" [class.currency-mode]="card.currencyMode">
+            <div class="kpi-line" *ngFor="let line of card.lines">
+              <span class="line-label" *ngIf="line.label">{{ line.label }}</span>
+              <div class="line-content">
+                <strong class="line-value">{{ line.value }}</strong>
+                <span
+                  *ngIf="line.trend"
+                  class="line-trend"
+                  [class.up]="line.trend.direction === 'up'"
+                  [class.down]="line.trend.direction === 'down'"
+                  [class.neutral]="line.trend.direction === 'neutral'">
+                  {{ line.trend.label }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <span class="kpi-subtitle">{{ card.subtitle }}</span>
+        </app-card>
+      </div>
+
+      <div class="charts-grid">
+        <app-card class="chart-card sales-trend-card">
+          <div class="card-head">
+            <div>
+              <h3>Sales Of Past 6 Months</h3>
+              <p>Invoice totals grouped per month by currency</p>
+            </div>
+            <span class="badge">MVR + USD</span>
+          </div>
+
+          <ng-container *ngIf="hasSalesData(); else noSalesChartTpl">
+            <apx-chart
+              [series]="salesChartOptions().series"
+              [chart]="salesChartOptions().chart"
+              [colors]="salesChartOptions().colors"
+              [dataLabels]="salesChartOptions().dataLabels"
+              [stroke]="salesChartOptions().stroke"
+              [grid]="salesChartOptions().grid"
+              [xaxis]="salesChartOptions().xaxis"
+              [yaxis]="salesChartOptions().yaxis"
+              [tooltip]="salesChartOptions().tooltip"
+              [fill]="salesChartOptions().fill"
+              [markers]="salesChartOptions().markers"
+              [legend]="salesChartOptions().legend"
+              [responsive]="salesChartOptions().responsive">
+            </apx-chart>
+          </ng-container>
+        </app-card>
+
+        <app-card class="chart-card vessel-card">
+          <div class="card-head">
+            <div>
+              <h3>Vessel Sales Mix</h3>
+              <p>Distribution from invoice-linked delivery notes</p>
+            </div>
+            <div class="vessel-toggle">
+              <button
+                type="button"
+                [class.active]="selectedVesselCurrency() === 'MVR'"
+                (click)="setVesselCurrency('MVR')">MVR</button>
+              <button
+                type="button"
+                [class.active]="selectedVesselCurrency() === 'USD'"
+                (click)="setVesselCurrency('USD')">USD</button>
+            </div>
+          </div>
+
+          <ng-container *ngIf="hasVesselData(); else noVesselChartTpl">
+            <apx-chart
+              [series]="vesselChartOptions().series"
+              [chart]="vesselChartOptions().chart"
+              [labels]="vesselChartOptions().labels"
+              [colors]="vesselChartOptions().colors"
+              [legend]="vesselChartOptions().legend"
+              [tooltip]="vesselChartOptions().tooltip"
+              [dataLabels]="vesselChartOptions().dataLabels"
+              [plotOptions]="vesselChartOptions().plotOptions"
+              [stroke]="vesselChartOptions().stroke"
+              [fill]="vesselChartOptions().fill"
+              [responsive]="vesselChartOptions().responsive">
+            </apx-chart>
+
+            <ul class="vessel-legend">
+              <li *ngFor="let vessel of vesselSales(); let i = index">
+                <span class="dot" [style.background]="vesselPalette[i % vesselPalette.length]"></span>
+                <span class="name">{{ vessel.vesselName }}</span>
+                <strong>{{ vesselAmount(vessel) | appCurrency: selectedVesselCurrency() }}</strong>
+                <span class="percentage">{{ vesselContribution(vessel) | number: '1.0-1' }}%</span>
+              </li>
+            </ul>
+          </ng-container>
+        </app-card>
+      </div>
+
+      <app-card class="top-customers-card">
+        <div class="card-head">
+          <div>
+            <h3>Top Customers</h3>
+            <p>Ranked by invoice activity with separated MVR and USD sales</p>
+          </div>
+          <span class="badge violet">Top {{ topCustomers().length }}</span>
+        </div>
+
+        <ng-container *ngIf="topCustomers().length; else noTopCustomersTpl">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Customer</th>
+                  <th>Sales (MVR)</th>
+                  <th>Sales (USD)</th>
+                  <th>Invoices</th>
+                  <th>Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let customer of topCustomers(); trackBy: trackByCustomer">
+                  <td><span class="rank-pill">#{{ customer.rank }}</span></td>
+                  <td>
+                    <div class="customer-cell">
+                      <span class="avatar">{{ customer.initials }}</span>
+                      <div>
+                        <strong>{{ customer.customerName }}</strong>
+                        <small>ID: {{ customer.customerId }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="currency">{{ customer.salesMvr | appCurrency: 'MVR' }}</td>
+                  <td class="currency">{{ customer.salesUsd | appCurrency: 'USD' }}</td>
+                  <td>{{ customer.invoiceCount }}</td>
+                  <td>
+                    <div class="contribution-cell">
+                      <span>MVR {{ customer.contributionMvrPercentage | number: '1.0-1' }}% / USD {{ customer.contributionUsdPercentage | number: '1.0-1' }}%</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+      </app-card>
+    </ng-container>
+  </ng-template>
+
+  <ng-template #noSalesChartTpl>
+    <app-empty-state
+      title="No Sales Trend Yet"
+      description="Create invoices in this tenant to populate MVR and USD 6-month sales trends.">
+    </app-empty-state>
+  </ng-template>
+
+  <ng-template #noVesselChartTpl>
+    <app-empty-state
+      title="No Vessel Sales Yet"
+      description="Vessel analytics appear once invoices are linked to delivery notes with vessels.">
+    </app-empty-state>
+  </ng-template>
+
+  <ng-template #noTopCustomersTpl>
+    <app-empty-state
+      title="No Top Customers Yet"
+      description="Issue invoices to generate customer ranking and contribution.">
+    </app-empty-state>
+  </ng-template>
+
+  <ng-template #errorStateTpl>
+    <app-empty-state
+      title="Dashboard Unavailable"
+      description="Analytics could not be loaded right now. Please refresh and try again.">
+    </app-empty-state>
+  </ng-template>
+</section>

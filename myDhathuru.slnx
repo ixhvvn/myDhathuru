@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/MyDhathuru.Api/MyDhathuru.Api.csproj" />
+    <Project Path="backend/src/MyDhathuru.Application/MyDhathuru.Application.csproj" />
+    <Project Path="backend/src/MyDhathuru.Domain/MyDhathuru.Domain.csproj" />
+    <Project Path="backend/src/MyDhathuru.Infrastructure/MyDhathuru.Infrastructure.csproj" />
+  </Folder>
+</Solution>
