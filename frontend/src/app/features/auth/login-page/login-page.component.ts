@@ -24,11 +24,11 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
       <app-card class="auth-card">
         <div class="auth-head">
           <span class="eyebrow">Secure Access</span>
-          <h2>Welcome Back</h2>
-          <p>Login, create your account, or request a password reset link.</p>
+          <h2>{{ mode() === 'forgot' ? 'Reset your password' : 'Welcome Back' }}</h2>
+          <p>{{ mode() === 'forgot' ? 'Enter your account email to receive a secure reset link.' : 'Login, create your account, or request a password reset link.' }}</p>
         </div>
 
-        <div class="tab-strip" role="tablist" aria-label="Authentication tabs">
+        <div *ngIf="mode() !== 'forgot'" class="tab-strip" role="tablist" aria-label="Authentication tabs">
           <button [class.active]="mode() === 'login'" (click)="setMode('login')">Login</button>
           <button [class.active]="mode() === 'signup'" (click)="setMode('signup')">Signup</button>
         </div>
@@ -98,7 +98,6 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
           </form>
 
           <form *ngIf="mode() === 'forgot'" [formGroup]="forgotForm" (ngSubmit)="forgotPassword()" class="auth-form in">
-            <p class="forgot-panel-head">Reset your password</p>
             <label>
               User Email
               <input formControlName="email" type="email" autocomplete="email">

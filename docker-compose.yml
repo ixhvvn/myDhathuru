@@ -2,13 +2,14 @@ name: mydhathuru
 
 services:
   reverse-proxy:
-    image: nginx:1.29-alpine
+    image: mydhathuru-reverse-proxy:local
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
     container_name: mydhathuru-reverse-proxy
     depends_on:
       - frontend
       - backend
-    volumes:
-      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-81}:80"
 
