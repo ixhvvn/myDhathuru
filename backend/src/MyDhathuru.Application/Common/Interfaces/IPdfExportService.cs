@@ -15,7 +15,7 @@ public interface IPdfExportService
     byte[] BuildStatementPdf(AccountStatementDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildSalarySlipPdf(SalarySlipDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildPayrollPeriodPdf(PayrollPeriodDetailDto model, string companyName, string companyInfo);
-    byte[] BuildCustomersPdf(IReadOnlyList<CustomerDto> customers, string companyName, string companyInfo);
+    byte[] BuildCustomersPdf(IReadOnlyList<CustomerDto> customers, string companyName, string companyInfo, string? logoUrl, CustomerListQuery query);
     byte[] BuildSalesSummaryReportPdf(SalesSummaryReportDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildSalesTransactionsReportPdf(SalesTransactionsReportDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildSalesByVesselReportPdf(SalesByVesselReportDto model, string companyName, string companyInfo, string? logoUrl);

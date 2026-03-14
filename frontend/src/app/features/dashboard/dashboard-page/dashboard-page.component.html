@@ -40,8 +40,8 @@
       </section>
 
       <section class="dashboard-grid">
-        <app-card class="board board--sales">
-          <div class="board-head">
+        <app-card class="board board--sales" #salesBoard>
+          <div class="board-head" #salesBoardHead>
             <div>
               <span class="card-eyebrow">Revenue board</span>
               <h2>Sales curve and current-month signals</h2>
@@ -54,7 +54,7 @@
           </div>
 
           <ng-container *ngIf="hasSalesData(); else noSalesChartTpl">
-            <div class="chart-stage chart-stage--sales">
+            <div class="chart-stage chart-stage--sales" [style.height.px]="salesChartHeight()">
               <apx-chart
                 [series]="salesChartOptions().series"
                 [chart]="salesChartOptions().chart"
@@ -74,7 +74,7 @@
           </ng-container>
         </app-card>
 
-        <app-card class="board board--coverage">
+        <app-card class="board board--coverage" #coverageBoard>
           <div class="board-head">
             <div>
               <span class="card-eyebrow">Collections and coverage</span>
@@ -154,64 +154,78 @@
               <span class="card-eyebrow">Fleet mix</span>
               <h2>Vessel revenue split</h2>
             </div>
-            <div class="vessel-toggle">
-              <button
-                type="button"
-                [class.active]="selectedVesselCurrency() === 'MVR'"
-                (click)="setVesselCurrency('MVR')">MVR</button>
-              <button
-                type="button"
-                [class.active]="selectedVesselCurrency() === 'USD'"
-                (click)="setVesselCurrency('USD')">USD</button>
-            </div>
+            <span class="board-badge">MVR</span>
           </div>
 
-          <ng-container *ngIf="hasVesselData(); else noVesselChartTpl">
+          <ng-container *ngIf="hasVesselDataMvr(); else noVesselChartTpl">
             <div class="chart-stage chart-stage--donut">
               <apx-chart
-                [series]="vesselChartOptions().series"
-                [chart]="vesselChartOptions().chart"
-                [labels]="vesselChartOptions().labels"
-                [colors]="vesselChartOptions().colors"
-                [legend]="vesselChartOptions().legend"
-                [tooltip]="vesselChartOptions().tooltip"
-                [dataLabels]="vesselChartOptions().dataLabels"
-                [plotOptions]="vesselChartOptions().plotOptions"
-                [stroke]="vesselChartOptions().stroke"
-                [fill]="vesselChartOptions().fill"
-                [responsive]="vesselChartOptions().responsive">
+                [series]="vesselChartOptionsMvr().series"
+                [chart]="vesselChartOptionsMvr().chart"
+                [labels]="vesselChartOptionsMvr().labels"
+                [colors]="vesselChartOptionsMvr().colors"
+                [legend]="vesselChartOptionsMvr().legend"
+                [tooltip]="vesselChartOptionsMvr().tooltip"
+                [dataLabels]="vesselChartOptionsMvr().dataLabels"
+                [plotOptions]="vesselChartOptionsMvr().plotOptions"
+                [stroke]="vesselChartOptionsMvr().stroke"
+                [fill]="vesselChartOptionsMvr().fill"
+                [responsive]="vesselChartOptionsMvr().responsive">
               </apx-chart>
+              <div class="donut-center-copy">
+                <span>Total MVR</span>
+                <strong>{{ visibleVesselsTotalMvr() | appCurrency: 'MVR' }}</strong>
+              </div>
             </div>
 
             <ul class="vessel-legend">
-              <li *ngFor="let vessel of visibleVessels(); let i = index">
-                <span class="dot" [style.background]="vesselPalette[i % vesselPalette.length]"></span>
+              <li *ngFor="let vessel of visibleVesselsMvr(); let i = index">
+                <span class="dot" [style.background]="vesselLegendColor('MVR', i)"></span>
                 <span class="name">{{ vessel.vesselName }}</span>
-                <strong>{{ vesselAmount(vessel) | appCurrency: selectedVesselCurrency() }}</strong>
+                <strong>{{ vesselAmount(vessel, 'MVR') | appCurrency: 'MVR' }}</strong>
               </li>
             </ul>
           </ng-container>
         </app-card>
 
-        <app-card class="board board--signals">
+        <app-card class="board board--vessels board--vessels-usd">
           <div class="board-head">
             <div>
-              <span class="card-eyebrow">Decision signals</span>
-              <h2>Month-end shortcuts</h2>
+              <span class="card-eyebrow">Fleet mix</span>
+              <h2>Vessel revenue split</h2>
             </div>
-            <span class="board-badge board-badge--soft">Snapshot</span>
+            <span class="board-badge">USD</span>
           </div>
 
-          <div class="signal-stack">
-            <article
-              *ngFor="let panel of signalPanels()"
-              class="signal-panel"
-              [style.--tone-bg]="toneBackground(panel.tone)">
-              <span>{{ panel.label }}</span>
-              <strong>{{ panel.value }}</strong>
-              <small>{{ panel.meta }}</small>
-            </article>
-          </div>
+          <ng-container *ngIf="hasVesselDataUsd(); else noVesselChartTpl">
+            <div class="chart-stage chart-stage--donut">
+              <apx-chart
+                [series]="vesselChartOptionsUsd().series"
+                [chart]="vesselChartOptionsUsd().chart"
+                [labels]="vesselChartOptionsUsd().labels"
+                [colors]="vesselChartOptionsUsd().colors"
+                [legend]="vesselChartOptionsUsd().legend"
+                [tooltip]="vesselChartOptionsUsd().tooltip"
+                [dataLabels]="vesselChartOptionsUsd().dataLabels"
+                [plotOptions]="vesselChartOptionsUsd().plotOptions"
+                [stroke]="vesselChartOptionsUsd().stroke"
+                [fill]="vesselChartOptionsUsd().fill"
+                [responsive]="vesselChartOptionsUsd().responsive">
+              </apx-chart>
+              <div class="donut-center-copy">
+                <span>Total USD</span>
+                <strong>{{ visibleVesselsTotalUsd() | appCurrency: 'USD' }}</strong>
+              </div>
+            </div>
+
+            <ul class="vessel-legend">
+              <li *ngFor="let vessel of visibleVesselsUsd(); let i = index">
+                <span class="dot" [style.background]="vesselLegendColor('USD', i)"></span>
+                <span class="name">{{ vessel.vesselName }}</span>
+                <strong>{{ vesselAmount(vessel, 'USD') | appCurrency: 'USD' }}</strong>
+              </li>
+            </ul>
+          </ng-container>
         </app-card>
       </section>
     </ng-container>

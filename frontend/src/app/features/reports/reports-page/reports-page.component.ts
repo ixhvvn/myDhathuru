@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Observable, finalize } from 'rxjs';
 import {
   Customer,
   ReportDatePreset,
@@ -635,75 +636,89 @@ export class ReportsPageComponent implements OnInit {
   }
 
   generateReport(): void {
+    if (this.previewLoading() || this.exportLoading() !== null)
+    {
+      return;
+    }
+
     if (!this.validateFilters())
     {
       return;
     }
 
+    const reportType = this.selectedReportType();
     this.previewLoading.set(true);
     const params = this.buildFilterParams();
+    let request$: Observable<SalesSummaryReport | SalesTransactionsReport | SalesByVesselReport> | null = null;
 
-    switch (this.selectedReportType())
+    switch (reportType)
     {
       case ReportType.SalesSummary:
-        this.api.getSalesSummaryReport(params).subscribe({
-          next: (report) =>
-          {
-            this.salesSummary.set(report);
-            this.salesTransactions.set(null);
-            this.salesByVessel.set(null);
-            this.hasGenerated.set(true);
-            this.previewLoading.set(false);
-          },
-          error: (error) =>
-          {
-            this.previewLoading.set(false);
-            this.toast.error(this.readError(error, 'Failed to generate sales summary report.'));
-          }
-        });
+        request$ = this.api.getSalesSummaryReport(params);
         break;
       case ReportType.SalesTransactions:
-        this.api.getSalesTransactionsReport(params).subscribe({
-          next: (report) =>
-          {
-            this.salesTransactions.set(report);
-            this.salesSummary.set(null);
-            this.salesByVessel.set(null);
-            this.hasGenerated.set(true);
-            this.previewLoading.set(false);
-          },
-          error: (error) =>
-          {
-            this.previewLoading.set(false);
-            this.toast.error(this.readError(error, 'Failed to generate sales transactions report.'));
-          }
-        });
+        request$ = this.api.getSalesTransactionsReport(params);
         break;
       case ReportType.SalesByVessel:
-        this.api.getSalesByVesselReport(params).subscribe({
-          next: (report) =>
-          {
-            this.salesByVessel.set(report);
-            this.salesSummary.set(null);
-            this.salesTransactions.set(null);
-            this.hasGenerated.set(true);
-            this.previewLoading.set(false);
-          },
-          error: (error) =>
-          {
-            this.previewLoading.set(false);
-            this.toast.error(this.readError(error, 'Failed to generate sales by vessel report.'));
-          }
-        });
+        request$ = this.api.getSalesByVesselReport(params);
         break;
       default:
         this.previewLoading.set(false);
         this.toast.error('Unsupported report type.');
         break;
     }
+
+    if (!request$)
+    {
+      return;
+    }
+
+    request$
+      .pipe(finalize(() => this.previewLoading.set(false)))
+      .subscribe({
+        next: (report) =>
+        {
+          if (!report)
+          {
+            this.hasGenerated.set(false);
+            this.toast.error('No report data was returned for the selected filters.');
+            return;
+          }
+
+          switch (reportType)
+          {
+            case ReportType.SalesSummary:
+              this.salesSummary.set(report as SalesSummaryReport);
+              this.salesTransactions.set(null);
+              this.salesByVessel.set(null);
+              break;
+            case ReportType.SalesTransactions:
+              this.salesTransactions.set(report as SalesTransactionsReport);
+              this.salesSummary.set(null);
+              this.salesByVessel.set(null);
+              break;
+            case ReportType.SalesByVessel:
+              this.salesByVessel.set(report as SalesByVesselReport);
+              this.salesSummary.set(null);
+              this.salesTransactions.set(null);
+              break;
+          }
+
+          this.hasGenerated.set(true);
+        },
+        error: (error) =>
+        {
+          this.toast.error(this.readError(error, this.reportErrorMessage(reportType)));
+        }
+      });
   }
 
   exportReport(format: 'excel' | 'pdf'): void {
+    if (this.previewLoading() || this.exportLoading() !== null)
+    {
+      return;
+    }
+
     if (!this.validateFilters())
     {
       return;
@@ -714,20 +729,36 @@ export class ReportsPageComponent implements OnInit {
     const request$ = format === 'excel'
       ? this.api.exportReportExcel(payload)
       : this.api.exportReportPdf(payload);
+    let downloaded = false;
 
-    request$.subscribe({
-      next: (file) =>
-      {
-        this.download(file, `${this.reportSlug()}-${this.todayIso()}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-        this.exportLoading.set(null);
-        this.toast.success(`Report exported to ${format.toUpperCase()}.`);
-      },
-      error: (error) =>
-      {
-        this.exportLoading.set(null);
-        this.toast.error(this.readError(error, `Failed to export report ${format.toUpperCase()}.`));
-      }
-    });
+    request$
+      .pipe(finalize(() => this.exportLoading.set(null)))
+      .subscribe({
+        next: (file) =>
+        {
+          try
+          {
+            this.download(file, `${this.reportSlug()}-${this.todayIso()}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+            downloaded = true;
+            this.toast.success(`Report exported to ${format.toUpperCase()}.`);
+          }
+          catch
+          {
+            this.toast.error(`Failed to download ${format.toUpperCase()} file.`);
+          }
+        },
+        error: (error) =>
+        {
+          this.toast.error(this.readError(error, `Failed to export report ${format.toUpperCase()}.`));
+        },
+        complete: () =>
+        {
+          if (!downloaded)
+          {
+            this.toast.error(`No ${format.toUpperCase()} file was returned by the server.`);
+          }
+        }
+      });
   }
 
   statusVariant(status: string): 'green' | 'amber' | 'red' | 'gray' {
@@ -841,6 +872,20 @@ export class ReportsPageComponent implements OnInit {
         return 'sales-by-vessel';
       default:
         return 'report';
+    }
+  }
+
+  private reportErrorMessage(reportType: ReportType): string {
+    switch (reportType)
+    {
+      case ReportType.SalesSummary:
+        return 'Failed to generate sales summary report.';
+      case ReportType.SalesTransactions:
+        return 'Failed to generate sales transactions report.';
+      case ReportType.SalesByVessel:
+        return 'Failed to generate sales by vessel report.';
+      default:
+        return 'Failed to generate report.';
     }
   }
 

@@ -89,7 +89,6 @@
 .board-head p,
 .ring-copy small,
 .activity-card small,
-.signal-panel small,
 .customer-row small,
 .snapshot-card__head small {
   margin: 0;
@@ -127,7 +126,6 @@
 .dashboard-grid,
 .ring-grid,
 .activity-grid,
-.signal-stack,
 .customer-list,
 .vessel-legend {
   display: grid;
@@ -141,7 +139,6 @@
 .snapshot-card,
 .focus-card,
 .activity-card,
-.signal-panel,
 .customer-row,
 .ring-card {
   position: relative;
@@ -154,7 +151,6 @@
 
 .snapshot-card::before,
 .activity-card::before,
-.signal-panel::before,
 .customer-row::before,
 .ring-card::before,
 .chart-stage::before {
@@ -176,7 +172,6 @@
 }
 
 .snapshot-card__head span,
-.signal-panel span,
 .activity-card__head span,
 .customer-row__stats span,
 .ring-copy strong,
@@ -186,7 +181,6 @@
 }
 
 .snapshot-card__head span,
-.signal-panel span,
 .activity-card__head span,
 .customer-row__stats span,
 .ring-copy strong {
@@ -198,7 +192,6 @@
 }
 
 .snapshot-card strong,
-.signal-panel strong,
 .customer-id strong,
 .activity-card__head strong {
   color: #233a63;
@@ -214,7 +207,7 @@
 
 .dashboard-grid {
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
 }
 
 .board {
@@ -228,10 +221,11 @@
   --card-hover-shadow: 0 18px 36px rgba(52, 73, 125, .12);
   --card-hover-transform: none;
   --card-shimmer-display: none;
+  min-height: 0;
 }
 
 .board .card {
-  height: 100%;
+  min-height: 0;
   display: grid;
   gap: .9rem;
   border: 1px solid rgba(255,255,255,.84);
@@ -247,18 +241,28 @@
 
 .board--customers,
 .board--vessels,
-.board--signals {
+.board--vessels-usd {
   grid-column: span 4;
 }
 
 .board--sales .card,
 .board--coverage .card {
-  min-height: 392px;
+  min-height: 0;
+}
+
+.board--sales .card {
+  grid-template-rows: auto auto;
+  align-content: start;
+}
+
+.board--coverage .card {
+  grid-template-rows: auto auto auto;
+  align-content: start;
 }
 
 .board--customers .card,
 .board--vessels .card,
-.board--signals .card {
+.board--vessels-usd .card {
   min-height: 284px;
 }
 
@@ -295,17 +299,70 @@
 }
 
 .chart-stage--sales {
-  padding: .24rem .24rem .06rem;
+  padding: .24rem .24rem .08rem;
+  min-height: 0;
+  display: block;
+}
+
+.chart-stage--sales apx-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+:host ::ng-deep .chart-stage--sales .apexcharts-canvas,
+:host ::ng-deep .chart-stage--sales .apexcharts-svg,
+:host ::ng-deep .chart-stage--sales .apexcharts-inner {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .chart-stage--donut {
+  position: relative;
   min-height: 216px;
   padding: .18rem .12rem .12rem;
+  display: grid;
+  place-items: center;
+}
+
+.chart-stage--donut apx-chart {
+  width: 100%;
+}
+
+.donut-center-copy {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: 54%;
+  display: grid;
+  gap: .18rem;
+  justify-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-center-copy span {
+  color: #6278a5;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.donut-center-copy strong {
+  color: #324a76;
+  font-size: 1rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .ring-grid,
 .activity-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.board--coverage .activity-grid {
+  margin-top: .72rem;
+  row-gap: .74rem;
 }
 
 .ring-card {
@@ -320,7 +377,7 @@
   --progress: 0;
   --ring-color: #6f7ff5;
   position: relative;
-  width: 92px;
+  width: 100px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: conic-gradient(var(--ring-color) calc(var(--progress) * 1%), rgba(222, 230, 247, .86) 0);
@@ -342,20 +399,27 @@
   display: grid;
   place-items: center;
   align-content: center;
+  gap: .16rem;
+  padding: 0 .35rem;
   text-align: center;
 }
 
 .progress-ring__inner small {
+  display: block;
+  max-width: 62px;
   color: #6980ac;
-  font-size: .66rem;
+  font-size: .56rem;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: .05em;
+  line-height: 1.1;
   font-weight: 700;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .progress-ring__inner strong {
   color: #243b64;
-  font-size: 1.24rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 
@@ -372,7 +436,6 @@
 }
 
 .activity-card,
-.signal-panel,
 .customer-row {
   padding: .72rem .8rem;
 }
@@ -441,32 +504,6 @@
   color: #50669a;
 }
 
-.vessel-toggle {
-  display: inline-flex;
-  border: 1px solid rgba(174, 189, 235, .56);
-  border-radius: 999px;
-  padding: .12rem;
-  background: rgba(246, 249, 255, .9);
-  gap: .12rem;
-}
-
-.vessel-toggle button {
-  border: 0;
-  border-radius: 999px;
-  padding: .28rem .58rem;
-  background: transparent;
-  color: #647aa9;
-  font-size: .72rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.vessel-toggle button.active {
-  color: #fff;
-  background: linear-gradient(135deg, #667cf4, #53b5df);
-  box-shadow: 0 8px 16px rgba(80, 109, 231, .27);
-}
-
 .vessel-legend {
   margin: 0;
   padding: 0;
@@ -500,15 +537,6 @@
   white-space: nowrap;
 }
 
-.signal-stack {
-  align-content: start;
-}
-
-.signal-panel strong {
-  margin-top: .28rem;
-  font-size: .94rem;
-}
-
 @keyframes skeleton-shift {
   0% { background-position: 0% 50%; }
   100% { background-position: 200% 50%; }
@@ -522,7 +550,7 @@
 
   .board--customers,
   .board--vessels,
-  .board--signals,
+  .board--vessels-usd,
   .skeleton-block,
   .skeleton-block--wide {
     grid-column: span 6;
@@ -549,7 +577,7 @@
 @media (max-width: 860px) {
   .board--customers,
   .board--vessels,
-  .board--signals,
+  .board--vessels-usd,
   .skeleton-block,
   .skeleton-block--wide {
     grid-column: span 12;
@@ -559,7 +587,7 @@
   .board--coverage .card,
   .board--customers .card,
   .board--vessels .card,
-  .board--signals .card {
+  .board--vessels-usd .card {
     min-height: auto;
   }
 }

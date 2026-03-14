@@ -1,5 +1,16 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import {
   ApexAxisChartSeries,
   ApexChart,
@@ -54,13 +65,6 @@ interface ActivityLane {
   tone: MetricTone;
 }
 
-interface SignalPanel {
-  label: string;
-  value: string;
-  meta: string;
-  tone: MetricTone;
-}
-
 type SalesChartOptions = {
   series: ApexAxisChartSeries;
   chart: ApexChart;
@@ -98,11 +102,12 @@ type VesselChartOptions = {
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss'
 })
-export class DashboardPageComponent implements OnInit {
+export class DashboardPageComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly loading = signal(true);
   readonly analytics = signal<DashboardAnalytics | null>(null);
-  readonly selectedVesselCurrency = signal<SupportedCurrency>('MVR');
-  readonly vesselPalette = ['#6f7ff5', '#59c7e4', '#59c79e', '#8c7dfa', '#ff9fb5', '#7ed4a6', '#9eb4ff'];
+  readonly salesChartHeight = signal(356);
+  readonly vesselPaletteMvr = ['#6f7ff5', '#59c7e4', '#59c79e', '#8c7dfa', '#ff9fb5', '#7ed4a6', '#9eb4ff'];
+  readonly vesselPaletteUsd = ['#55b7dd', '#6fdad0', '#7fc8ff', '#67c1b8', '#8fdcf5', '#9cc8ff', '#8be7db'];
   readonly toneBackgrounds: Record<MetricTone, string> = {
     indigo: 'linear-gradient(150deg, rgba(239,244,255,.98), rgba(228,234,255,.92))',
     teal: 'linear-gradient(150deg, rgba(236,251,248,.98), rgba(216,242,235,.92))',
@@ -124,6 +129,13 @@ export class DashboardPageComponent implements OnInit {
     notation: 'compact',
     maximumFractionDigits: 1
   });
+  private readonly zone = inject(NgZone);
+  private resizeObserver?: ResizeObserver;
+  private resizeFrame: number | null = null;
+
+  @ViewChild('salesBoard', { read: ElementRef }) private salesBoardRef?: ElementRef<HTMLElement>;
+  @ViewChild('salesBoardHead', { read: ElementRef }) private salesBoardHeadRef?: ElementRef<HTMLElement>;
+  @ViewChild('coverageBoard', { read: ElementRef }) private coverageBoardRef?: ElementRef<HTMLElement>;
 
   readonly summary = computed(() => this.analytics()?.summary ?? null);
   readonly topCustomers = computed(() => this.analytics()?.topCustomers ?? []);
@@ -232,56 +244,18 @@ export class DashboardPageComponent implements OnInit {
 
   readonly compactTopCustomers = computed(() => this.topCustomers().slice(0, 2));
 
-  readonly visibleVessels = computed(() => {
-    const currency = this.selectedVesselCurrency();
-    return [...this.vesselSales()]
-      .sort((a, b) => this.vesselAmount(b, currency) - this.vesselAmount(a, currency))
-      .slice(0, 4);
-  });
-
-  readonly signalPanels = computed<SignalPanel[]>(() => {
-    const summary = this.summary();
-    if (!summary) {
-      return [];
-    }
-
-    const leadCustomer = this.compactTopCustomers()[0] ?? null;
-    const leadVessel = this.visibleVessels()[0] ?? null;
-    const averageMvr = this.salesTimeline().length
-      ? this.salesTimeline().reduce((sum, month) => sum + month.salesMvr, 0) / this.salesTimeline().length
-      : 0;
-
-    return [
-      {
-        label: 'Pending Exposure',
-        value: `${this.formatCurrency(summary.currentMonthPending.mvr, 'MVR')} | ${this.formatCurrency(summary.currentMonthPending.usd, 'USD')}`,
-        meta: 'Current-month receivables still open.',
-        tone: 'sky'
-      },
-      {
-        label: 'Lead Account',
-        value: leadCustomer?.customerName ?? 'Awaiting invoice momentum',
-        meta: leadCustomer
-          ? `${leadCustomer.invoiceCount} invoice${leadCustomer.invoiceCount === 1 ? '' : 's'} | ${this.formatCurrency(leadCustomer.salesMvr, 'MVR')}`
-          : 'Top customer visibility appears after invoicing begins.',
-        tone: 'teal'
-      },
-      {
-        label: 'Lead Vessel',
-        value: leadVessel?.vesselName ?? 'No vessel sales yet',
-        meta: leadVessel
-          ? `${this.formatCurrency(leadVessel.salesMvr, 'MVR')} | ${this.formatCurrency(leadVessel.salesUsd, 'USD')}`
-          : `Average MVR month ${this.formatCurrency(averageMvr, 'MVR')}`,
-        tone: 'emerald'
-      }
-    ];
-  });
+  readonly visibleVesselsMvr = computed(() => this.sortedVesselsByCurrency('MVR'));
+  readonly visibleVesselsUsd = computed(() => this.sortedVesselsByCurrency('USD'));
+  readonly visibleVesselsTotalMvr = computed(() =>
+    this.visibleVesselsMvr().reduce((sum, vessel) => sum + this.vesselAmount(vessel, 'MVR'), 0));
+  readonly visibleVesselsTotalUsd = computed(() =>
+    this.visibleVesselsUsd().reduce((sum, vessel) => sum + this.vesselAmount(vessel, 'USD'), 0));
 
   readonly hasSalesData = computed(() =>
     this.salesTimeline().some((month) => month.salesMvr > 0 || month.salesUsd > 0));
 
-  readonly hasVesselData = computed(() =>
-    this.vesselSales().some((vessel) => this.vesselAmount(vessel, this.selectedVesselCurrency()) > 0));
+  readonly hasVesselDataMvr = computed(() => this.visibleVesselsMvr().length > 0);
+  readonly hasVesselDataUsd = computed(() => this.visibleVesselsUsd().length > 0);
 
   readonly salesChartOptions = computed<SalesChartOptions>(() => {
     const timeline = this.salesTimeline();
@@ -296,7 +270,8 @@ export class DashboardPageComponent implements OnInit {
       ],
       chart: {
         type: 'area',
-        height: 236,
+        height: this.salesChartHeight(),
+        parentHeightOffset: 0,
         toolbar: { show: false },
         zoom: { enabled: false },
         fontFamily: 'Gotham, Segoe UI, sans-serif',
@@ -360,7 +335,6 @@ export class DashboardPageComponent implements OnInit {
         {
           breakpoint: 760,
           options: {
-            chart: { height: 218 },
             legend: { position: 'bottom', horizontalAlign: 'center' }
           }
         }
@@ -368,63 +342,10 @@ export class DashboardPageComponent implements OnInit {
     };
   });
 
-  readonly vesselChartOptions = computed<VesselChartOptions>(() => {
-    const vessels = this.visibleVessels();
-    const selectedCurrency = this.selectedVesselCurrency();
-    const labels = vessels.map((vessel) => vessel.vesselName);
-    const series = vessels.map((vessel) => Number(this.vesselAmount(vessel, selectedCurrency)));
-    const total = series.reduce((sum, value) => sum + value, 0);
-
-    return {
-      series: series as ApexNonAxisChartSeries,
-      chart: {
-        type: 'donut',
-        height: 196,
-        fontFamily: 'Gotham, Segoe UI, sans-serif',
-        foreColor: '#607197'
-      },
-      labels,
-      colors: this.vesselPalette,
-      legend: { show: false },
-      tooltip: {
-        y: {
-          formatter: (value?: number) => this.formatCurrency(value ?? 0, selectedCurrency)
-        }
-      },
-      dataLabels: {
-        formatter: (value: number) => `${value.toFixed(0)}%`
-      },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: '70%',
-            labels: {
-              show: true,
-              total: {
-                show: true,
-                label: `Total ${selectedCurrency}`,
-                formatter: () => this.formatCurrency(total, selectedCurrency)
-              },
-              value: {
-                show: true,
-                formatter: (value: string) => this.formatCurrency(Number(value), selectedCurrency)
-              }
-            }
-          }
-        }
-      },
-      stroke: { width: 2, colors: ['#f8faff'] },
-      fill: { type: 'gradient' },
-      responsive: [
-        {
-          breakpoint: 760,
-          options: {
-            chart: { height: 208 }
-          }
-        }
-      ]
-    };
-  });
+  readonly vesselChartOptionsMvr = computed<VesselChartOptions>(() =>
+    this.buildVesselChartOptions('MVR', this.visibleVesselsMvr()));
+  readonly vesselChartOptionsUsd = computed<VesselChartOptions>(() =>
+    this.buildVesselChartOptions('USD', this.visibleVesselsUsd()));
 
   private readonly portalApi = inject(PortalApiService);
   private readonly toast = inject(ToastService);
@@ -433,8 +354,20 @@ export class DashboardPageComponent implements OnInit {
     this.loadAnalytics();
   }
 
-  setVesselCurrency(currency: SupportedCurrency): void {
-    this.selectedVesselCurrency.set(currency);
+  ngAfterViewInit(): void {
+    this.startSalesBoardSync();
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.handleWindowResize);
+
+      if (this.resizeFrame !== null) {
+        window.cancelAnimationFrame(this.resizeFrame);
+      }
+    }
   }
 
   toneBackground(tone: MetricTone): string {
@@ -449,8 +382,80 @@ export class DashboardPageComponent implements OnInit {
     return Math.max(12, Math.max(customer.contributionMvrPercentage, customer.contributionUsdPercentage));
   }
 
-  vesselAmount(vessel: DashboardVesselSales, currency: SupportedCurrency = this.selectedVesselCurrency()): number {
+  vesselAmount(vessel: DashboardVesselSales, currency: SupportedCurrency): number {
     return currency === 'USD' ? vessel.salesUsd : vessel.salesMvr;
+  }
+
+  private sortedVesselsByCurrency(currency: SupportedCurrency): DashboardVesselSales[] {
+    return [...this.vesselSales()]
+      .filter((vessel) => this.vesselAmount(vessel, currency) > 0)
+      .sort((a, b) => this.vesselAmount(b, currency) - this.vesselAmount(a, currency))
+      .slice(0, 4);
+  }
+
+  private buildVesselChartOptions(currency: SupportedCurrency, vessels: DashboardVesselSales[]): VesselChartOptions {
+    const labels = vessels.map((vessel) => vessel.vesselName);
+    const series = vessels.map((vessel) => Number(this.vesselAmount(vessel, currency)));
+    const palette = currency === 'USD' ? this.vesselPaletteUsd : this.vesselPaletteMvr;
+
+    return {
+      series: series as ApexNonAxisChartSeries,
+      chart: {
+        type: 'donut',
+        height: 208,
+        fontFamily: 'Gotham, Segoe UI, sans-serif',
+        foreColor: '#607197'
+      },
+      labels,
+      colors: palette,
+      legend: { show: false },
+      tooltip: {
+        y: {
+          formatter: (value?: number) => this.formatCurrency(value ?? 0, currency)
+        }
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (value: number) => (value >= 4 ? `${Math.round(value)}%` : ''),
+        style: {
+          fontSize: '11px',
+          fontWeight: '700',
+          colors: ['#ffffff']
+        },
+        background: {
+          enabled: false
+        },
+        dropShadow: {
+          enabled: false
+        }
+      },
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: {
+            size: '74%',
+            labels: {
+              show: false
+            }
+          }
+        }
+      },
+      stroke: { width: 2, colors: ['#f8faff'] },
+      fill: { type: 'gradient' },
+      responsive: [
+        {
+          breakpoint: 760,
+          options: {
+            chart: { height: 214 }
+          }
+        }
+      ]
+    };
+  }
+
+  vesselLegendColor(currency: SupportedCurrency, index: number): string {
+    const palette = currency === 'USD' ? this.vesselPaletteUsd : this.vesselPaletteMvr;
+    return palette[index % palette.length];
   }
 
   private loadAnalytics(): void {
@@ -499,5 +504,96 @@ export class DashboardPageComponent implements OnInit {
 
   private formatCompactNumber(value: number): string {
     return this.compactFormatter.format(value ?? 0);
+  }
+
+  private readonly handleWindowResize = (): void => {
+    this.scheduleSalesBoardSync();
+  };
+
+  private startSalesBoardSync(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const salesBoard = this.salesBoardRef?.nativeElement;
+    const salesHead = this.salesBoardHeadRef?.nativeElement;
+    const coverageBoard = this.coverageBoardRef?.nativeElement;
+
+    if (!salesBoard || !salesHead || !coverageBoard) {
+      return;
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.scheduleSalesBoardSync());
+      this.resizeObserver.observe(salesBoard);
+      this.resizeObserver.observe(salesHead);
+      this.resizeObserver.observe(coverageBoard);
+    }
+
+    window.addEventListener('resize', this.handleWindowResize, { passive: true });
+    this.scheduleSalesBoardSync();
+  }
+
+  private scheduleSalesBoardSync(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (this.resizeFrame !== null) {
+      window.cancelAnimationFrame(this.resizeFrame);
+    }
+
+    this.resizeFrame = window.requestAnimationFrame(() => {
+      this.resizeFrame = null;
+      this.zone.run(() => this.syncSalesBoardHeight());
+    });
+  }
+
+  private syncSalesBoardHeight(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const viewportWidth = window.innerWidth;
+    const nextHeight =
+      viewportWidth > 1360
+        ? this.measureWideSalesChartHeight()
+        : viewportWidth > 1040
+          ? 318
+          : viewportWidth > 860
+            ? 292
+            : viewportWidth > 720
+              ? 260
+              : 228;
+
+    if (Math.abs(this.salesChartHeight() - nextHeight) > 1) {
+      this.salesChartHeight.set(nextHeight);
+    }
+  }
+
+  private measureWideSalesChartHeight(): number {
+    const salesBoard = this.salesBoardRef?.nativeElement;
+    const salesHead = this.salesBoardHeadRef?.nativeElement;
+    const coverageBoard = this.coverageBoardRef?.nativeElement;
+
+    if (!salesBoard || !salesHead || !coverageBoard || typeof window === 'undefined') {
+      return 356;
+    }
+
+    const salesCard = salesBoard.querySelector('.card') as HTMLElement | null;
+    const coverageCard = coverageBoard.querySelector('.card') as HTMLElement | null;
+
+    if (!salesCard || !coverageCard) {
+      return 356;
+    }
+
+    const salesCardStyles = window.getComputedStyle(salesCard);
+    const paddingTop = parseFloat(salesCardStyles.paddingTop) || 0;
+    const paddingBottom = parseFloat(salesCardStyles.paddingBottom) || 0;
+    const rowGap = parseFloat(salesCardStyles.rowGap || salesCardStyles.gap) || 0;
+    const coverageContentHeight = coverageCard.scrollHeight;
+    const availableHeight = coverageContentHeight - paddingTop - paddingBottom - salesHead.offsetHeight - rowGap;
+
+    return Math.max(336, Math.round(availableHeight));
   }
 }

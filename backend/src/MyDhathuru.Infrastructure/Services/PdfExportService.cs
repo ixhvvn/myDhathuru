@@ -1449,50 +1449,223 @@ public class PdfExportService : IPdfExportService
     }
 
 
-    public byte[] BuildCustomersPdf(IReadOnlyList<CustomerDto> customers, string companyName, string companyInfo)
+    public byte[] BuildCustomersPdf(IReadOnlyList<CustomerDto> customers, string companyName, string companyInfo, string? logoUrl, CustomerListQuery query)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+
+        void Metric(IContainer container, string label, string value, string detail, string fillColor)
+        {
+            container.Border(1)
+                .BorderColor(Border)
+                .Background(fillColor)
+                .CornerRadius(14)
+                .Padding(10)
+                .Column(metric =>
+                {
+                    metric.Spacing(3);
+                    metric.Item().Text(label).FontSize(8.4f).SemiBold().FontColor(Muted);
+                    metric.Item().Text(value).FontSize(11.2f).Bold().FontColor(Ink);
+                    metric.Item().Text(detail).FontSize(8.1f).FontColor(Muted);
+                });
+        }
+
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var generatedAt = ToMaldivesTime(DateTimeOffset.UtcNow);
+        var searchLabel = string.IsNullOrWhiteSpace(query.Search) ? "All customers" : query.Search.Trim();
+        var sortLabel = query.SortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)
+            ? "Name (A-Z)"
+            : "Newest first";
+        var customersWithEmail = customers.Count(x => !string.IsNullOrWhiteSpace(x.Email));
+        var customersWithPhone = customers.Count(x => !string.IsNullOrWhiteSpace(x.Phone));
+        var customersWithReferences = customers.Count(x => x.References.Any());
+        var totalReferences = customers.Sum(x => x.References.Count);
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Margin(24);
-                    page.DefaultTextStyle(x => x.FontSize(10));
-                    page.Header().Column(column =>
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.3f).FontColor(Ink));
+
+                    page.Header().Column(header =>
                     {
-                        column.Item().Text(companyName).Bold().FontSize(18);
-                        column.Item().Text(companyInfo).FontSize(9).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(8).Text("Customer List").Bold().FontSize(14);
-                        column.Item().Text($"Total Customers: {customers.Count}");
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(64)
+                                            .Height(64)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Customer Directory").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Customer Directory").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(280)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("CUSTOMER EXPORT").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Records: {customers.Count:N0}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Search: {searchLabel}").FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Sort: {sortLabel}").FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Generated: {generatedAt:yyyy-MM-dd HH:mm} MVT").FontSize(8.6f);
+                                });
+                        });
+
+                        header.Item()
+                            .Text("Customer contact records exported in a cleaner management-ready directory format.")
+                            .FontSize(8.5f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
-                    page.Content().Table(table =>
+                    page.Content().Column(column =>
                     {
-                        table.ColumnsDefinition(columns =>
+                        column.Spacing(12);
+
+                        column.Item().Row(row =>
                         {
-                            columns.RelativeColumn(2.7f);
-                            columns.RelativeColumn(1.5f);
-                            columns.RelativeColumn(1.4f);
-                            columns.RelativeColumn(2.1f);
-                            columns.RelativeColumn(2f);
+                            row.Spacing(8);
+                            row.RelativeItem().Element(c => Metric(c, "Total Customers", customers.Count.ToString("N0"), "Customer records included in this export.", "#EEF3FF"));
+                            row.RelativeItem().Element(c => Metric(c, "With Email", customersWithEmail.ToString("N0"), "Records carrying an email address.", "#ECFAF6"));
+                            row.RelativeItem().Element(c => Metric(c, "With Phone", customersWithPhone.ToString("N0"), "Records carrying a phone number.", "#EFF8FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Reference Links", totalReferences.ToString("N0"), $"{customersWithReferences:N0} customer(s) include linked references.", "#F4F1FF"));
                         });
 
-                        table.Header(header =>
+                        if (customers.Count == 0)
                         {
-                            header.Cell().Text("Customer Name").Bold();
-                            header.Cell().Text("TIN").Bold();
-                            header.Cell().Text("Phone").Bold();
-                            header.Cell().Text("Email").Bold();
-                            header.Cell().Text("References").Bold();
-                        });
-
-                        foreach (var customer in customers)
-                        {
-                            table.Cell().Text(customer.Name);
-                            table.Cell().Text(customer.TinNumber ?? "-");
-                            table.Cell().Text(customer.Phone ?? "-");
-                            table.Cell().Text(customer.Email ?? "-");
-                            table.Cell().Text(customer.References.Any() ? string.Join(", ", customer.References) : "-");
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .PaddingVertical(34)
+                                .AlignCenter()
+                                .Text("No customers matched the current export filter.")
+                                .SemiBold()
+                                .FontColor(Muted);
                         }
+                        else
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(section =>
+                                {
+                                    section.Spacing(8);
+                                    section.Item().Text("Customer List").Bold().FontSize(10.5f).FontColor(Ink);
+
+                                    section.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn(2.6f);
+                                            columns.RelativeColumn(1.3f);
+                                            columns.RelativeColumn(1.4f);
+                                            columns.RelativeColumn(2.2f);
+                                            columns.RelativeColumn(2.1f);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Customer Name").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("TIN").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Phone").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Email").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("References").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var index = 0; index < customers.Count; index++)
+                                        {
+                                            var customer = customers[index];
+                                            var background = index % 2 == 0 ? "#FFFFFF" : Panel;
+                                            var references = customer.References.Any() ? string.Join(", ", customer.References) : "-";
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(customer.Name));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(customer.TinNumber));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(customer.Phone));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(customer.Email));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(references));
+                                        }
+
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text("TOTAL").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(customers.Count.ToString("N0")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(customersWithPhone.ToString("N0")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(customersWithEmail.ToString("N0")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(totalReferences.ToString("N0")).Bold().FontColor(Ink);
+                                    });
+                                });
+                        }
+                    });
+
+                    page.Footer().Row(footer =>
+                    {
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
+
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
+                        });
                     });
                 });
             })
