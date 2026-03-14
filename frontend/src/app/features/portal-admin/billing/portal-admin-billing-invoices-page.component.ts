@@ -69,7 +69,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 
     <app-loader *ngIf="loading()"></app-loader>
 
-    <app-card *ngIf="!loading()">
+    <app-card *ngIf="!loading()" class="results-card">
       <app-empty-state
         *ngIf="rows().length === 0"
         title="No billing invoices found"
@@ -181,6 +181,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     .page-head h1 { margin: 0; font-family: var(--font-heading); font-size: 1.48rem; color: #2f4269; font-weight: 600; }
     .page-head p { margin: .3rem 0 0; color: #62749c; }
     .filter-card { margin-top: .8rem; --card-padding: .84rem; }
+    .results-card { margin-top: .8rem; }
     .filters {
       display: flex;
       flex-wrap: wrap;

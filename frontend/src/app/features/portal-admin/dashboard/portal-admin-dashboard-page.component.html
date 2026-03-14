@@ -1,0 +1,198 @@
+<section class="portal-admin-dashboard">
+  <app-loader *ngIf="loading()"></app-loader>
+
+  <ng-container *ngIf="!loading() && data() as dashboard; else unavailableTpl">
+    <section class="dashboard-head">
+      <div>
+        <span class="eyebrow">Infographic dashboard</span>
+        <h1>Portal Admin Dashboard</h1>
+        <p>Activation, approvals, tenant scale, and control activity in a single compact operations board.</p>
+      </div>
+      <div class="head-chip">
+        <span>Queue status</span>
+        <strong>{{ dashboard.pendingSignupRequests === 0 ? 'Clear' : dashboard.pendingSignupRequests + ' pending' }}</strong>
+      </div>
+    </section>
+
+    <section class="metric-ribbon">
+      <article
+        *ngFor="let metric of summaryMetrics()"
+        class="snapshot-card"
+        [style.--tone-bg]="toneBackground(metric.tone)">
+        <span>{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <small>{{ metric.meta }}</small>
+      </article>
+    </section>
+
+    <section class="dashboard-grid">
+      <app-card class="panel panel--overview">
+        <div class="panel-head">
+          <div>
+            <span class="card-eyebrow">Platform posture</span>
+            <h2>Access health and queue balance</h2>
+            <p>Approval pressure, enabled access, and platform control visibility.</p>
+          </div>
+          <span class="panel-badge">Live</span>
+        </div>
+
+        <div class="ring-grid">
+          <article *ngFor="let ring of statusRings()" class="ring-card">
+            <div class="progress-ring" [style.--progress]="ring.percent" [style.--ring-color]="toneColor(ring.tone)">
+              <div class="progress-ring__inner">
+                <small>{{ ring.label }}</small>
+                <strong>{{ ring.percent }}%</strong>
+              </div>
+            </div>
+            <div class="ring-copy">
+              <strong>{{ ring.primary }}</strong>
+              <small>{{ ring.secondary }}</small>
+            </div>
+          </article>
+        </div>
+
+        <div class="health-grid">
+          <article class="health-card" [style.--tone-bg]="toneBackground('emerald')">
+            <span>Active businesses</span>
+            <strong>{{ dashboard.activeBusinesses }}</strong>
+            <small>Businesses currently enabled on the platform.</small>
+          </article>
+          <article class="health-card" [style.--tone-bg]="toneBackground('rose')">
+            <span>Disabled businesses</span>
+            <strong>{{ dashboard.disabledBusinesses }}</strong>
+            <small>Accounts paused or blocked from access.</small>
+          </article>
+          <article class="health-card" [style.--tone-bg]="toneBackground('amber')">
+            <span>Pending approvals</span>
+            <strong>{{ dashboard.pendingSignupRequests }}</strong>
+            <small>Requests waiting for review and conversion.</small>
+          </article>
+          <article class="health-card" [style.--tone-bg]="toneBackground('sky')">
+            <span>Recent admin actions</span>
+            <strong>{{ latestActions().length }}</strong>
+            <small>Control events visible in the live feed.</small>
+          </article>
+        </div>
+      </app-card>
+
+      <app-card class="panel panel--activity">
+        <div class="panel-head">
+          <div>
+            <span class="card-eyebrow">Control stream</span>
+            <h2>Latest admin actions</h2>
+            <p>Fast read on what changed most recently across approvals, billing, and access control.</p>
+          </div>
+          <span class="panel-badge panel-badge--soft">{{ latestActions().length }} shown</span>
+        </div>
+
+        <div class="mix-grid" *ngIf="actionMix().length">
+          <article *ngFor="let mix of actionMix()" class="mix-card">
+            <div class="mix-card__head">
+              <span>{{ mix.label }}</span>
+              <strong>{{ mix.count }}</strong>
+            </div>
+            <div class="mix-bar">
+              <span [style.width.%]="mix.percent" [style.--bar-color]="toneColor(mix.tone)"></span>
+            </div>
+            <small>{{ mix.meta }}</small>
+          </article>
+        </div>
+
+        <ul class="feed-list" *ngIf="latestActions().length; else noActionsTpl">
+          <li *ngFor="let action of latestActions()">
+            <span class="feed-dot"></span>
+            <div class="feed-copy">
+              <strong>{{ formatActionType(action.actionType) }}</strong>
+              <p>{{ action.targetName || action.targetType }} / {{ action.performedByName || 'System' }}</p>
+            </div>
+            <time>{{ action.performedAt | date:'MMM d, HH:mm' }}</time>
+          </li>
+        </ul>
+      </app-card>
+
+      <app-card class="panel panel--requests">
+        <div class="panel-head">
+          <div>
+            <span class="card-eyebrow">Approval pipeline</span>
+            <h2>Recent signup requests</h2>
+            <p>Status mix and most recent inbound business submissions.</p>
+          </div>
+          <span class="panel-badge">{{ dashboard.recentSignupRequests.length }} recent</span>
+        </div>
+
+        <div class="mix-grid mix-grid--requests" *ngIf="requestMix().length">
+          <article *ngFor="let mix of requestMix()" class="mix-card mix-card--status">
+            <div class="mix-card__head">
+              <span>{{ mix.label }}</span>
+              <strong>{{ mix.count }}</strong>
+            </div>
+            <div class="mix-bar">
+              <span [style.width.%]="mix.percent" [style.--bar-color]="toneColor(mix.tone)"></span>
+            </div>
+            <small>{{ mix.meta }}</small>
+          </article>
+        </div>
+
+        <div class="request-list" *ngIf="dashboard.recentSignupRequests.length; else noRequestsTpl">
+          <article *ngFor="let request of dashboard.recentSignupRequests | slice:0:3" class="request-card">
+            <div class="request-card__date">
+              <span>{{ request.requestDate | date:'MMM d' }}</span>
+              <strong>{{ request.requestDate | date:'HH:mm' }}</strong>
+            </div>
+            <div class="request-card__body">
+              <strong>{{ request.companyName }}</strong>
+              <p>{{ request.requestedByName }}</p>
+            </div>
+            <span class="status" [attr.data-status]="request.status">{{ request.status }}</span>
+          </article>
+        </div>
+      </app-card>
+
+      <app-card class="panel panel--scale">
+        <div class="panel-head">
+          <div>
+            <span class="card-eyebrow">Platform scale</span>
+            <h2>Business, staff, and fleet ratios</h2>
+            <p>Relative size of the platform footprint across current tenant data.</p>
+          </div>
+          <span class="panel-badge panel-badge--soft">Relative counts</span>
+        </div>
+
+        <div class="scale-list">
+          <article *ngFor="let bar of scaleBars()" class="scale-row">
+            <div class="scale-row__head">
+              <span>{{ bar.label }}</span>
+              <strong>{{ bar.value }}</strong>
+            </div>
+            <div class="scale-bar__track">
+              <span [style.width.%]="bar.percent" [style.--bar-color]="toneColor(bar.tone)"></span>
+            </div>
+            <small>{{ bar.meta }}</small>
+          </article>
+        </div>
+      </app-card>
+    </section>
+  </ng-container>
+
+  <ng-template #noActionsTpl>
+    <div class="empty-note">
+      <strong>No actions logged yet</strong>
+      <p>Approvals, resets, and billing actions will stream here once activity starts.</p>
+    </div>
+  </ng-template>
+
+  <ng-template #noRequestsTpl>
+    <div class="empty-note">
+      <strong>No signup requests yet</strong>
+      <p>The approval queue is currently empty.</p>
+    </div>
+  </ng-template>
+
+  <ng-template #unavailableTpl>
+    <app-empty-state
+      *ngIf="!loading()"
+      title="Dashboard unavailable"
+      description="Portal admin metrics could not be loaded right now.">
+    </app-empty-state>
+  </ng-template>
+</section>

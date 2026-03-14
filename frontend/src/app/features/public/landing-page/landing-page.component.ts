@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { HostContextService } from '../../../core/services/host-context.service';
 
 type FeatureIcon = 'delivery' | 'invoice' | 'accounts' | 'customers' | 'payroll' | 'reports';
+type SurfaceTone = 'indigo' | 'teal' | 'amber' | 'violet';
 
 interface NavLink {
   readonly label: string;
@@ -19,11 +20,31 @@ interface FeatureItem {
 interface WorkflowStep {
   readonly title: string;
   readonly description: string;
+  readonly status: string;
 }
 
 interface ControlPoint {
   readonly title: string;
   readonly description: string;
+  readonly stat: string;
+}
+
+interface HeroHighlight {
+  readonly label: string;
+  readonly value: string;
+  readonly detail: string;
+  readonly tone: SurfaceTone;
+}
+
+interface ProofMetric {
+  readonly value: string;
+  readonly label: string;
+  readonly detail: string;
+}
+
+interface PricingBenefit {
+  readonly title: string;
+  readonly detail: string;
 }
 
 interface SalesTrendPoint {
@@ -91,38 +112,106 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
   readonly workflowSteps: readonly WorkflowStep[] = [
     {
       title: 'Create delivery note',
-      description: 'Capture vessel service details and quantities with structured records.'
+      description: 'Capture vessel service details and quantities with structured records.',
+      status: 'Recorded'
     },
     {
       title: 'Convert to invoice',
-      description: 'Generate billing directly from delivery activity to avoid duplicate work.'
+      description: 'Generate billing directly from delivery activity to avoid duplicate work.',
+      status: 'Issued'
     },
     {
       title: 'Track payment status',
-      description: 'Monitor paid, pending, and overdue invoices in real time.'
+      description: 'Monitor paid, pending, and overdue invoices in real time.',
+      status: 'Watching'
     },
     {
       title: 'Monitor account balance',
-      description: 'Keep customer account statements accurate and up to date.'
+      description: 'Keep customer account statements accurate and up to date.',
+      status: 'Balanced'
     },
     {
       title: 'Generate reports',
-      description: 'Review business performance and export executive-ready summaries.'
+      description: 'Review business performance and export executive-ready summaries.',
+      status: 'Export'
     }
   ];
 
   readonly controlPoints: readonly ControlPoint[] = [
     {
       title: 'Centralized operations',
-      description: 'Run delivery, invoicing, payroll, and reporting from a unified workspace.'
+      description: 'Run delivery, invoicing, payroll, and reporting from a unified workspace.',
+      stat: 'One command surface'
     },
     {
       title: 'Secure account-based access',
-      description: 'Keep business data protected with role-based, authenticated access flows.'
+      description: 'Keep business data protected with role-based, authenticated access flows.',
+      stat: 'Role-based access'
     },
     {
       title: 'Scalable record management',
-      description: 'Organize customer, payroll, and financial records as operations grow.'
+      description: 'Organize customer, payroll, and financial records as operations grow.',
+      stat: 'Built to scale'
+    }
+  ];
+
+  readonly heroHighlights: readonly HeroHighlight[] = [
+    {
+      label: 'Delivery to invoice',
+      value: '1 connected flow',
+      detail: 'Move from vessel activity to billing without duplicate entry.',
+      tone: 'indigo'
+    },
+    {
+      label: 'Collections monitor',
+      value: '84% settled',
+      detail: 'Track paid and pending balances in one live view.',
+      tone: 'teal'
+    },
+    {
+      label: 'Payroll cycle',
+      value: '28-day close',
+      detail: 'Salary slips and payroll detail exports stay organized.',
+      tone: 'violet'
+    },
+    {
+      label: 'Exports ready',
+      value: 'PDF + Excel',
+      detail: 'Share reports, slips, invoices, and statements in minutes.',
+      tone: 'amber'
+    }
+  ];
+
+  readonly proofMetrics: readonly ProofMetric[] = [
+    {
+      value: '+12.4%',
+      label: 'Collection trend',
+      detail: 'Compared with the previous billing period.'
+    },
+    {
+      value: '42',
+      label: 'Live statements',
+      detail: 'Customer balances organized by workflow.'
+    },
+    {
+      value: '6 modules',
+      label: 'Operational stack',
+      detail: 'Delivery, invoice, customers, payroll, reports, and control.'
+    }
+  ];
+
+  readonly pricingBenefits: readonly PricingBenefit[] = [
+    {
+      title: 'Workflow-first setup',
+      detail: 'Structured around delivery notes, invoicing, payroll, and reports from day one.'
+    },
+    {
+      title: 'Guided onboarding',
+      detail: 'Get help configuring users, businesses, pricing, and export-ready documents.'
+    },
+    {
+      title: 'Operational clarity',
+      detail: 'Bring finance, admin, and vessel operations into one premium workspace.'
     }
   ];
 

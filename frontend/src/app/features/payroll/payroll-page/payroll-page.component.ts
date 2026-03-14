@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
@@ -36,6 +36,14 @@ import { ToastService } from '../../../core/services/toast.service';
           <app-button size="sm" (clicked)="openStaffCreate()">Create Staff</app-button>
         </div>
 
+        <div class="staff-meta" *ngIf="staffPage() as page">
+          <div class="staff-total-pill">
+            <span>Total Staff</span>
+            <strong>{{ page.totalCount }}</strong>
+          </div>
+          <p class="staff-summary">{{ staffPageSummary() }}</p>
+        </div>
+
         <app-data-table [hasData]="(staffPage()?.items?.length || 0) > 0" emptyTitle="No staff" emptyDescription="Create staff to run payroll.">
           <thead>
             <tr>
@@ -56,16 +64,24 @@ import { ToastService } from '../../../core/services/toast.service';
               <td>{{ staff.workSite || '-' }}</td>
               <td>{{ staff.bankName || '-' }}</td>
               <td>{{ staff.accountName || '-' }} / {{ staff.accountNumber || '-' }}</td>
-              <td class="actions">
+              <td class="row-actions">
                 <app-button size="sm" variant="secondary" (clicked)="editStaff(staff)">Edit</app-button>
                 <app-button size="sm" variant="danger" (clicked)="confirmDeleteStaff(staff)">Delete</app-button>
               </td>
             </tr>
           </tbody>
         </app-data-table>
+
+        <div class="staff-pager" *ngIf="staffPage() as page">
+          <span class="staff-pager-meta">Page {{ page.pageNumber }} of {{ page.totalPages || 1 }}</span>
+          <div class="staff-pager-actions">
+            <app-button size="sm" variant="secondary" [disabled]="page.pageNumber <= 1" (clicked)="changeStaffPage(page.pageNumber - 1)">Previous</app-button>
+            <app-button size="sm" variant="secondary" [disabled]="page.pageNumber >= (page.totalPages || 1)" (clicked)="changeStaffPage(page.pageNumber + 1)">Next</app-button>
+          </div>
+        </div>
       </app-card>
 
-      <app-card>
+      <app-card class="period-card">
         <div class="card-head">
           <h3>Payroll Periods</h3>
         </div>
@@ -140,7 +156,7 @@ import { ToastService } from '../../../core/services/toast.service';
             <td>{{ entry.pensionDeduction | appCurrency }}</td>
             <td>{{ entry.totalPay | appCurrency }}</td>
             <td>{{ entry.netPayable | appCurrency }}</td>
-            <td class="actions">
+            <td class="row-actions">
               <app-button size="sm" variant="secondary" (clicked)="editEntry(entry)">Edit</app-button>
               <app-button size="sm" variant="secondary" (clicked)="exportSlip(entry)">PDF</app-button>
             </td>
@@ -269,24 +285,93 @@ import { ToastService } from '../../../core/services/toast.service';
   styles: `
     .layout-grid {
       display: grid;
-      gap: 1.15rem;
-      grid-template-columns: 1.2fr 1fr;
+      gap: 1rem;
+      grid-template-columns: minmax(0, 1.7fr) minmax(320px, .82fr);
       align-items: start;
       margin-bottom: 1.2rem;
     }
     .layout-grid > app-card {
       align-self: start;
     }
-    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .7rem; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .7rem; gap: .75rem; }
+    .card-head h3 { margin: 0; }
+    .staff-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .85rem;
+      margin-bottom: .8rem;
+      flex-wrap: wrap;
+    }
+    .staff-total-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .72rem;
+      padding: .6rem .82rem;
+      border-radius: 18px;
+      border: 1px solid rgba(193, 206, 239, .95);
+      background: linear-gradient(145deg, rgba(243, 247, 255, .98), rgba(232, 244, 255, .9));
+      box-shadow: 0 10px 24px rgba(109, 134, 196, .12);
+    }
+    .staff-total-pill span {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #6a7fa7;
+    }
+    .staff-total-pill strong {
+      font-size: 1.3rem;
+      line-height: 1;
+      color: #213968;
+    }
+    .staff-summary {
+      margin: 0;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
     .period-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; align-items: end; }
     .period-picker { margin-top: .8rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
     .period-note { margin: .45rem 0 0; font-size: .78rem; color: var(--text-muted); }
+    .period-card {
+      --card-padding: .95rem;
+    }
     .period-detail {
       margin-top: .35rem;
       position: relative;
       z-index: 1;
     }
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      flex-wrap: nowrap;
+    }
+    .row-actions app-button {
+      flex: 0 0 auto;
+    }
+    .staff-pager {
+      margin-top: .85rem;
+      padding-top: .85rem;
+      border-top: 1px solid rgba(220, 229, 245, .9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      flex-wrap: wrap;
+    }
+    .staff-pager-meta {
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .staff-pager-actions {
+      display: inline-flex;
+      gap: .45rem;
+      align-items: center;
+    }
     .kpi { align-self: center; font-weight: 700; color: #173c68; }
     label { display: grid; gap: .24rem; font-size: .82rem; color: var(--text-muted); align-content: start; }
     .field-error {
@@ -340,6 +425,14 @@ import { ToastService } from '../../../core/services/toast.service';
         flex-wrap: wrap;
         gap: .5rem;
       }
+      .staff-meta,
+      .staff-pager {
+        align-items: stretch;
+      }
+      .staff-pager-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
       .period-form {
         grid-template-columns: 1fr;
       }
@@ -358,7 +451,21 @@ import { ToastService } from '../../../core/services/toast.service';
   `
 })
 export class PayrollPageComponent implements OnInit {
+  private static readonly payrollStartYear = 2026;
+
   readonly staffPage = signal<PagedResult<Staff> | null>(null);
+  readonly staffPageNumber = signal(1);
+  readonly staffPageSize = 5;
+  readonly staffPageSummary = computed(() => {
+    const page = this.staffPage();
+    if (!page || page.totalCount === 0) {
+      return 'No staff records available yet.';
+    }
+
+    const start = ((page.pageNumber || 1) - 1) * page.pageSize + 1;
+    const end = start + page.items.length - 1;
+    return `Showing ${start}-${end} of ${page.totalCount} staff records`;
+  });
   readonly periods = signal<PayrollPeriod[]>([]);
   readonly selectedPeriod = signal<PayrollPeriodDetail | null>(null);
 
@@ -651,6 +758,16 @@ export class PayrollPageComponent implements OnInit {
     return this.findPeriodByYearMonth(this.selectedPeriodYear(), this.selectedPeriodMonth()) !== null;
   }
 
+  changeStaffPage(page: number): void {
+    const current = this.staffPage();
+    const totalPages = Math.max(current?.totalPages || 1, 1);
+    if (page < 1 || page > totalPages) {
+      return;
+    }
+
+    this.loadStaff(page);
+  }
+
   private toDateInputValue(date: Date): string {
     const year = date.getFullYear();
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -658,9 +775,26 @@ export class PayrollPageComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  private loadStaff(): void {
-    this.api.getStaff({ pageNumber: 1, pageSize: 200 }).subscribe({
-      next: (result) => this.staffPage.set(result),
+  private loadStaff(pageNumber = this.staffPageNumber()): void {
+    const requestedPage = Math.max(pageNumber, 1);
+    this.api.getStaff({ pageNumber: requestedPage, pageSize: this.staffPageSize }).subscribe({
+      next: (result) => {
+        const normalizedResult: PagedResult<Staff> = {
+          ...result,
+          pageNumber: result.totalCount === 0 ? 1 : result.pageNumber || requestedPage,
+          pageSize: result.pageSize || this.staffPageSize,
+          totalPages: result.totalCount === 0 ? 1 : Math.max(result.totalPages || 1, 1)
+        };
+
+        if (normalizedResult.totalCount > 0 && requestedPage > normalizedResult.totalPages) {
+          this.staffPageNumber.set(normalizedResult.totalPages);
+          this.loadStaff(normalizedResult.totalPages);
+          return;
+        }
+
+        this.staffPageNumber.set(normalizedResult.pageNumber);
+        this.staffPage.set(normalizedResult);
+      },
       error: () => this.toast.error('Failed to load staff list.')
     });
   }
@@ -702,21 +836,24 @@ export class PayrollPageComponent implements OnInit {
   }
 
   private buildDefaultYearOptions(): number[] {
-    const currentYear = new Date().getFullYear();
+    const startYear = PayrollPageComponent.payrollStartYear;
+    const endYear = Math.max(new Date().getFullYear(), startYear) + 5;
     const years: number[] = [];
-    for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+    for (let year = startYear; year <= endYear; year++) {
       years.push(year);
     }
-    return years.sort((a, b) => b - a);
+    return years;
   }
 
   private buildYearOptionsFromPeriods(periods: PayrollPeriod[]): number[] {
     const set = new Set<number>(this.buildDefaultYearOptions());
     for (const period of periods) {
-      set.add(period.year);
+      if (period.year >= PayrollPageComponent.payrollStartYear) {
+        set.add(period.year);
+      }
     }
 
-    return [...set].sort((a, b) => b - a);
+    return [...set].sort((a, b) => a - b);
   }
 
   private readError(error: unknown, fallback: string): string {

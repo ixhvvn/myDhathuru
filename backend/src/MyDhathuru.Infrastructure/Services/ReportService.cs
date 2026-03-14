@@ -258,9 +258,9 @@ public class ReportService : IReportService
 
         return request.ReportType switch
         {
-            ReportType.SalesSummary => await ExportSalesSummaryPdfAsync(query, settings.CompanyName, companyInfo, cancellationToken),
-            ReportType.SalesTransactions => await ExportSalesTransactionsPdfAsync(query, settings.CompanyName, companyInfo, cancellationToken),
-            ReportType.SalesByVessel => await ExportSalesByVesselPdfAsync(query, settings.CompanyName, companyInfo, cancellationToken),
+            ReportType.SalesSummary => await ExportSalesSummaryPdfAsync(query, settings.CompanyName, companyInfo, settings.LogoUrl, cancellationToken),
+            ReportType.SalesTransactions => await ExportSalesTransactionsPdfAsync(query, settings.CompanyName, companyInfo, settings.LogoUrl, cancellationToken),
+            ReportType.SalesByVessel => await ExportSalesByVesselPdfAsync(query, settings.CompanyName, companyInfo, settings.LogoUrl, cancellationToken),
             _ => throw new AppException("Unsupported report type.")
         };
     }
@@ -314,10 +314,11 @@ public class ReportService : IReportService
         ReportFilterQuery query,
         string companyName,
         string companyInfo,
+        string? logoUrl,
         CancellationToken cancellationToken)
     {
         var report = await GetSalesSummaryAsync(query, cancellationToken);
-        var bytes = _pdfExportService.BuildSalesSummaryReportPdf(report, companyName, companyInfo);
+        var bytes = _pdfExportService.BuildSalesSummaryReportPdf(report, companyName, companyInfo, logoUrl);
 
         return new ReportExportResultDto
         {
@@ -331,10 +332,11 @@ public class ReportService : IReportService
         ReportFilterQuery query,
         string companyName,
         string companyInfo,
+        string? logoUrl,
         CancellationToken cancellationToken)
     {
         var report = await GetSalesTransactionsAsync(query, cancellationToken);
-        var bytes = _pdfExportService.BuildSalesTransactionsReportPdf(report, companyName, companyInfo);
+        var bytes = _pdfExportService.BuildSalesTransactionsReportPdf(report, companyName, companyInfo, logoUrl);
 
         return new ReportExportResultDto
         {
@@ -348,10 +350,11 @@ public class ReportService : IReportService
         ReportFilterQuery query,
         string companyName,
         string companyInfo,
+        string? logoUrl,
         CancellationToken cancellationToken)
     {
         var report = await GetSalesByVesselAsync(query, cancellationToken);
-        var bytes = _pdfExportService.BuildSalesByVesselReportPdf(report, companyName, companyInfo);
+        var bytes = _pdfExportService.BuildSalesByVesselReportPdf(report, companyName, companyInfo, logoUrl);
 
         return new ReportExportResultDto
         {
@@ -516,58 +519,60 @@ public class ReportService : IReportService
 
     private static byte[] BuildSalesSummaryExcel(SalesSummaryReportDto report)
     {
-        using var workbook = new XLWorkbook();
+        using var workbook = CreateReportWorkbook();
         var sheet = workbook.Worksheets.Add("Sales Summary");
 
-        var tableStartRow = WriteHeader(sheet, "Sales Summary Report", report.Meta, 8);
+        var row = WriteWorkbookHeader(
+            sheet,
+            "Sales Summary Report",
+            "Daily billing performance, receipt capture, pending balances, and tax visibility.",
+            report.Meta,
+            8);
 
-        var metricRow = tableStartRow;
-        sheet.Cell(metricRow, 1).Value = "Total Invoices";
-        sheet.Cell(metricRow, 2).Value = report.TotalInvoices;
-        sheet.Cell(metricRow, 3).Value = "Total Customers";
-        sheet.Cell(metricRow, 4).Value = report.TotalCustomers;
-        StyleMetricHeader(sheet.Range(metricRow, 1, metricRow, 4));
+        row = WriteSummaryTiles(
+            sheet,
+            row,
+            8,
+            [
+                new ExcelSummaryTile("Total Invoices", report.TotalInvoices.ToString("N0"), "Invoices issued in selected period.", "#EEF3FF"),
+                new ExcelSummaryTile("Total Customers", report.TotalCustomers.ToString("N0"), "Distinct billed customers in range.", "#ECFAF6"),
+                new ExcelSummaryTile("Sales (MVR)", report.TotalSales.Mvr.ToString("N2"), "Gross billed in MVR.", "#F4F1FF"),
+                new ExcelSummaryTile("Sales (USD)", report.TotalSales.Usd.ToString("N2"), "Gross billed in USD.", "#EFF8FF"),
+                new ExcelSummaryTile("Received (MVR)", report.TotalReceived.Mvr.ToString("N2"), "Collections captured in MVR.", "#F3FBF7"),
+                new ExcelSummaryTile("Pending (MVR)", report.TotalPending.Mvr.ToString("N2"), "Open MVR receivables.", "#FFF4F7"),
+                new ExcelSummaryTile("Received (USD)", report.TotalReceived.Usd.ToString("N2"), "Collections captured in USD.", "#EEF9FF"),
+                new ExcelSummaryTile("Tax Total", $"{report.TotalTax.Mvr:N2} MVR / {report.TotalTax.Usd:N2} USD", "Reported tax across both currencies.", "#FFF8EE")
+            ]);
 
-        var currencyMetricRow = metricRow + 1;
-        sheet.Cell(currencyMetricRow, 1).Value = "Metric";
-        sheet.Cell(currencyMetricRow, 2).Value = "MVR";
-        sheet.Cell(currencyMetricRow, 3).Value = "USD";
-        StyleTableHeader(sheet.Range(currencyMetricRow, 1, currencyMetricRow, 3));
+        row = WriteSectionHeading(sheet, row, 1, 8, "Daily sales breakdown");
+        var headerRow = row + 1;
 
-        var metricDataRow = currencyMetricRow + 1;
-        WriteCurrencyMetric(sheet, metricDataRow++, "Total Sales", report.TotalSales);
-        WriteCurrencyMetric(sheet, metricDataRow++, "Total Received", report.TotalReceived);
-        WriteCurrencyMetric(sheet, metricDataRow++, "Total Pending", report.TotalPending);
-        WriteCurrencyMetric(sheet, metricDataRow, "Total Tax", report.TotalTax);
-        StyleDataBorder(sheet.Range(currencyMetricRow + 1, 1, metricDataRow, 3));
-        sheet.Range(currencyMetricRow + 1, 2, metricDataRow, 3).Style.NumberFormat.Format = "#,##0.00";
-
-        var headerRow = metricDataRow + 2;
         sheet.Cell(headerRow, 1).Value = "Date";
-        sheet.Cell(headerRow, 2).Value = "No. of Invoices";
+        sheet.Cell(headerRow, 2).Value = "Invoices";
         sheet.Cell(headerRow, 3).Value = "Sales (MVR)";
         sheet.Cell(headerRow, 4).Value = "Sales (USD)";
         sheet.Cell(headerRow, 5).Value = "Received (MVR)";
         sheet.Cell(headerRow, 6).Value = "Received (USD)";
         sheet.Cell(headerRow, 7).Value = "Pending (MVR)";
         sheet.Cell(headerRow, 8).Value = "Pending (USD)";
-        StyleTableHeader(sheet.Range(headerRow, 1, headerRow, 8));
+        StyleExcelTableHeader(sheet.Range(headerRow, 1, headerRow, 8));
 
-        var row = headerRow + 1;
+        var dataStartRow = headerRow + 1;
+        var rowIndex = dataStartRow;
         foreach (var item in report.Rows)
         {
-            sheet.Cell(row, 1).Value = item.Date.ToString("yyyy-MM-dd");
-            sheet.Cell(row, 2).Value = item.InvoiceCount;
-            sheet.Cell(row, 3).Value = item.SalesMvr;
-            sheet.Cell(row, 4).Value = item.SalesUsd;
-            sheet.Cell(row, 5).Value = item.ReceivedMvr;
-            sheet.Cell(row, 6).Value = item.ReceivedUsd;
-            sheet.Cell(row, 7).Value = item.PendingMvr;
-            sheet.Cell(row, 8).Value = item.PendingUsd;
-            row++;
+            sheet.Cell(rowIndex, 1).Value = item.Date.ToString("yyyy-MM-dd");
+            sheet.Cell(rowIndex, 2).Value = item.InvoiceCount;
+            sheet.Cell(rowIndex, 3).Value = item.SalesMvr;
+            sheet.Cell(rowIndex, 4).Value = item.SalesUsd;
+            sheet.Cell(rowIndex, 5).Value = item.ReceivedMvr;
+            sheet.Cell(rowIndex, 6).Value = item.ReceivedUsd;
+            sheet.Cell(rowIndex, 7).Value = item.PendingMvr;
+            sheet.Cell(rowIndex, 8).Value = item.PendingUsd;
+            rowIndex++;
         }
 
-        var totalRow = row;
+        var totalRow = rowIndex;
         sheet.Cell(totalRow, 1).Value = "TOTAL";
         sheet.Cell(totalRow, 2).Value = report.TotalInvoices;
         sheet.Cell(totalRow, 3).Value = report.TotalSales.Mvr;
@@ -576,18 +581,21 @@ public class ReportService : IReportService
         sheet.Cell(totalRow, 6).Value = report.TotalReceived.Usd;
         sheet.Cell(totalRow, 7).Value = report.TotalPending.Mvr;
         sheet.Cell(totalRow, 8).Value = report.TotalPending.Usd;
-        StyleTotalsRow(sheet.Range(totalRow, 1, totalRow, 8));
 
         if (report.Rows.Count > 0)
         {
-            StyleDataBorder(sheet.Range(headerRow + 1, 1, totalRow - 1, 8));
+            StyleExcelBodyRows(sheet.Range(dataStartRow, 1, totalRow - 1, 8));
             sheet.Range(headerRow, 1, totalRow - 1, 8).SetAutoFilter();
         }
 
-        sheet.Range(headerRow + 1, 3, totalRow, 8).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 2, totalRow, 2).Style.NumberFormat.Format = "#,##0";
-        sheet.SheetView.FreezeRows(headerRow);
-        sheet.Columns(1, 8).AdjustToContents();
+        StyleExcelTotalRow(sheet.Range(totalRow, 1, totalRow, 8));
+        sheet.Range(dataStartRow, 2, totalRow, 2).Style.NumberFormat.Format = "#,##0";
+        sheet.Range(dataStartRow, 3, totalRow, 8).Style.NumberFormat.Format = "#,##0.00";
+
+        sheet.Column(1).Width = 14;
+        sheet.Column(2).Width = 12;
+        sheet.Columns(3, 8).Width = 16;
+        FinalizeReportSheet(sheet, headerRow, totalRow, 8);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -596,77 +604,100 @@ public class ReportService : IReportService
 
     private static byte[] BuildSalesTransactionsExcel(SalesTransactionsReportDto report)
     {
-        using var workbook = new XLWorkbook();
+        using var workbook = CreateReportWorkbook();
         var sheet = workbook.Worksheets.Add("Sales Transactions");
 
-        var tableStartRow = WriteHeader(sheet, "Sales Transactions Report", report.Meta, 11);
+        var row = WriteWorkbookHeader(
+            sheet,
+            "Sales Transactions Report",
+            "Invoice-level sales activity with vessel context, payment status, and balance exposure.",
+            report.Meta,
+            11);
 
-        var metricRow = tableStartRow;
-        sheet.Cell(metricRow, 1).Value = "Transactions";
-        sheet.Cell(metricRow, 2).Value = report.TotalTransactions;
-        StyleMetricHeader(sheet.Range(metricRow, 1, metricRow, 2));
+        row = WriteSummaryTiles(
+            sheet,
+            row,
+            11,
+            [
+                new ExcelSummaryTile("Transactions", report.TotalTransactions.ToString("N0"), "Individual invoice rows in the current export.", "#EEF3FF"),
+                new ExcelSummaryTile("Sales (MVR)", report.TotalSales.Mvr.ToString("N2"), "Gross sales booked in MVR.", "#ECFAF6"),
+                new ExcelSummaryTile("Sales (USD)", report.TotalSales.Usd.ToString("N2"), "Gross sales booked in USD.", "#EFF8FF"),
+                new ExcelSummaryTile("Pending (MVR)", report.TotalPending.Mvr.ToString("N2"), "Outstanding MVR balances.", "#FFF4F7"),
+                new ExcelSummaryTile("Pending (USD)", report.TotalPending.Usd.ToString("N2"), "Outstanding USD balances.", "#FFF8EE"),
+                new ExcelSummaryTile("Received (MVR)", report.TotalReceived.Mvr.ToString("N2"), "Recorded MVR collections.", "#F3FBF7"),
+                new ExcelSummaryTile("Received (USD)", report.TotalReceived.Usd.ToString("N2"), "Recorded USD collections.", "#EEF9FF"),
+                new ExcelSummaryTile("Balance View", $"{report.TotalPending.Mvr:N2} / {report.TotalPending.Usd:N2}", "MVR and USD pending totals side by side.", "#F4F1FF")
+            ]);
 
-        var totalsHeaderRow = metricRow + 1;
-        sheet.Cell(totalsHeaderRow, 1).Value = "Metric";
-        sheet.Cell(totalsHeaderRow, 2).Value = "MVR";
-        sheet.Cell(totalsHeaderRow, 3).Value = "USD";
-        StyleTableHeader(sheet.Range(totalsHeaderRow, 1, totalsHeaderRow, 3));
+        row = WriteSectionHeading(sheet, row, 1, 11, "Transaction register");
+        var headerRow = row + 1;
 
-        var totalsRow = totalsHeaderRow + 1;
-        WriteCurrencyMetric(sheet, totalsRow++, "Total Sales", report.TotalSales);
-        WriteCurrencyMetric(sheet, totalsRow++, "Total Received", report.TotalReceived);
-        WriteCurrencyMetric(sheet, totalsRow, "Total Pending", report.TotalPending);
-        StyleDataBorder(sheet.Range(totalsHeaderRow + 1, 1, totalsRow, 3));
-        sheet.Range(totalsHeaderRow + 1, 2, totalsRow, 3).Style.NumberFormat.Format = "#,##0.00";
-
-        var headerRow = totalsRow + 2;
         sheet.Cell(headerRow, 1).Value = "Invoice No";
         sheet.Cell(headerRow, 2).Value = "Date Issued";
         sheet.Cell(headerRow, 3).Value = "Customer";
         sheet.Cell(headerRow, 4).Value = "Vessel";
-        sheet.Cell(headerRow, 5).Value = "Description / Details";
+        sheet.Cell(headerRow, 5).Value = "Description";
         sheet.Cell(headerRow, 6).Value = "Currency";
         sheet.Cell(headerRow, 7).Value = "Amount";
         sheet.Cell(headerRow, 8).Value = "Payment Status";
         sheet.Cell(headerRow, 9).Value = "Payment Method";
         sheet.Cell(headerRow, 10).Value = "Received On";
         sheet.Cell(headerRow, 11).Value = "Balance";
-        StyleTableHeader(sheet.Range(headerRow, 1, headerRow, 11));
+        StyleExcelTableHeader(sheet.Range(headerRow, 1, headerRow, 11));
 
-        var row = headerRow + 1;
+        var dataStartRow = headerRow + 1;
+        var rowIndex = dataStartRow;
         foreach (var item in report.Rows)
         {
-            sheet.Cell(row, 1).Value = item.InvoiceNo;
-            sheet.Cell(row, 2).Value = item.DateIssued.ToString("yyyy-MM-dd");
-            sheet.Cell(row, 3).Value = item.Customer;
-            sheet.Cell(row, 4).Value = item.Vessel;
-            sheet.Cell(row, 5).Value = item.Description;
-            sheet.Cell(row, 6).Value = item.Currency;
-            sheet.Cell(row, 7).Value = item.Amount;
-            sheet.Cell(row, 8).Value = item.PaymentStatus;
-            sheet.Cell(row, 9).Value = item.PaymentMethod;
-            sheet.Cell(row, 10).Value = item.ReceivedOn?.ToString("yyyy-MM-dd") ?? "-";
-            sheet.Cell(row, 11).Value = item.Balance;
-            row++;
+            sheet.Cell(rowIndex, 1).Value = item.InvoiceNo;
+            sheet.Cell(rowIndex, 2).Value = item.DateIssued.ToString("yyyy-MM-dd");
+            sheet.Cell(rowIndex, 3).Value = item.Customer;
+            sheet.Cell(rowIndex, 4).Value = item.Vessel;
+            sheet.Cell(rowIndex, 5).Value = item.Description;
+            sheet.Cell(rowIndex, 6).Value = item.Currency;
+            sheet.Cell(rowIndex, 7).Value = item.Amount;
+            sheet.Cell(rowIndex, 8).Value = item.PaymentStatus;
+            sheet.Cell(rowIndex, 9).Value = item.PaymentMethod;
+            sheet.Cell(rowIndex, 10).Value = item.ReceivedOn?.ToString("yyyy-MM-dd") ?? "-";
+            sheet.Cell(rowIndex, 11).Value = item.Balance;
+            rowIndex++;
         }
 
-        var totalRow = row;
+        var totalRow = rowIndex;
         sheet.Cell(totalRow, 1).Value = "TOTAL";
         sheet.Cell(totalRow, 7).Value = $"{report.TotalSales.Mvr:N2} MVR / {report.TotalSales.Usd:N2} USD";
         sheet.Cell(totalRow, 11).Value = $"{report.TotalPending.Mvr:N2} MVR / {report.TotalPending.Usd:N2} USD";
-        StyleTotalsRow(sheet.Range(totalRow, 1, totalRow, 11));
 
         if (report.Rows.Count > 0)
         {
-            StyleDataBorder(sheet.Range(headerRow + 1, 1, totalRow - 1, 11));
+            StyleExcelBodyRows(sheet.Range(dataStartRow, 1, totalRow - 1, 11));
             sheet.Range(headerRow, 1, totalRow - 1, 11).SetAutoFilter();
+
+            for (var statusRow = dataStartRow; statusRow < totalRow; statusRow++)
+            {
+                StylePaymentStatusCell(sheet.Cell(statusRow, 8), sheet.Cell(statusRow, 8).GetString());
+            }
         }
 
-        sheet.Range(headerRow + 1, 7, totalRow - 1, 7).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 11, totalRow - 1, 11).Style.NumberFormat.Format = "#,##0.00";
-        sheet.SheetView.FreezeRows(headerRow);
-        sheet.Columns(1, 11).AdjustToContents();
-        sheet.Column(5).Width = Math.Max(36, sheet.Column(5).Width);
+        StyleExcelTotalRow(sheet.Range(totalRow, 1, totalRow, 11));
+        if (totalRow > dataStartRow)
+        {
+            sheet.Range(dataStartRow, 7, totalRow - 1, 7).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Range(dataStartRow, 11, totalRow - 1, 11).Style.NumberFormat.Format = "#,##0.00";
+        }
+
+        sheet.Column(1).Width = 17;
+        sheet.Column(2).Width = 13;
+        sheet.Column(3).Width = 20;
+        sheet.Column(4).Width = 18;
+        sheet.Column(5).Width = 40;
+        sheet.Column(6).Width = 11;
+        sheet.Column(7).Width = 14;
+        sheet.Column(8).Width = 15;
+        sheet.Column(9).Width = 15;
+        sheet.Column(10).Width = 13;
+        sheet.Column(11).Width = 14;
+        FinalizeReportSheet(sheet, headerRow, totalRow, 11);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -675,53 +706,62 @@ public class ReportService : IReportService
 
     private static byte[] BuildSalesByVesselExcel(SalesByVesselReportDto report)
     {
-        using var workbook = new XLWorkbook();
+        using var workbook = CreateReportWorkbook();
         var sheet = workbook.Worksheets.Add("Sales By Vessel");
+        var leadMvr = report.Rows
+            .Where(x => string.Equals(x.Currency, "MVR", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.TotalSales)
+            .FirstOrDefault();
+        var leadUsd = report.Rows
+            .Where(x => string.Equals(x.Currency, "USD", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.TotalSales)
+            .FirstOrDefault();
 
-        var tableStartRow = WriteHeader(sheet, "Sales By Vessel Report", report.Meta, 7);
+        var row = WriteWorkbookHeader(
+            sheet,
+            "Sales By Vessel Report",
+            "Contribution, receipts, and pending balances grouped by vessel and currency.",
+            report.Meta,
+            7);
 
-        var metricRow = tableStartRow;
-        sheet.Cell(metricRow, 1).Value = "Transactions";
-        sheet.Cell(metricRow, 2).Value = report.TotalTransactions;
-        StyleMetricHeader(sheet.Range(metricRow, 1, metricRow, 2));
+        row = WriteSummaryTiles(
+            sheet,
+            row,
+            7,
+            [
+                new ExcelSummaryTile("Transactions", report.TotalTransactions.ToString("N0"), "All transactions in this vessel export.", "#EEF3FF"),
+                new ExcelSummaryTile("Sales (MVR)", report.TotalSales.Mvr.ToString("N2"), leadMvr is null ? "No MVR vessel sales in range." : $"Lead MVR vessel: {leadMvr.Vessel}", "#ECFAF6"),
+                new ExcelSummaryTile("Sales (USD)", report.TotalSales.Usd.ToString("N2"), leadUsd is null ? "No USD vessel sales in range." : $"Lead USD vessel: {leadUsd.Vessel}", "#EFF8FF"),
+                new ExcelSummaryTile("Pending", $"{report.TotalPending.Mvr:N2} / {report.TotalPending.Usd:N2}", "Open MVR and USD balances by vessel mix.", "#FFF4F7")
+            ]);
 
-        var totalsHeaderRow = metricRow + 1;
-        sheet.Cell(totalsHeaderRow, 1).Value = "Metric";
-        sheet.Cell(totalsHeaderRow, 2).Value = "MVR";
-        sheet.Cell(totalsHeaderRow, 3).Value = "USD";
-        StyleTableHeader(sheet.Range(totalsHeaderRow, 1, totalsHeaderRow, 3));
+        row = WriteSectionHeading(sheet, row, 1, 7, "Vessel contribution table");
+        var headerRow = row + 1;
 
-        var totalsRow = totalsHeaderRow + 1;
-        WriteCurrencyMetric(sheet, totalsRow++, "Total Sales", report.TotalSales);
-        WriteCurrencyMetric(sheet, totalsRow++, "Total Received", report.TotalReceived);
-        WriteCurrencyMetric(sheet, totalsRow, "Total Pending", report.TotalPending);
-        StyleDataBorder(sheet.Range(totalsHeaderRow + 1, 1, totalsRow, 3));
-        sheet.Range(totalsHeaderRow + 1, 2, totalsRow, 3).Style.NumberFormat.Format = "#,##0.00";
-
-        var headerRow = totalsRow + 2;
         sheet.Cell(headerRow, 1).Value = "Vessel";
         sheet.Cell(headerRow, 2).Value = "Currency";
-        sheet.Cell(headerRow, 3).Value = "No. of Transactions";
+        sheet.Cell(headerRow, 3).Value = "Transactions";
         sheet.Cell(headerRow, 4).Value = "Total Sales";
         sheet.Cell(headerRow, 5).Value = "Total Received";
-        sheet.Cell(headerRow, 6).Value = "Pending Amount";
+        sheet.Cell(headerRow, 6).Value = "Pending";
         sheet.Cell(headerRow, 7).Value = "% of Currency Sales";
-        StyleTableHeader(sheet.Range(headerRow, 1, headerRow, 7));
+        StyleExcelTableHeader(sheet.Range(headerRow, 1, headerRow, 7));
 
-        var row = headerRow + 1;
+        var dataStartRow = headerRow + 1;
+        var rowIndex = dataStartRow;
         foreach (var item in report.Rows)
         {
-            sheet.Cell(row, 1).Value = item.Vessel;
-            sheet.Cell(row, 2).Value = item.Currency;
-            sheet.Cell(row, 3).Value = item.TransactionCount;
-            sheet.Cell(row, 4).Value = item.TotalSales;
-            sheet.Cell(row, 5).Value = item.TotalReceived;
-            sheet.Cell(row, 6).Value = item.PendingAmount;
-            sheet.Cell(row, 7).Value = item.PercentageOfCurrencySales / 100m;
-            row++;
+            sheet.Cell(rowIndex, 1).Value = item.Vessel;
+            sheet.Cell(rowIndex, 2).Value = item.Currency;
+            sheet.Cell(rowIndex, 3).Value = item.TransactionCount;
+            sheet.Cell(rowIndex, 4).Value = item.TotalSales;
+            sheet.Cell(rowIndex, 5).Value = item.TotalReceived;
+            sheet.Cell(rowIndex, 6).Value = item.PendingAmount;
+            sheet.Cell(rowIndex, 7).Value = item.PercentageOfCurrencySales / 100m;
+            rowIndex++;
         }
 
-        var totalRow = row;
+        var totalRow = rowIndex;
         sheet.Cell(totalRow, 1).Value = "TOTAL";
         sheet.Cell(totalRow, 2).Value = "-";
         sheet.Cell(totalRow, 3).Value = report.TotalTransactions;
@@ -729,84 +769,220 @@ public class ReportService : IReportService
         sheet.Cell(totalRow, 5).Value = $"{report.TotalReceived.Mvr:N2} / {report.TotalReceived.Usd:N2}";
         sheet.Cell(totalRow, 6).Value = $"{report.TotalPending.Mvr:N2} / {report.TotalPending.Usd:N2}";
         sheet.Cell(totalRow, 7).Value = "-";
-        StyleTotalsRow(sheet.Range(totalRow, 1, totalRow, 7));
 
         if (report.Rows.Count > 0)
         {
-            StyleDataBorder(sheet.Range(headerRow + 1, 1, totalRow - 1, 7));
+            StyleExcelBodyRows(sheet.Range(dataStartRow, 1, totalRow - 1, 7));
             sheet.Range(headerRow, 1, totalRow - 1, 7).SetAutoFilter();
         }
 
-        sheet.Range(headerRow + 1, 4, totalRow - 1, 6).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 7, totalRow - 1, 7).Style.NumberFormat.Format = "0.00%";
-        sheet.Range(headerRow + 1, 3, totalRow - 1, 3).Style.NumberFormat.Format = "#,##0";
-        sheet.SheetView.FreezeRows(headerRow);
-        sheet.Columns(1, 7).AdjustToContents();
+        StyleExcelTotalRow(sheet.Range(totalRow, 1, totalRow, 7));
+        if (totalRow > dataStartRow)
+        {
+            sheet.Range(dataStartRow, 4, totalRow - 1, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Range(dataStartRow, 7, totalRow - 1, 7).Style.NumberFormat.Format = "0.00%";
+            sheet.Range(dataStartRow, 3, totalRow - 1, 3).Style.NumberFormat.Format = "#,##0";
+        }
+
+        sheet.Column(1).Width = 28;
+        sheet.Column(2).Width = 11;
+        sheet.Column(3).Width = 13;
+        sheet.Columns(4, 6).Width = 16;
+        sheet.Column(7).Width = 18;
+        FinalizeReportSheet(sheet, headerRow, totalRow, 7);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         return stream.ToArray();
     }
 
-    private static int WriteHeader(IXLWorksheet sheet, string title, ReportMetaDto meta, int totalColumns)
+    private static XLWorkbook CreateReportWorkbook()
     {
-        sheet.Cell(1, 1).Value = title;
-        var titleRange = sheet.Range(1, 1, 1, totalColumns);
-        titleRange.Merge();
-        titleRange.Style.Font.Bold = true;
-        titleRange.Style.Font.FontSize = 16;
-        titleRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        var workbook = new XLWorkbook();
+        workbook.Author = "myDhathuru";
+        workbook.Style.Font.FontName = "Aptos";
+        workbook.Style.Font.FontSize = 10;
+        workbook.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        return workbook;
+    }
 
-        sheet.Cell(2, 1).Value = $"Generated (MVT): {ToMaldivesTime(meta.GeneratedAtUtc):yyyy-MM-dd HH:mm}";
-        sheet.Cell(3, 1).Value = $"Date Preset: {meta.DatePreset}";
-        sheet.Cell(4, 1).Value =
-            $"Date Range (MVT): {ToMaldivesTime(meta.RangeStartUtc):yyyy-MM-dd HH:mm} to {ToMaldivesTime(meta.RangeEndUtc):yyyy-MM-dd HH:mm}";
-        sheet.Cell(5, 1).Value = $"Customer Filter: {meta.CustomerFilterLabel}";
+    private static int WriteWorkbookHeader(
+        IXLWorksheet sheet,
+        string title,
+        string subtitle,
+        ReportMetaDto meta,
+        int totalColumns)
+    {
+        sheet.PageSetup.ShowGridlines = false;
+        sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        sheet.PageSetup.FitToPages(1, 0);
+        sheet.PageSetup.CenterHorizontally = true;
 
-        for (var row = 2; row <= 5; row++)
+        var heroRange = sheet.Range(1, 1, 3, totalColumns);
+        heroRange.Merge();
+        heroRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#18315D");
+        heroRange.Style.Font.FontColor = XLColor.White;
+        heroRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        heroRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        heroRange.Style.Alignment.WrapText = true;
+
+        var hero = sheet.Cell(1, 1).GetRichText();
+        hero.ClearText();
+        hero.AddText(title).SetBold().SetFontSize(19).SetFontColor(XLColor.White);
+        hero.AddText(Environment.NewLine);
+        hero.AddText(subtitle).SetFontSize(10).SetFontColor(XLColor.FromHtml("#D7E6FF"));
+        hero.AddText(Environment.NewLine);
+        hero.AddText($"Generated {ToMaldivesTime(meta.GeneratedAtUtc):yyyy-MM-dd HH:mm} MVT").SetFontSize(9).SetFontColor(XLColor.FromHtml("#BFD4FF"));
+
+        sheet.Row(1).Height = 26;
+        sheet.Row(2).Height = 22;
+        sheet.Row(3).Height = 22;
+
+        var metaCards = new[]
         {
-            var metaRowRange = sheet.Range(row, 1, row, totalColumns);
-            metaRowRange.Merge();
-            metaRowRange.Style.Font.FontSize = 10;
-            metaRowRange.Style.Font.FontColor = XLColor.FromHtml("#51648F");
-            metaRowRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            new ExcelMetaCard("Preset", meta.DatePreset.ToString()),
+            new ExcelMetaCard("Customer Filter", meta.CustomerFilterLabel),
+            new ExcelMetaCard("Range Start", ToMaldivesTime(meta.RangeStartUtc).ToString("yyyy-MM-dd HH:mm")),
+            new ExcelMetaCard("Range End", ToMaldivesTime(meta.RangeEndUtc).ToString("yyyy-MM-dd HH:mm"))
+        };
+
+        var metaSegments = BuildColumnSegments(totalColumns, metaCards.Length);
+        for (var index = 0; index < metaCards.Length; index++)
+        {
+            var (startCol, endCol) = metaSegments[index];
+            WriteMetaCard(sheet, 5, 6, startCol, endCol, metaCards[index]);
         }
 
-        return 7;
+        return 8;
     }
 
-    private static void WriteCurrencyMetric(IXLWorksheet sheet, int row, string label, CurrencyTotalsDto totals)
+    private static int WriteSummaryTiles(
+        IXLWorksheet sheet,
+        int startRow,
+        int totalColumns,
+        IReadOnlyList<ExcelSummaryTile> tiles)
     {
-        sheet.Cell(row, 1).Value = label;
-        sheet.Cell(row, 2).Value = totals.Mvr;
-        sheet.Cell(row, 3).Value = totals.Usd;
+        var currentRow = startRow;
+
+        foreach (var tileGroup in tiles.Chunk(4))
+        {
+            var segments = BuildColumnSegments(totalColumns, tileGroup.Length);
+            for (var index = 0; index < tileGroup.Length; index++)
+            {
+                var (startCol, endCol) = segments[index];
+                WriteSummaryTile(sheet, currentRow, currentRow + 2, startCol, endCol, tileGroup[index]);
+            }
+
+            currentRow += 4;
+        }
+
+        return currentRow;
     }
 
-    private static void StyleMetricHeader(IXLRange range)
+    private static int WriteSectionHeading(IXLWorksheet sheet, int row, int startColumn, int endColumn, string title)
     {
+        var range = sheet.Range(row, startColumn, row, endColumn);
+        range.Merge();
+        range.Value = title;
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontColor = XLColor.FromHtml("#30466F");
+        range.Style.Font.FontSize = 11;
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#EDF3FF");
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#F6F8FF");
-        range.Style.Font.Bold = true;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        range.Style.Alignment.Indent = 1;
+        sheet.Row(row).Height = 22;
+        return row;
     }
 
-    private static void StyleTableHeader(IXLRange range)
+    private static void WriteMetaCard(
+        IXLWorksheet sheet,
+        int startRow,
+        int endRow,
+        int startColumn,
+        int endColumn,
+        ExcelMetaCard card)
+    {
+        var range = sheet.Range(startRow, startColumn, endRow, endColumn);
+        range.Merge();
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#F7FAFF");
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Alignment.WrapText = true;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        range.Style.Alignment.SetIndent(1);
+
+        var rich = sheet.Cell(startRow, startColumn).GetRichText();
+        rich.ClearText();
+        rich.AddText(card.Label.ToUpperInvariant()).SetBold().SetFontSize(8).SetFontColor(XLColor.FromHtml("#6A7FA8"));
+        rich.AddText(Environment.NewLine);
+        rich.AddText(card.Value).SetBold().SetFontSize(10.5).SetFontColor(XLColor.FromHtml("#243B63"));
+    }
+
+    private static void WriteSummaryTile(
+        IXLWorksheet sheet,
+        int startRow,
+        int endRow,
+        int startColumn,
+        int endColumn,
+        ExcelSummaryTile tile)
+    {
+        var range = sheet.Range(startRow, startColumn, endRow, endColumn);
+        range.Merge();
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml(tile.FillColor);
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Alignment.WrapText = true;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        range.Style.Alignment.SetIndent(1);
+
+        var cell = sheet.Cell(startRow, startColumn);
+        var rich = cell.GetRichText();
+        rich.ClearText();
+        rich.AddText(tile.Label.ToUpperInvariant()).SetBold().SetFontSize(8).SetFontColor(XLColor.FromHtml("#6A7FA8"));
+        rich.AddText(Environment.NewLine);
+        rich.AddText(tile.Value).SetBold().SetFontSize(15).SetFontColor(XLColor.FromHtml("#243B63"));
+        rich.AddText(Environment.NewLine);
+        rich.AddText(tile.Detail).SetFontSize(8.5).SetFontColor(XLColor.FromHtml("#6178A3"));
+    }
+
+    private static IReadOnlyList<(int StartColumn, int EndColumn)> BuildColumnSegments(int totalColumns, int segmentCount)
+    {
+        var segments = new List<(int StartColumn, int EndColumn)>(segmentCount);
+        var baseWidth = totalColumns / segmentCount;
+        var remainder = totalColumns % segmentCount;
+        var cursor = 1;
+
+        for (var index = 0; index < segmentCount; index++)
+        {
+            var width = baseWidth + (index < remainder ? 1 : 0);
+            var startColumn = cursor;
+            var endColumn = cursor + width - 1;
+            segments.Add((startColumn, endColumn));
+            cursor = endColumn + 1;
+        }
+
+        return segments;
+    }
+
+    private static void StyleExcelTableHeader(IXLRange range)
     {
         range.Style.Font.Bold = true;
+        range.Style.Font.FontColor = XLColor.FromHtml("#30466F");
         range.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8EEFF");
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Border.InsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
     }
 
-    private static void StyleTotalsRow(IXLRange range)
-    {
-        range.Style.Font.Bold = true;
-        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#F1F5FF");
-        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-    }
-
-    private static void StyleDataBorder(IXLRange range)
+    private static void StyleExcelBodyRows(IXLRange range)
     {
         if (range.RowCount() <= 0)
         {
@@ -815,7 +991,66 @@ public class ReportService : IReportService
 
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Border.InsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        range.Style.Alignment.WrapText = true;
+        range.Style.Font.FontColor = XLColor.FromHtml("#30466F");
+
+        for (var index = 1; index <= range.RowCount(); index++)
+        {
+            var rowRange = range.Row(index);
+            rowRange.Style.Fill.BackgroundColor = index % 2 == 0
+                ? XLColor.FromHtml("#F9FBFF")
+                : XLColor.White;
+        }
     }
+
+    private static void StyleExcelTotalRow(IXLRange range)
+    {
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontColor = XLColor.FromHtml("#243B63");
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#EDF3FF");
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D8E2F4");
+        range.Style.Border.InsideBorderColor = XLColor.FromHtml("#D8E2F4");
+    }
+
+    private static void StylePaymentStatusCell(IXLCell cell, string status)
+    {
+        var normalized = status.Trim();
+        var fill = normalized switch
+        {
+            "Paid" => "#DCF6E8",
+            "Partial" => "#FFF1D8",
+            _ => "#FFE7EF"
+        };
+
+        var text = normalized switch
+        {
+            "Paid" => "#0F8B57",
+            "Partial" => "#B46A00",
+            _ => "#B33E63"
+        };
+
+        cell.Style.Fill.BackgroundColor = XLColor.FromHtml(fill);
+        cell.Style.Font.FontColor = XLColor.FromHtml(text);
+        cell.Style.Font.Bold = true;
+        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+    }
+
+    private static void FinalizeReportSheet(IXLWorksheet sheet, int headerRow, int lastRow, int totalColumns)
+    {
+        sheet.SheetView.FreezeRows(headerRow);
+        sheet.Range(1, 1, lastRow, totalColumns).Style.Font.FontName = "Aptos";
+        sheet.Rows(1, lastRow).AdjustToContents();
+        sheet.Range(1, 1, lastRow, totalColumns).Style.Alignment.WrapText = true;
+    }
+
+    private sealed record ExcelMetaCard(string Label, string Value);
+
+    private sealed record ExcelSummaryTile(string Label, string Value, string Detail, string FillColor);
 
     private async Task<TenantSettings> GetTenantSettingsAsync(CancellationToken cancellationToken)
     {
@@ -892,3 +1127,4 @@ public class ReportService : IReportService
         DateTimeOffset EndUtc,
         bool UseCreatedAtFilter);
 }
+

@@ -1,101 +1,158 @@
 <section class="dashboard-analytics">
-  <app-page-header
-    title="Dashboard Analytics"
-    subtitle="Current-month business performance across invoices, sales, pending balances, delivery notes, customers, and payroll.">
-  </app-page-header>
-
   <ng-container *ngIf="loading(); else contentTpl">
     <div class="dashboard-skeleton">
-      <div class="skeleton-kpi-grid">
-        <div *ngFor="let _ of skeletonMetricCards" class="skeleton-block"></div>
+      <div class="skeleton-head"></div>
+      <div class="skeleton-grid">
+        <div class="skeleton-block skeleton-block--wide"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block"></div>
       </div>
-      <div class="skeleton-chart-grid">
-        <div class="skeleton-block tall"></div>
-        <div class="skeleton-block tall"></div>
-      </div>
-      <div class="skeleton-block list"></div>
     </div>
   </ng-container>
 
   <ng-template #contentTpl>
-    <ng-container *ngIf="analytics(); else errorStateTpl">
-      <div class="kpi-grid">
-        <app-card
-          *ngFor="let card of metricCards()"
-          class="kpi-card"
-          [class.indigo]="card.tone === 'indigo'"
-          [class.teal]="card.tone === 'teal'"
-          [class.sky]="card.tone === 'sky'"
-          [class.violet]="card.tone === 'violet'"
-          [class.rose]="card.tone === 'rose'"
-          [class.emerald]="card.tone === 'emerald'">
-          <div class="kpi-top">
-            <p class="kpi-label">{{ card.label }}</p>
-            <span
-              *ngIf="card.summaryTrend"
-              class="trend-chip"
-              [class.up]="card.summaryTrend.direction === 'up'"
-              [class.down]="card.summaryTrend.direction === 'down'"
-              [class.neutral]="card.summaryTrend.direction === 'neutral'">
-              {{ card.summaryTrend.label }}
-            </span>
+    <ng-container *ngIf="summary() as summary; else errorStateTpl">
+      <section class="dashboard-head">
+        <div>
+          <span class="eyebrow">Infographic dashboard</span>
+          <h1>Dashboard Analytics</h1>
+          <p>Revenue, receivables, customer concentration, and vessel activity in one compact board.</p>
+        </div>
+        <div class="head-chip">
+          <span>Active period</span>
+          <strong>{{ activePeriodLabel() }}</strong>
+        </div>
+      </section>
+
+      <section class="metric-ribbon">
+        <article
+          *ngFor="let card of focusCards()"
+          class="snapshot-card"
+          [style.--tone-bg]="toneBackground(card.tone)">
+          <div class="snapshot-card__head">
+            <span>{{ card.label }}</span>
+            <small>{{ card.meta }}</small>
           </div>
+          <strong>{{ card.value }}</strong>
+        </article>
+      </section>
 
-          <div class="kpi-lines" [class.currency-mode]="card.currencyMode">
-            <div class="kpi-line" *ngFor="let line of card.lines">
-              <span class="line-label" *ngIf="line.label">{{ line.label }}</span>
-              <div class="line-content">
-                <strong class="line-value">{{ line.value }}</strong>
-                <span
-                  *ngIf="line.trend"
-                  class="line-trend"
-                  [class.up]="line.trend.direction === 'up'"
-                  [class.down]="line.trend.direction === 'down'"
-                  [class.neutral]="line.trend.direction === 'neutral'">
-                  {{ line.trend.label }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <span class="kpi-subtitle">{{ card.subtitle }}</span>
-        </app-card>
-      </div>
-
-      <div class="charts-grid">
-        <app-card class="chart-card sales-trend-card">
-          <div class="card-head">
+      <section class="dashboard-grid">
+        <app-card class="board board--sales">
+          <div class="board-head">
             <div>
-              <h3>Sales Of Past 6 Months</h3>
-              <p>Invoice totals grouped per month by currency</p>
+              <span class="card-eyebrow">Revenue board</span>
+              <h2>Sales curve and current-month signals</h2>
+              <p>Six-month billing movement across MVR and USD in one clean chart.</p>
             </div>
-            <span class="badge">MVR + USD</span>
+            <div class="board-chip-stack">
+              <span class="board-badge">{{ activePeriodLabel() }}</span>
+              <span class="board-badge board-badge--soft">6 month trend</span>
+            </div>
           </div>
 
           <ng-container *ngIf="hasSalesData(); else noSalesChartTpl">
-            <apx-chart
-              [series]="salesChartOptions().series"
-              [chart]="salesChartOptions().chart"
-              [colors]="salesChartOptions().colors"
-              [dataLabels]="salesChartOptions().dataLabels"
-              [stroke]="salesChartOptions().stroke"
-              [grid]="salesChartOptions().grid"
-              [xaxis]="salesChartOptions().xaxis"
-              [yaxis]="salesChartOptions().yaxis"
-              [tooltip]="salesChartOptions().tooltip"
-              [fill]="salesChartOptions().fill"
-              [markers]="salesChartOptions().markers"
-              [legend]="salesChartOptions().legend"
-              [responsive]="salesChartOptions().responsive">
-            </apx-chart>
+            <div class="chart-stage chart-stage--sales">
+              <apx-chart
+                [series]="salesChartOptions().series"
+                [chart]="salesChartOptions().chart"
+                [colors]="salesChartOptions().colors"
+                [dataLabels]="salesChartOptions().dataLabels"
+                [stroke]="salesChartOptions().stroke"
+                [grid]="salesChartOptions().grid"
+                [xaxis]="salesChartOptions().xaxis"
+                [yaxis]="salesChartOptions().yaxis"
+                [tooltip]="salesChartOptions().tooltip"
+                [fill]="salesChartOptions().fill"
+                [markers]="salesChartOptions().markers"
+                [legend]="salesChartOptions().legend"
+                [responsive]="salesChartOptions().responsive">
+              </apx-chart>
+            </div>
           </ng-container>
         </app-card>
 
-        <app-card class="chart-card vessel-card">
-          <div class="card-head">
+        <app-card class="board board--coverage">
+          <div class="board-head">
             <div>
-              <h3>Vessel Sales Mix</h3>
-              <p>Distribution from invoice-linked delivery notes</p>
+              <span class="card-eyebrow">Collections and coverage</span>
+              <h2>Receivable pressure and operational mix</h2>
+              <p>Settlement visibility and month-end operating signals.</p>
+            </div>
+            <span class="board-badge board-badge--soft">Live</span>
+          </div>
+
+          <div class="ring-grid">
+            <article *ngFor="let ring of collectionRings()" class="ring-card">
+              <div class="progress-ring" [style.--progress]="ring.percent" [style.--ring-color]="toneColor(ring.tone)">
+                <div class="progress-ring__inner">
+                  <small>{{ ring.label }}</small>
+                  <strong>{{ ring.percent }}%</strong>
+                </div>
+              </div>
+              <div class="ring-copy">
+                <strong>{{ ring.settled }}</strong>
+                <small>{{ ring.pending }}</small>
+              </div>
+            </article>
+          </div>
+
+          <div class="activity-grid">
+            <article
+              *ngFor="let lane of activityLanes()"
+              class="activity-card"
+              [style.--bar-color]="toneColor(lane.tone)">
+              <div class="activity-card__head">
+                <span>{{ lane.label }}</span>
+                <strong>{{ lane.value }}</strong>
+              </div>
+              <div class="activity-bar"><span [style.width.%]="lane.percent"></span></div>
+              <small>{{ lane.meta }}</small>
+            </article>
+          </div>
+        </app-card>
+
+        <app-card class="board board--customers">
+          <div class="board-head">
+            <div>
+              <span class="card-eyebrow">Customer concentration</span>
+              <h2>Top accounts</h2>
+            </div>
+            <span class="board-badge">Top {{ compactTopCustomers().length }}</span>
+          </div>
+
+          <ng-container *ngIf="compactTopCustomers().length; else noTopCustomersTpl">
+            <div class="customer-list">
+              <article *ngFor="let customer of compactTopCustomers()" class="customer-row">
+                <div class="customer-row__head">
+                  <div class="customer-id">
+                    <span class="rank-pill">#{{ customer.rank }}</span>
+                    <div>
+                      <strong>{{ customer.customerName }}</strong>
+                      <small>{{ customer.invoiceCount }} invoice{{ customer.invoiceCount === 1 ? '' : 's' }}</small>
+                    </div>
+                  </div>
+                  <span class="share-pill">{{ customerBarWidth(customer) | number: '1.0-1' }}%</span>
+                </div>
+                <div class="customer-bar">
+                  <span [style.width.%]="customerBarWidth(customer)"></span>
+                </div>
+                <div class="customer-row__stats">
+                  <span>{{ customer.salesMvr | appCurrency: 'MVR' }}</span>
+                  <span>{{ customer.salesUsd | appCurrency: 'USD' }}</span>
+                </div>
+              </article>
+            </div>
+          </ng-container>
+        </app-card>
+
+        <app-card class="board board--vessels">
+          <div class="board-head">
+            <div>
+              <span class="card-eyebrow">Fleet mix</span>
+              <h2>Vessel revenue split</h2>
             </div>
             <div class="vessel-toggle">
               <button
@@ -110,80 +167,53 @@
           </div>
 
           <ng-container *ngIf="hasVesselData(); else noVesselChartTpl">
-            <apx-chart
-              [series]="vesselChartOptions().series"
-              [chart]="vesselChartOptions().chart"
-              [labels]="vesselChartOptions().labels"
-              [colors]="vesselChartOptions().colors"
-              [legend]="vesselChartOptions().legend"
-              [tooltip]="vesselChartOptions().tooltip"
-              [dataLabels]="vesselChartOptions().dataLabels"
-              [plotOptions]="vesselChartOptions().plotOptions"
-              [stroke]="vesselChartOptions().stroke"
-              [fill]="vesselChartOptions().fill"
-              [responsive]="vesselChartOptions().responsive">
-            </apx-chart>
+            <div class="chart-stage chart-stage--donut">
+              <apx-chart
+                [series]="vesselChartOptions().series"
+                [chart]="vesselChartOptions().chart"
+                [labels]="vesselChartOptions().labels"
+                [colors]="vesselChartOptions().colors"
+                [legend]="vesselChartOptions().legend"
+                [tooltip]="vesselChartOptions().tooltip"
+                [dataLabels]="vesselChartOptions().dataLabels"
+                [plotOptions]="vesselChartOptions().plotOptions"
+                [stroke]="vesselChartOptions().stroke"
+                [fill]="vesselChartOptions().fill"
+                [responsive]="vesselChartOptions().responsive">
+              </apx-chart>
+            </div>
 
             <ul class="vessel-legend">
-              <li *ngFor="let vessel of vesselSales(); let i = index">
+              <li *ngFor="let vessel of visibleVessels(); let i = index">
                 <span class="dot" [style.background]="vesselPalette[i % vesselPalette.length]"></span>
                 <span class="name">{{ vessel.vesselName }}</span>
                 <strong>{{ vesselAmount(vessel) | appCurrency: selectedVesselCurrency() }}</strong>
-                <span class="percentage">{{ vesselContribution(vessel) | number: '1.0-1' }}%</span>
               </li>
             </ul>
           </ng-container>
         </app-card>
-      </div>
 
-      <app-card class="top-customers-card">
-        <div class="card-head">
-          <div>
-            <h3>Top Customers</h3>
-            <p>Ranked by invoice activity with separated MVR and USD sales</p>
+        <app-card class="board board--signals">
+          <div class="board-head">
+            <div>
+              <span class="card-eyebrow">Decision signals</span>
+              <h2>Month-end shortcuts</h2>
+            </div>
+            <span class="board-badge board-badge--soft">Snapshot</span>
           </div>
-          <span class="badge violet">Top {{ topCustomers().length }}</span>
-        </div>
 
-        <ng-container *ngIf="topCustomers().length; else noTopCustomersTpl">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Customer</th>
-                  <th>Sales (MVR)</th>
-                  <th>Sales (USD)</th>
-                  <th>Invoices</th>
-                  <th>Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let customer of topCustomers(); trackBy: trackByCustomer">
-                  <td><span class="rank-pill">#{{ customer.rank }}</span></td>
-                  <td>
-                    <div class="customer-cell">
-                      <span class="avatar">{{ customer.initials }}</span>
-                      <div>
-                        <strong>{{ customer.customerName }}</strong>
-                        <small>ID: {{ customer.customerId }}</small>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="currency">{{ customer.salesMvr | appCurrency: 'MVR' }}</td>
-                  <td class="currency">{{ customer.salesUsd | appCurrency: 'USD' }}</td>
-                  <td>{{ customer.invoiceCount }}</td>
-                  <td>
-                    <div class="contribution-cell">
-                      <span>MVR {{ customer.contributionMvrPercentage | number: '1.0-1' }}% / USD {{ customer.contributionUsdPercentage | number: '1.0-1' }}%</span>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="signal-stack">
+            <article
+              *ngFor="let panel of signalPanels()"
+              class="signal-panel"
+              [style.--tone-bg]="toneBackground(panel.tone)">
+              <span>{{ panel.label }}</span>
+              <strong>{{ panel.value }}</strong>
+              <small>{{ panel.meta }}</small>
+            </article>
           </div>
-        </ng-container>
-      </app-card>
+        </app-card>
+      </section>
     </ng-container>
   </ng-template>
 

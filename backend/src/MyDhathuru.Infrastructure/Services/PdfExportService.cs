@@ -8,6 +8,7 @@ using MyDhathuru.Application.Payroll.Dtos;
 using MyDhathuru.Application.Statements.Dtos;
 using MyDhathuru.Application.Reports.Dtos;
 using MyDhathuru.Application.PortalAdmin.Dtos;
+using MyDhathuru.Domain.Enums;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -39,72 +40,286 @@ public class PdfExportService : IPdfExportService
         public bool HasValue => (ImageBytes?.Length ?? 0) > 0 || !string.IsNullOrWhiteSpace(SvgMarkup);
     }
 
-    public byte[] BuildDeliveryNotePdf(DeliveryNoteDetailDto model, string companyName, string companyInfo)
+    public byte[] BuildDeliveryNotePdf(DeliveryNoteDetailDto model, string companyName, string companyInfo, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        var currency = string.Equals((model.Currency ?? string.Empty).Trim(), "USD", StringComparison.OrdinalIgnoreCase)
+            ? "USD"
+            : "MVR";
+        var cashPaymentTotal = model.Items.Sum(x => x.CashPayment);
+        var vesselPaymentTotal = model.Items.Sum(x => x.VesselPayment);
+        var recordedPaymentTotal = cashPaymentTotal + vesselPaymentTotal;
+        var balanceAmount = Math.Max(model.TotalAmount - recordedPaymentTotal, 0m);
+        var documentStatus = !string.IsNullOrWhiteSpace(model.InvoiceNo)
+            ? "Invoiced"
+            : recordedPaymentTotal >= model.TotalAmount && model.TotalAmount > 0
+                ? "Settled"
+                : "Open";
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Margin(24);
-                    page.DefaultTextStyle(x => x.FontSize(10));
-                    page.Header().Column(column =>
+                    page.Size(PageSizes.A4);
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.6f).FontColor(Ink));
+
+                    page.Header().Column(header =>
                     {
-                        column.Item().Text(companyName).Bold().FontSize(18);
-                        column.Item().Text(companyInfo).FontSize(9).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(8).Text("Delivery Note").Bold().FontSize(14);
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(60)
+                                            .Height(60)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Delivery Note").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Delivery Note").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(220)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .Padding(10)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(3);
+                                    meta.Item().AlignRight().Text("DELIVERY NOTE").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"DN No: {Safe(model.DeliveryNoteNo)}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Date: {model.Date:yyyy-MM-dd}");
+                                    meta.Item().AlignRight().Text($"Currency: {currency}");
+                                    meta.Item().AlignRight().Text($"Status: {documentStatus}");
+                                });
+                        });
+
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(10);
+                        column.Spacing(12);
+
                         column.Item().Row(row =>
                         {
-                            row.RelativeItem().Text($"DN No: {model.DeliveryNoteNo}");
-                            row.RelativeItem().AlignRight().Text($"Date: {model.Date:yyyy-MM-dd}");
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .Padding(10)
+                                .Column(details =>
+                                {
+                                    details.Spacing(4);
+                                    details.Item().Text("Customer Details").Bold().FontSize(10.4f).FontColor(Ink);
+                                    details.Item().Text(model.CustomerName).Bold().FontSize(11.2f);
+                                    details.Item().Text($"Vessel / Courier: {Safe(model.VesselName)}").FontColor(Muted);
+                                    details.Item().Text($"PO Number: {Safe(model.PoNumber)}").FontColor(Muted);
+                                    details.Item().Text($"Linked Invoice: {Safe(model.InvoiceNo)}").FontColor(Muted);
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .Padding(10)
+                                .Table(table =>
+                                {
+                                    table.ColumnsDefinition(columns =>
+                                    {
+                                        columns.ConstantColumn(88);
+                                        columns.RelativeColumn();
+                                    });
+
+                                    IContainer LabelCell(IContainer c) => c.PaddingVertical(2);
+                                    IContainer ValueCell(IContainer c) => c.PaddingVertical(2);
+
+                                    table.Cell().Element(LabelCell).Text("Items").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.Items.Count.ToString());
+                                    table.Cell().Element(LabelCell).Text("Total Qty").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.Items.Sum(x => x.Qty).ToString("N2"));
+                                    table.Cell().Element(LabelCell).Text("Cash Paid").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Money(currency, cashPaymentTotal));
+                                    table.Cell().Element(LabelCell).Text("Vessel Paid").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Money(currency, vesselPaymentTotal));
+                                });
                         });
-                        if (!string.IsNullOrWhiteSpace(model.PoNumber))
-                        {
-                            column.Item().Text($"PO No: {model.PoNumber}");
-                        }
-                        column.Item().Text($"Customer: {model.CustomerName}");
-                        column.Item().Text($"Currency: {model.Currency}");
-                        if (!string.IsNullOrWhiteSpace(model.VesselName))
-                        {
-                            column.Item().Text($"Vessel: {model.VesselName}");
-                        }
 
                         column.Item().Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.RelativeColumn(5);
-                                columns.RelativeColumn(1);
-                                columns.RelativeColumn(2);
-                                columns.RelativeColumn(2);
+                                columns.ConstantColumn(34);
+                                columns.RelativeColumn(4.6f);
+                                columns.ConstantColumn(74);
+                                columns.ConstantColumn(92);
+                                columns.ConstantColumn(102);
                             });
+
+                            IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(6);
+                            IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(6);
 
                             table.Header(header =>
                             {
-                                header.Cell().Text("Details").Bold();
-                                header.Cell().AlignRight().Text("Qty").Bold();
-                                header.Cell().AlignRight().Text("Rate").Bold();
-                                header.Cell().AlignRight().Text("Total").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Qty").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Rate").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
                             });
 
-                            foreach (var item in model.Items)
+                            if (model.Items.Count == 0)
                             {
-                                table.Cell().Text(item.Details);
-                                table.Cell().AlignRight().Text(item.Qty.ToString("N2"));
-                                table.Cell().AlignRight().Text($"{model.Currency} {item.Rate:N2}");
-                                table.Cell().AlignRight().Text($"{model.Currency} {item.Total:N2}");
+                                table.Cell().ColumnSpan(5)
+                                    .Element(c => BodyCell(c, Colors.White))
+                                    .AlignCenter()
+                                    .Text("No delivery note items");
+                            }
+                            else
+                            {
+                                for (var i = 0; i < model.Items.Count; i++)
+                                {
+                                    var item = model.Items[i];
+                                    var rowBackground = i % 2 == 0 ? "#FFFFFF" : "#FBFCFF";
+
+                                    table.Cell().Element(c => BodyCell(c, rowBackground)).AlignCenter().Text((i + 1).ToString());
+                                    table.Cell().Element(c => BodyCell(c, rowBackground)).Text(item.Details);
+                                    table.Cell().Element(c => BodyCell(c, rowBackground)).AlignRight().Text(item.Qty.ToString("N2"));
+                                    table.Cell().Element(c => BodyCell(c, rowBackground)).AlignRight().Text(Money(currency, item.Rate));
+                                    table.Cell().Element(c => BodyCell(c, rowBackground)).AlignRight().Text(Money(currency, item.Total));
+                                }
                             }
                         });
 
-                        column.Item().AlignRight().Text($"Total: {model.Currency} {model.TotalAmount:N2}").Bold();
-                        if (!string.IsNullOrWhiteSpace(model.Notes))
+                        column.Item().Row(row =>
                         {
-                            column.Item().Text($"Notes: {model.Notes}");
-                        }
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .Padding(10)
+                                .Column(notes =>
+                                {
+                                    notes.Spacing(4);
+                                    notes.Item().Text("Notes").Bold().FontSize(10.4f).FontColor(Ink);
+                                    notes.Item().Text(
+                                        string.IsNullOrWhiteSpace(model.Notes)
+                                            ? "No additional delivery note remarks were added."
+                                            : model.Notes!.Trim())
+                                        .FontColor(Muted);
+                                });
+
+                            row.ConstantItem(220)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(6);
+                                    summary.Item().Text("Summary").Bold().FontSize(10.4f).FontColor(Ink);
+
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Document Total").SemiBold().FontColor(Muted);
+                                        item.ConstantItem(90).AlignRight().Text(Money(currency, model.TotalAmount)).Bold();
+                                    });
+
+                                    if (cashPaymentTotal > 0)
+                                    {
+                                        summary.Item().Row(item =>
+                                        {
+                                            item.RelativeItem().Text("Cash Payment").SemiBold().FontColor(Muted);
+                                            item.ConstantItem(90).AlignRight().Text(Money(currency, cashPaymentTotal));
+                                        });
+                                    }
+
+                                    if (vesselPaymentTotal > 0)
+                                    {
+                                        summary.Item().Row(item =>
+                                        {
+                                            item.RelativeItem().Text("Vessel Payment").SemiBold().FontColor(Muted);
+                                            item.ConstantItem(90).AlignRight().Text(Money(currency, vesselPaymentTotal));
+                                        });
+                                    }
+
+                                    summary.Item().LineHorizontal(1).LineColor(Border);
+
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Balance").Bold().FontColor(Ink);
+                                        item.ConstantItem(90).AlignRight().Text(Money(currency, balanceAmount)).Bold().FontColor(Ink);
+                                    });
+                                });
+                        });
+                    });
+
+                    page.Footer().Column(footer =>
+                    {
+                        footer.Spacing(4);
+                        footer.Item().LineHorizontal(1).LineColor(Border);
+                        footer.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.Span("Generated by myDhathuru");
+                                text.Span(" | ");
+                                text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                            });
+
+                            row.ConstantItem(64).AlignRight().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.CurrentPageNumber();
+                                text.Span(" / ");
+                                text.TotalPages();
+                            });
+                        });
                     });
                 });
             })
@@ -113,6 +328,13 @@ public class PdfExportService : IPdfExportService
 
     public byte[] BuildInvoicePdf(InvoiceDetailDto model, string companyName, string companyInfo, InvoiceBankDetailsDto bankDetails, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
         var currency = string.Equals((model.Currency ?? string.Empty).Trim(), "USD", StringComparison.OrdinalIgnoreCase)
             ? "USD"
             : "MVR";
@@ -125,6 +347,7 @@ public class PdfExportService : IPdfExportService
 
         var outstandingAmount = Math.Max(model.Balance, 0m);
         var gstPercentText = $"{(model.TaxRate * 100):0.##}";
+        var orderedPayments = model.Payments.OrderByDescending(x => x.PaymentDate).ToList();
 
         var bankAccountRows = currency == "USD"
             ? new (string Bank, string Currency, string? AccountName, string? AccountNumber)[]
@@ -139,7 +362,16 @@ public class PdfExportService : IPdfExportService
             };
 
         static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static (string Fill, string Outline, string Text) StatusColors(PaymentStatus status) => status switch
+        {
+            PaymentStatus.Paid => ("#DCF6E8", "#95D8B0", "#0F8B57"),
+            PaymentStatus.Partial => ("#FFF1D8", "#F2C37E", "#B46A00"),
+            _ => ("#E7EDFF", "#AFC1F8", "#4157B2")
+        };
+
         var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var statusColors = StatusColors(model.PaymentStatus);
 
         return Document.Create(container =>
             {
@@ -147,14 +379,14 @@ public class PdfExportService : IPdfExportService
                 {
                     page.Size(PageSizes.A4);
                     page.Margin(22);
-                    page.DefaultTextStyle(x => x.FontSize(9.6f));
+                    page.DefaultTextStyle(x => x.FontSize(9.6f).FontColor(Ink));
 
                     page.Header().Column(header =>
                     {
-                        header.Spacing(6);
+                        header.Spacing(8);
                         header.Item().Row(row =>
                         {
-                            row.Spacing(10);
+                            row.Spacing(12);
                             row.RelativeItem().Element(left =>
                             {
                                 if (logoAsset?.HasValue == true)
@@ -162,19 +394,22 @@ public class PdfExportService : IPdfExportService
                                     left.Row(brand =>
                                     {
                                         brand.Spacing(8);
-                                        brand.ConstantItem(94)
-                                            .Height(52)
+                                        brand.ConstantItem(68)
+                                            .Height(68)
                                             .Border(1)
-                                            .BorderColor(Colors.Grey.Lighten2)
-                                            .Padding(4)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(5)
                                             .AlignCenter()
                                             .AlignMiddle()
                                             .Element(container => RenderLogo(container, logoAsset));
                                         brand.RelativeItem().Column(text =>
                                         {
-                                            text.Item().Text(companyName).Bold().FontSize(16);
-                                            text.Item().Text("Tax Invoice").FontSize(10.2f).FontColor(Colors.Grey.Darken2);
-                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Colors.Grey.Darken1);
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Tax Invoice").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
                                         });
                                     });
                                 }
@@ -182,64 +417,127 @@ public class PdfExportService : IPdfExportService
                                 {
                                     left.Column(text =>
                                     {
-                                        text.Item().Text(companyName).Bold().FontSize(16);
-                                        text.Item().Text("Tax Invoice").FontSize(10.2f).FontColor(Colors.Grey.Darken2);
-                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Colors.Grey.Darken1);
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Tax Invoice").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
                                     });
                                 }
                             });
 
-                            row.ConstantItem(230).Border(1).BorderColor(Colors.Grey.Lighten2).Background(Colors.Grey.Lighten5).Padding(8).Column(meta =>
-                            {
-                                meta.Spacing(2);
-                                meta.Item().AlignRight().Text("INVOICE").Bold().FontSize(18);
-                                meta.Item().AlignRight().Text($"Invoice #: {model.InvoiceNo}");
-                                meta.Item().AlignRight().Text($"Issued: {model.DateIssued:yyyy-MM-dd}");
-                                meta.Item().AlignRight().Text($"Due: {model.DateDue:yyyy-MM-dd}");
-                                meta.Item().AlignRight().Text($"Currency: {currency}");
-                            });
+                            row.ConstantItem(230)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("INVOICE").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Element(chip =>
+                                        chip.Border(1)
+                                            .BorderColor(statusColors.Outline)
+                                            .Background(statusColors.Fill)
+                                            .CornerRadius(12)
+                                            .PaddingHorizontal(10)
+                                            .PaddingVertical(4)
+                                            .Text(model.PaymentStatus.ToString())
+                                            .SemiBold()
+                                            .FontSize(8.8f)
+                                            .FontColor(statusColors.Text));
+                                    meta.Item().AlignRight().Text($"Invoice No: {Safe(model.InvoiceNo)}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Issued: {model.DateIssued:yyyy-MM-dd}");
+                                    meta.Item().AlignRight().Text($"Due: {model.DateDue:yyyy-MM-dd}");
+                                    meta.Item().AlignRight().Text($"Currency: {currency}");
+                                });
                         });
 
-                        header.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                        header.Item().Text(
+                                $"Customer invoice for {Safe(model.CustomerName)} | Delivery Note: {Safe(model.DeliveryNoteNo)} | Due in {dueDays} day(s)")
+                            .FontSize(8.6f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(10);
+                        column.Spacing(12);
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(billTo =>
+                                {
+                                    billTo.Spacing(4);
+                                    billTo.Item().Text("Bill To").Bold().FontSize(10.4f).FontColor(Ink);
+                                    billTo.Item().Text(model.CustomerName).Bold().FontSize(11.4f).FontColor(Ink);
+                                    billTo.Item().Text($"Customer TIN: {Safe(model.CustomerTinNumber)}").FontColor(Muted);
+                                    billTo.Item().Text($"Delivery Note: {Safe(model.DeliveryNoteNo)}").FontColor(Muted);
+                                    billTo.Item().Text($"Courier / Vessel: {Safe(model.CourierName)}").FontColor(Muted);
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Table(table =>
+                                {
+                                    table.ColumnsDefinition(columns =>
+                                    {
+                                        columns.ConstantColumn(92);
+                                        columns.RelativeColumn();
+                                    });
+
+                                    IContainer LabelCell(IContainer c) => c.PaddingVertical(2);
+                                    IContainer ValueCell(IContainer c) => c.PaddingVertical(2);
+
+                                    table.Cell().Element(LabelCell).Text("PO Number").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Safe(model.PoNumber));
+                                    table.Cell().Element(LabelCell).Text("Tax Rate").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text($"{gstPercentText}%");
+                                    table.Cell().Element(LabelCell).Text("Amount Paid").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Money(currency, model.AmountPaid));
+                                    table.Cell().Element(LabelCell).Text("Balance").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Money(currency, outstandingAmount)).SemiBold();
+                                });
+                        });
 
                         column.Item().Row(row =>
                         {
                             row.Spacing(8);
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(billTo =>
+                            void Metric(IContainer container, string label, string value)
                             {
-                                billTo.Spacing(2);
-                                billTo.Item().Text("Bill To").Bold().FontSize(10.5f);
-                                billTo.Item().Text(model.CustomerName).Bold();
-                                billTo.Item().Text($"Customer Ref/TIN: {Safe(model.CustomerTinNumber)}");
-                                billTo.Item().Text($"Delivery Note: {Safe(model.DeliveryNoteNo)}");
-                            });
+                                container
+                                    .Border(1)
+                                    .BorderColor(Border)
+                                    .Background(Panel)
+                                    .CornerRadius(12)
+                                    .PaddingVertical(7)
+                                    .PaddingHorizontal(9)
+                                    .Column(metric =>
+                                    {
+                                        metric.Spacing(2);
+                                        metric.Item().Text(label).FontSize(7.4f).SemiBold().FontColor(Muted);
+                                        metric.Item().Text(value).FontSize(10.4f).Bold().FontColor(Ink);
+                                    });
+                            }
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Table(table =>
-                            {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(80);
-                                    columns.RelativeColumn();
-                                });
-
-                                IContainer LabelCell(IContainer c) => c.PaddingVertical(1);
-                                IContainer ValueCell(IContainer c) => c.PaddingVertical(1);
-
-                                table.Cell().Element(LabelCell).Text("PO No.").SemiBold();
-                                table.Cell().Element(ValueCell).Text(Safe(model.PoNumber));
-                                table.Cell().Element(LabelCell).Text("Courier").SemiBold();
-                                table.Cell().Element(ValueCell).Text(Safe(model.CourierName));
-                                table.Cell().Element(LabelCell).Text("Tax Rate").SemiBold();
-                                table.Cell().Element(ValueCell).Text($"{gstPercentText}%");
-                                table.Cell().Element(LabelCell).Text("Payment Status").SemiBold();
-                                table.Cell().Element(ValueCell).Text(model.PaymentStatus.ToString());
-                            });
+                            row.RelativeItem().Element(c => Metric(c, "Subtotal", Money(currency, model.Subtotal)));
+                            row.RelativeItem().Element(c => Metric(c, $"GST ({gstPercentText}%)", Money(currency, model.TaxAmount)));
+                            row.RelativeItem().Element(c => Metric(c, "Grand Total", Money(currency, model.GrandTotal)));
+                            row.RelativeItem().Element(c => Metric(c, "Received", Money(currency, model.AmountPaid)));
+                            row.RelativeItem().Element(c => Metric(c, "Outstanding", Money(currency, outstandingAmount)));
                         });
 
                         column.Item().Table(table =>
@@ -253,218 +551,532 @@ public class PdfExportService : IPdfExportService
                                 columns.ConstantColumn(102);
                             });
 
-                            IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Background(Colors.Grey.Lighten4);
-                            IContainer BodyCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(5);
-                            IContainer SummaryLabel(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Background(Colors.Grey.Lighten5);
-                            IContainer SummaryValue(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(5);
+                            IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(6);
+                            IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(6);
 
                             table.Header(header =>
                             {
-                                header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold();
-                                header.Cell().Element(HeaderCell).Text("Description").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Qty").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Rate").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Qty").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Rate").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
                             });
 
                             if (model.Items.Count == 0)
                             {
-                                table.Cell().ColumnSpan(5).Element(BodyCell).AlignCenter().Text("No line items");
+                                table.Cell().ColumnSpan(5)
+                                    .Element(c => BodyCell(c, Colors.White))
+                                    .AlignCenter()
+                                    .Text("No line items");
                             }
                             else
                             {
                                 for (var i = 0; i < model.Items.Count; i++)
                                 {
                                     var item = model.Items[i];
-                                    table.Cell().Element(BodyCell).AlignCenter().Text((i + 1).ToString());
-                                    table.Cell().Element(BodyCell).Text(item.Description);
-                                    table.Cell().Element(BodyCell).AlignRight().Text(item.Qty.ToString("N2"));
-                                    table.Cell().Element(BodyCell).AlignRight().Text($"{currency} {item.Rate:N2}");
-                                    table.Cell().Element(BodyCell).AlignRight().Text($"{currency} {item.Total:N2}");
+                                    var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text((i + 1).ToString());
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(item.Description);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.Qty.ToString("N2"));
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(currency, item.Rate));
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(currency, item.Total));
                                 }
                             }
-
-                            table.Cell().ColumnSpan(4).Element(SummaryLabel).AlignRight().Text("Subtotal").SemiBold();
-                            table.Cell().Element(SummaryValue).AlignRight().Text($"{currency} {model.Subtotal:N2}");
-
-                            table.Cell().ColumnSpan(4).Element(SummaryLabel).AlignRight().Text($"GST ({gstPercentText}%)").SemiBold();
-                            table.Cell().Element(SummaryValue).AlignRight().Text($"{currency} {model.TaxAmount:N2}");
-
-                            table.Cell().ColumnSpan(4).Element(SummaryLabel).AlignRight().Text("Total").Bold();
-                            table.Cell().Element(SummaryValue).AlignRight().Text($"{currency} {model.GrandTotal:N2}").Bold();
-
-                            table.Cell().ColumnSpan(4).Element(SummaryLabel).AlignRight().Text("Outstanding").Bold();
-                            table.Cell().Element(SummaryValue).AlignRight().Text($"{currency} {outstandingAmount:N2}").Bold();
                         });
+
+                        if (orderedPayments.Count > 0)
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(payments =>
+                                {
+                                    payments.Spacing(6);
+                                    payments.Item().Text("Payment History").Bold().FontSize(10.4f).FontColor(Ink);
+                                    payments.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(96);
+                                            columns.ConstantColumn(90);
+                                            columns.ConstantColumn(110);
+                                            columns.RelativeColumn();
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Date").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Method").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Reference / Notes").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var i = 0; i < orderedPayments.Count; i++)
+                                        {
+                                            var payment = orderedPayments[i];
+                                            var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                            var paymentCurrency = string.IsNullOrWhiteSpace(payment.Currency)
+                                                ? currency
+                                                : payment.Currency.Trim().ToUpperInvariant();
+                                            var notesText = string.IsNullOrWhiteSpace(payment.Notes)
+                                                ? Safe(payment.Reference)
+                                                : $"{Safe(payment.Reference)} | {payment.Notes!.Trim()}";
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(payment.PaymentDate.ToString("yyyy-MM-dd"));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(payment.Method.ToString());
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(paymentCurrency, payment.Amount));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(notesText);
+                                        }
+                                    });
+                                });
+                        }
 
                         column.Item().Row(row =>
                         {
-                            row.Spacing(8);
+                            row.Spacing(10);
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(terms =>
-                            {
-                                terms.Spacing(3);
-                                terms.Item().Text("Payment Terms").Bold().FontSize(10.3f);
-                                terms.Item().Text($"Please settle this invoice within {dueDays} day(s) after receipt.");
-                                if (!string.IsNullOrWhiteSpace(model.Notes))
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(terms =>
                                 {
-                                    terms.Item().Text($"Notes: {model.Notes}");
-                                }
-                            });
-
-                            row.ConstantItem(258).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(owner =>
-                            {
-                                owner.Spacing(3);
-                                owner.Item().Text("Authorized Signatory").Bold().FontSize(10.3f);
-                                owner.Item().Text($"Owner: {Safe(bankDetails.InvoiceOwnerName)}");
-                                owner.Item().Text($"ID: {Safe(bankDetails.InvoiceOwnerIdCard)}");
-                                owner.Item().PaddingTop(14).LineHorizontal(0.7f).LineColor(Colors.Grey.Lighten1);
-                                owner.Item().Text("Signature").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
-                            });
-                        });
-
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(payment =>
-                        {
-                            payment.Spacing(4);
-                            payment.Item().Text("Payment Details").Bold().FontSize(10.3f);
-
-                            payment.Item().Table(table =>
-                            {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(58);
-                                    columns.ConstantColumn(58);
-                                    columns.RelativeColumn(1.7f);
-                                    columns.RelativeColumn(1.3f);
+                                    terms.Spacing(4);
+                                    terms.Item().Text("Notes & Terms").Bold().FontSize(10.4f).FontColor(Ink);
+                                    terms.Item().Text($"Please settle this invoice within {dueDays} day(s) from the issue date.")
+                                        .FontColor(Muted);
+                                    terms.Item().Text($"Payment status: {model.PaymentStatus}")
+                                        .SemiBold()
+                                        .FontColor(Ink);
+                                    if (!string.IsNullOrWhiteSpace(model.Notes))
+                                    {
+                                        terms.Item().PaddingTop(2).Text(model.Notes!.Trim()).FontColor(Muted);
+                                    }
+                                    else
+                                    {
+                                        terms.Item().PaddingTop(2).Text("No additional notes were recorded for this invoice.")
+                                            .FontColor(Muted);
+                                    }
                                 });
 
-                                IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4).Background(Colors.Grey.Lighten4);
-                                IContainer BodyCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4);
-
-                                table.Header(header =>
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(payment =>
                                 {
-                                    header.Cell().Element(HeaderCell).AlignCenter().Text("Bank").Bold();
-                                    header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold();
-                                    header.Cell().Element(HeaderCell).Text("Account Name").Bold();
-                                    header.Cell().Element(HeaderCell).Text("Account Number").Bold();
+                                    payment.Spacing(6);
+                                    payment.Item().Text("Payment Details").Bold().FontSize(10.4f).FontColor(Ink);
+                                    payment.Item().Text($"Authorized by: {Safe(bankDetails.InvoiceOwnerName)}").SemiBold();
+                                    payment.Item().Text($"Owner ID: {Safe(bankDetails.InvoiceOwnerIdCard)}").FontColor(Muted);
+                                    payment.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(58);
+                                            columns.ConstantColumn(56);
+                                            columns.RelativeColumn(1.4f);
+                                            columns.RelativeColumn(1.25f);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(4);
+                                        IContainer BodyCell(IContainer c) => c.Border(1).BorderColor(Border).Padding(4);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("Bank").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Account Name").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Account Number").Bold().FontColor(Ink);
+                                        });
+
+                                        foreach (var account in bankAccountRows)
+                                        {
+                                            table.Cell().Element(BodyCell).AlignCenter().Text(account.Bank);
+                                            table.Cell().Element(BodyCell).AlignCenter().Text(account.Currency);
+                                            table.Cell().Element(BodyCell).Text(Safe(account.AccountName));
+                                            table.Cell().Element(BodyCell).Text(Safe(account.AccountNumber));
+                                        }
+                                    });
                                 });
-
-                                foreach (var account in bankAccountRows)
-                                {
-                                    table.Cell().Element(BodyCell).AlignCenter().Text(account.Bank);
-                                    table.Cell().Element(BodyCell).AlignCenter().Text(account.Currency);
-                                    table.Cell().Element(BodyCell).Text(Safe(account.AccountName));
-                                    table.Cell().Element(BodyCell).Text(Safe(account.AccountNumber));
-                                }
-                            });
-                        });
-
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(receipt =>
-                        {
-                            receipt.Spacing(3);
-                            receipt.Item().Text("Payment Receipt (Optional)").Bold().FontSize(10.3f);
-                            receipt.Item().Table(table =>
-                            {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.RelativeColumn(1.1f);
-                                    columns.RelativeColumn();
-                                });
-
-                                IContainer Cell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4);
-
-                                table.Cell().Element(Cell).Text("Payment Method");
-                                table.Cell().Element(Cell).Text(string.Empty);
-                                table.Cell().Element(Cell).Text("Name");
-                                table.Cell().Element(Cell).Text(string.Empty);
-                                table.Cell().Element(Cell).Text("Date / Signature");
-                                table.Cell().Element(Cell).Text(string.Empty);
-                            });
                         });
                     });
 
-                    page.Footer().AlignCenter().Text(text =>
+                    page.Footer().Row(footer =>
                     {
-                        text.DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Darken2));
-                        text.Span("Generated by myDhathuru");
-                        text.Span(" • ");
-                        text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
+
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
+                        });
                     });
                 });
             })
             .GeneratePdf();
     }
 
-    public byte[] BuildStatementPdf(AccountStatementDto model, string companyName, string companyInfo)
+
+    public byte[] BuildStatementPdf(AccountStatementDto model, string companyName, string companyInfo, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static string DualTotals(StatementCurrencyTotalsDto totals) => $"MVR {totals.Mvr:N2} | USD {totals.Usd:N2}";
+        static string DateLabel(DateOnly? value) => value?.ToString("yyyy-MM-dd") ?? "-";
+
+        static (string Fill, string Outline, string Text) StatusColors(AccountStatementDto statement)
+        {
+            var hasPendingBalance = statement.TotalPending.Mvr > 0m || statement.TotalPending.Usd > 0m;
+            return hasPendingBalance
+                ? ("#FFF1D8", "#F2C37E", "#B46A00")
+                : ("#DCF6E8", "#95D8B0", "#0F8B57");
+        }
+
+        void Metric(IContainer container, string label, string value, string detail)
+        {
+            container.Border(1)
+                .BorderColor(Border)
+                .Background(Colors.White)
+                .CornerRadius(14)
+                .Padding(10)
+                .Column(metric =>
+                {
+                    metric.Spacing(3);
+                    metric.Item().Text(label).FontSize(8.4f).SemiBold().FontColor(Muted);
+                    metric.Item().Text(value).FontSize(11).Bold().FontColor(Ink);
+                    metric.Item().Text(detail).FontSize(8.2f).FontColor(Muted);
+                });
+        }
+
+        var invoiceCount = model.Rows.Count(x => x.Amount > 0m);
+        var paymentCount = model.Rows.Count(x => x.Payments > 0m);
+        var latestActivity = model.Rows
+            .Select(x => x.ReceivedOn ?? x.Date)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .DefaultIfEmpty()
+            .Max();
+        var hasLatestActivity = latestActivity != default;
+        var generatedAt = DateTimeOffset.UtcNow.ToOffset(MaldivesOffset);
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var statusColors = StatusColors(model);
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Margin(24);
-                    page.DefaultTextStyle(x => x.FontSize(10));
-                    page.Header().Column(column =>
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.4f).FontColor(Ink));
+
+                    page.Header().Column(header =>
                     {
-                        column.Item().Text(companyName).Bold().FontSize(18);
-                        column.Item().Text(companyInfo).FontSize(9).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(8).Text("Statement Of Account").Bold().FontSize(14);
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(64)
+                                            .Height(64)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Statement Of Account").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Statement Of Account").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(246)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("STATEMENT").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Element(chip =>
+                                        chip.Border(1)
+                                            .BorderColor(statusColors.Outline)
+                                            .Background(statusColors.Fill)
+                                            .CornerRadius(12)
+                                            .PaddingHorizontal(10)
+                                            .PaddingVertical(4)
+                                            .Text((model.TotalPending.Mvr > 0m || model.TotalPending.Usd > 0m) ? "Open Balance" : "Settled")
+                                            .SemiBold()
+                                            .FontSize(8.8f)
+                                            .FontColor(statusColors.Text));
+                                    meta.Item().AlignRight().Text($"Statement No: {Safe(model.StatementNo)}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Customer: {Safe(model.CustomerName)}");
+                                    meta.Item().AlignRight().Text($"Year: {model.Year}");
+                                    meta.Item().AlignRight().Text(
+                                        hasLatestActivity
+                                            ? $"Latest Activity: {latestActivity:yyyy-MM-dd}"
+                                            : "Latest Activity: -");
+                                });
+                        });
+
+                        header.Item()
+                            .Text($"Activity summary: {invoiceCount:N0} invoice line(s), {paymentCount:N0} payment line(s), {model.Rows.Count:N0} total statement row(s).")
+                            .FontSize(8.5f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(8);
-                        column.Item().Text($"Customer: {model.CustomerName}");
-                        column.Item().Text($"Statement No: {model.StatementNo}");
-                        column.Item().Text($"Year: {model.Year}");
+                        column.Spacing(12);
 
-                        column.Item().Table(table =>
+                        column.Item().Row(row =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn(0.8f);
-                                columns.RelativeColumn(1.2f);
-                                columns.RelativeColumn(3);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.1f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.4f);
-                                columns.RelativeColumn(1.5f);
-                            });
+                            row.Spacing(10);
 
-                            table.Header(header =>
-                            {
-                                header.Cell().Text("#").Bold();
-                                header.Cell().Text("Date").Bold();
-                                header.Cell().Text("Description").Bold();
-                                header.Cell().Text("Reference").Bold();
-                                header.Cell().Text("Currency").Bold();
-                                header.Cell().AlignRight().Text("Amount").Bold();
-                                header.Cell().AlignRight().Text("Payments").Bold();
-                                header.Cell().Text("Received On").Bold();
-                                header.Cell().AlignRight().Text("Balance").Bold();
-                            });
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(details =>
+                                {
+                                    details.Spacing(4);
+                                    details.Item().Text("Customer Profile").Bold().FontSize(10.4f).FontColor(Ink);
+                                    details.Item().Text(model.CustomerName).Bold().FontSize(11.2f);
+                                    details.Item().Text($"Statement No: {Safe(model.StatementNo)}").FontColor(Muted);
+                                    details.Item().Text($"Reporting Year: {model.Year}").FontColor(Muted);
+                                    details.Item().Text($"Generated Rows: {model.Rows.Count:N0}").FontColor(Muted);
+                                });
 
-                            foreach (var row in model.Rows)
-                            {
-                                table.Cell().Text(row.Index.ToString());
-                                table.Cell().Text(row.Date?.ToString("yyyy-MM-dd") ?? "-");
-                                table.Cell().Text(row.Description);
-                                table.Cell().Text(row.Reference ?? "-");
-                                table.Cell().Text(row.Currency);
-                                table.Cell().AlignRight().Text(row.Amount.ToString("N2"));
-                                table.Cell().AlignRight().Text(row.Payments.ToString("N2"));
-                                table.Cell().Text(row.ReceivedOn?.ToString("yyyy-MM-dd") ?? "-");
-                                table.Cell().AlignRight().Text(row.Balance.ToString("N2"));
-                            }
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(profile =>
+                                {
+                                    profile.Spacing(4);
+                                    profile.Item().Text("Statement Profile").Bold().FontSize(10.4f).FontColor(Ink);
+                                    profile.Item().Text(
+                                            "Balances are tracked independently by currency so MVR and USD activity remain clear and auditable.")
+                                        .FontColor(Muted);
+                                    profile.Item().Text($"Invoice Rows: {invoiceCount:N0}").FontColor(Muted);
+                                    profile.Item().Text($"Payment Rows: {paymentCount:N0}").FontColor(Muted);
+                                    profile.Item().Text(
+                                            hasLatestActivity
+                                                ? $"Last Movement: {latestActivity:yyyy-MM-dd}"
+                                                : "Last Movement: -")
+                                        .FontColor(Muted);
+                                });
                         });
 
-                        column.Item().AlignRight().Column(totals =>
+                        column.Item().Row(row =>
                         {
-                            totals.Item().Text($"Opening Balance: MVR {model.OpeningBalance.Mvr:N2} | USD {model.OpeningBalance.Usd:N2}");
-                            totals.Item().Text($"Total Invoiced: MVR {model.TotalInvoiced.Mvr:N2} | USD {model.TotalInvoiced.Usd:N2}");
-                            totals.Item().Text($"Total Received: MVR {model.TotalReceived.Mvr:N2} | USD {model.TotalReceived.Usd:N2}");
-                            totals.Item().Text($"Pending: MVR {model.TotalPending.Mvr:N2} | USD {model.TotalPending.Usd:N2}").Bold();
+                            row.Spacing(10);
+                            row.RelativeItem().Element(c => Metric(c, "Opening Balance", DualTotals(model.OpeningBalance), "Balance carried forward before this statement year."));
+                            row.RelativeItem().Element(c => Metric(c, "Total Invoiced", DualTotals(model.TotalInvoiced), "Invoice amounts posted during the selected year."));
+                            row.RelativeItem().Element(c => Metric(c, "Total Received", DualTotals(model.TotalReceived), "Payments received against statement activity."));
+                            row.RelativeItem().Element(c => Metric(c, "Pending Balance", DualTotals(model.TotalPending), "Outstanding balance still open by currency."));
+                        });
+
+                        if (model.Rows.Count == 0)
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(16)
+                                .Padding(18)
+                                .AlignCenter()
+                                .Text("No statement activity was recorded for the selected year.")
+                                .FontColor(Muted);
+                        }
+                        else
+                        {
+                            column.Item().Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.ConstantColumn(32);
+                                    columns.ConstantColumn(66);
+                                    columns.RelativeColumn(2.7f);
+                                    columns.ConstantColumn(96);
+                                    columns.ConstantColumn(58);
+                                    columns.ConstantColumn(88);
+                                    columns.ConstantColumn(88);
+                                    columns.ConstantColumn(76);
+                                    columns.ConstantColumn(88);
+                                });
+
+                                IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(6);
+                                IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(6);
+
+                                table.Header(header =>
+                                {
+                                    header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).Text("Date").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).Text("Reference").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).AlignCenter().Text("Currency").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).AlignRight().Text("Payments").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).Text("Received On").Bold().FontColor(Ink);
+                                    header.Cell().Element(HeaderCell).AlignRight().Text("Balance").Bold().FontColor(Ink);
+                                });
+
+                                for (var index = 0; index < model.Rows.Count; index++)
+                                {
+                                    var row = model.Rows[index];
+                                    var background = index % 2 == 0 ? "#FFFFFF" : Panel;
+
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text(row.Index.ToString()).FontColor(Muted);
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(DateLabel(row.Date)).FontColor(Ink);
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(row.Description).SemiBold().FontColor(Ink);
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(Safe(row.Reference)).FontColor(Muted);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text(row.Currency).SemiBold().FontColor(Accent);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(row.Currency, row.Amount)).FontColor(Ink);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(row.Currency, row.Payments)).FontColor(Ink);
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(DateLabel(row.ReceivedOn)).FontColor(Muted);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(row.Currency, row.Balance)).SemiBold().FontColor(Ink);
+                                }
+                            });
+                        }
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(notes =>
+                                {
+                                    notes.Spacing(4);
+                                    notes.Item().Text("Statement Notes").Bold().FontSize(10.4f).FontColor(Ink);
+                                    notes.Item().Text(
+                                            "This statement groups invoices, payments, and opening balances for the selected year. Amount and balance columns are shown in the row currency.")
+                                        .FontColor(Muted);
+                                    notes.Item().Text(
+                                            "Use this export for customer reconciliation, finance review, and year-based account visibility.")
+                                        .FontColor(Muted);
+                                });
+
+                            row.ConstantItem(270)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(6);
+                                    summary.Item().Text("Statement Summary").Bold().FontSize(10.4f).FontColor(Ink);
+
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Opening Balance").SemiBold().FontColor(Muted);
+                                        item.ConstantItem(142).AlignRight().Text(DualTotals(model.OpeningBalance)).SemiBold();
+                                    });
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Total Invoiced").SemiBold().FontColor(Muted);
+                                        item.ConstantItem(142).AlignRight().Text(DualTotals(model.TotalInvoiced)).SemiBold();
+                                    });
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Total Received").SemiBold().FontColor(Muted);
+                                        item.ConstantItem(142).AlignRight().Text(DualTotals(model.TotalReceived)).SemiBold();
+                                    });
+                                    summary.Item().LineHorizontal(1).LineColor(Border);
+                                    summary.Item().Row(item =>
+                                    {
+                                        item.RelativeItem().Text("Pending Balance").Bold().FontColor(Ink);
+                                        item.ConstantItem(142).AlignRight().Text(DualTotals(model.TotalPending)).Bold().FontSize(10.8f).FontColor(Ink);
+                                    });
+                                });
+                        });
+                    });
+
+                    page.Footer().Column(footer =>
+                    {
+                        footer.Spacing(4);
+                        footer.Item().LineHorizontal(1).LineColor(Border);
+                        footer.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.Span("Generated by myDhathuru");
+                                text.Span(" | ");
+                                text.Span($"{generatedAt:yyyy-MM-dd HH:mm} MVT");
+                            });
+
+                            row.ConstantItem(78).AlignRight().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.CurrentPageNumber();
+                                text.Span(" / ");
+                                text.TotalPages();
+                            });
                         });
                     });
                 });
@@ -474,11 +1086,19 @@ public class PdfExportService : IPdfExportService
 
     public byte[] BuildSalarySlipPdf(SalarySlipDto model, string companyName, string companyInfo, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
         static decimal Round2(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
         static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
         static string Money(decimal value) => $"MVR {Math.Round(value, 2, MidpointRounding.AwayFromZero):N2}";
 
         var periodLabel = $"{model.PeriodStart:dd/MM/yyyy} to {model.PeriodEnd:dd/MM/yyyy}";
+        var periodDays = Math.Max(model.PeriodEnd.DayNumber - model.PeriodStart.DayNumber + 1, 1);
         var expectedDeduction = Round2(model.TotalSalary - model.TotalPayable);
         var totalDeduction = Round2(Math.Abs(model.TotalDeduction - expectedDeduction) > 0.01m ? expectedDeduction : model.TotalDeduction);
         var foodAllowanceCashDeduction = Round2(Math.Max(0m,
@@ -490,7 +1110,7 @@ public class PdfExportService : IPdfExportService
         {
             ("Basic Salary", model.BasicSalary),
             ("Service Allowance", model.ServiceAllowance),
-            ("Risk Allowance", model.OtherAllowance),
+            ("Other Allowance", model.OtherAllowance),
             ("Phone Allowance", model.PhoneAllowance),
             ("Food Allowance", model.FoodAllowance),
             ("Overtime Pay", model.OvertimePay)
@@ -499,8 +1119,8 @@ public class PdfExportService : IPdfExportService
         var deductionRows = new (string Label, string Basis, decimal Amount)[]
         {
             ("Absent Deduction", model.AbsentDays > 0 ? $"{model.AbsentDays:N0} x {model.RatePerDay:N2}" : "-", model.AbsentDeduction),
-            ("Food Allowance (Cash)", model.FoodAllowanceDays > 0 ? $"{model.FoodAllowanceDays:N0} x {model.FoodAllowanceRate:N2}" : "-", foodAllowanceCashDeduction),
-            ("Pension Contribution", "-", model.PensionDeduction),
+            ("Food Allow. (Cash)", model.FoodAllowanceDays > 0 ? $"{model.FoodAllowanceDays:N0} x {model.FoodAllowanceRate:N2}" : "-", foodAllowanceCashDeduction),
+            ("Pension", "-", model.PensionDeduction),
             ("Salary Advance", "-", model.SalaryAdvanceDeduction)
         };
 
@@ -510,14 +1130,14 @@ public class PdfExportService : IPdfExportService
                 {
                     page.Size(PageSizes.A4);
                     page.Margin(22);
-                    page.DefaultTextStyle(x => x.FontSize(9.6f));
+                    page.DefaultTextStyle(x => x.FontSize(9.6f).FontColor(Ink));
 
                     page.Header().Column(header =>
                     {
-                        header.Spacing(6);
+                        header.Spacing(8);
                         header.Item().Row(row =>
                         {
-                            row.Spacing(10);
+                            row.Spacing(12);
                             row.RelativeItem().Element(left =>
                             {
                                 if (logoAsset?.HasValue == true)
@@ -525,19 +1145,22 @@ public class PdfExportService : IPdfExportService
                                     left.Row(brand =>
                                     {
                                         brand.Spacing(8);
-                                        brand.ConstantItem(94)
-                                            .Height(52)
+                                        brand.ConstantItem(68)
+                                            .Height(68)
                                             .Border(1)
-                                            .BorderColor(Colors.Grey.Lighten2)
-                                            .Padding(4)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(5)
                                             .AlignCenter()
                                             .AlignMiddle()
                                             .Element(container => RenderLogo(container, logoAsset));
                                         brand.RelativeItem().Column(text =>
                                         {
-                                            text.Item().Text(companyName).Bold().FontSize(16);
-                                            text.Item().Text("Salary Slip").FontSize(10.2f).FontColor(Colors.Grey.Darken2);
-                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Colors.Grey.Darken1);
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Salary Slip").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
                                         });
                                     });
                                 }
@@ -545,206 +1168,286 @@ public class PdfExportService : IPdfExportService
                                 {
                                     left.Column(text =>
                                     {
-                                        text.Item().Text(companyName).Bold().FontSize(16);
-                                        text.Item().Text("Salary Slip").FontSize(10.2f).FontColor(Colors.Grey.Darken2);
-                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Colors.Grey.Darken1);
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Salary Slip").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.6f).FontColor(Muted);
                                     });
                                 }
                             });
 
-                            row.ConstantItem(235).Border(1).BorderColor(Colors.Grey.Lighten2).Background(Colors.Grey.Lighten5).Padding(8).Column(meta =>
-                            {
-                                meta.Spacing(2);
-                                meta.Item().AlignRight().Text("PAY SLIP").Bold().FontSize(17);
-                                meta.Item().AlignRight().Text($"Slip No: {model.SlipNo}");
-                                meta.Item().AlignRight().Text($"Period: {periodLabel}");
-                                meta.Item().AlignRight().Text($"Staff Code: {model.StaffCode}");
-                            });
+                            row.ConstantItem(235)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("PAY SLIP").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Slip No: {Safe(model.SlipNo)}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Period: {periodLabel}");
+                                    meta.Item().AlignRight().Text($"Staff Code: {Safe(model.StaffCode)}");
+                                });
                         });
 
-                        header.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                        header.Item().Text(
+                                $"Payroll period {model.PeriodStart:yyyy-MM-dd} to {model.PeriodEnd:yyyy-MM-dd} | Net payable: {Money(model.TotalPayable)}")
+                            .FontSize(8.6f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(10);
+                        column.Spacing(12);
 
                         column.Item().Row(row =>
                         {
                             row.Spacing(8);
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Table(table =>
+                            void Metric(IContainer container, string label, string value)
                             {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(108);
-                                    columns.RelativeColumn();
-                                });
+                                container
+                                    .Border(1)
+                                    .BorderColor(Border)
+                                    .Background(Panel)
+                                    .CornerRadius(12)
+                                    .PaddingVertical(7)
+                                    .PaddingHorizontal(9)
+                                    .Column(metric =>
+                                    {
+                                        metric.Spacing(2);
+                                        metric.Item().Text(label).FontSize(7.4f).SemiBold().FontColor(Muted);
+                                        metric.Item().Text(value).FontSize(10.4f).Bold().FontColor(Ink);
+                                    });
+                            }
 
-                                IContainer LabelCell(IContainer c) => c.PaddingVertical(1);
-                                IContainer ValueCell(IContainer c) => c.PaddingVertical(1);
-
-                                table.Cell().Element(LabelCell).Text("Staff Name").SemiBold();
-                                table.Cell().Element(ValueCell).Text(model.StaffName);
-                                table.Cell().Element(LabelCell).Text("Designation").SemiBold();
-                                table.Cell().Element(ValueCell).Text(Safe(model.Designation));
-                                table.Cell().Element(LabelCell).Text("Work Site").SemiBold();
-                                table.Cell().Element(ValueCell).Text(Safe(model.WorkSite));
-                            });
-
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Table(table =>
-                            {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(108);
-                                    columns.RelativeColumn();
-                                });
-
-                                IContainer LabelCell(IContainer c) => c.PaddingVertical(1);
-                                IContainer ValueCell(IContainer c) => c.PaddingVertical(1);
-
-                                table.Cell().Element(LabelCell).Text("Attended Days").SemiBold();
-                                table.Cell().Element(ValueCell).Text(model.AttendedDays.ToString("N0"));
-                                table.Cell().Element(LabelCell).Text("Absent Days").SemiBold();
-                                table.Cell().Element(ValueCell).Text(model.AbsentDays.ToString("N0"));
-                                table.Cell().Element(LabelCell).Text("Food Allowance Days").SemiBold();
-                                table.Cell().Element(ValueCell).Text(model.FoodAllowanceDays.ToString("N0"));
-                            });
+                            row.RelativeItem().Element(c => Metric(c, "Net Payable", Money(model.TotalPayable)));
+                            row.RelativeItem().Element(c => Metric(c, "Total Salary", Money(model.TotalSalary)));
+                            row.RelativeItem().Element(c => Metric(c, "Total Deduction", Money(totalDeduction)));
+                            row.RelativeItem().Element(c => Metric(c, "Attendance", $"{model.AttendedDays}/{periodDays} days"));
                         });
 
                         column.Item().Row(row =>
                         {
-                            row.Spacing(8);
+                            row.Spacing(10);
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(earnings =>
-                            {
-                                earnings.Spacing(4);
-                                earnings.Item().Text("Earnings").Bold().FontSize(10.4f);
-
-                                earnings.Item().Table(table =>
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Table(table =>
                                 {
                                     table.ColumnsDefinition(columns =>
                                     {
+                                        columns.ConstantColumn(112);
                                         columns.RelativeColumn();
-                                        columns.ConstantColumn(58);
-                                        columns.ConstantColumn(96);
                                     });
 
-                                    IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4).Background(Colors.Grey.Lighten4);
-                                    IContainer BodyCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4);
+                                    IContainer LabelCell(IContainer c) => c.PaddingVertical(2);
+                                    IContainer ValueCell(IContainer c) => c.PaddingVertical(2);
 
-                                    table.Header(header =>
-                                    {
-                                        header.Cell().Element(HeaderCell).Text("Description").Bold();
-                                        header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold();
-                                        header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold();
-                                    });
-
-                                    foreach (var item in earningRows)
-                                    {
-                                        table.Cell().Element(BodyCell).Text(item.Label);
-                                        table.Cell().Element(BodyCell).AlignCenter().Text("MVR");
-                                        table.Cell().Element(BodyCell).AlignRight().Text(item.Amount.ToString("N2"));
-                                    }
-
-                                    table.Cell().Element(HeaderCell).Text("Total Salary").Bold();
-                                    table.Cell().Element(HeaderCell).AlignCenter().Text("MVR").Bold();
-                                    table.Cell().Element(HeaderCell).AlignRight().Text(model.TotalSalary.ToString("N2")).Bold();
+                                    table.Cell().Element(LabelCell).Text("Staff Name").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.StaffName).SemiBold();
+                                    table.Cell().Element(LabelCell).Text("Staff Code").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Safe(model.StaffCode));
+                                    table.Cell().Element(LabelCell).Text("Designation").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Safe(model.Designation));
+                                    table.Cell().Element(LabelCell).Text("Work Site").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Safe(model.WorkSite));
                                 });
-                            });
 
-                            row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(deductions =>
-                            {
-                                deductions.Spacing(4);
-                                deductions.Item().Text("Deductions").Bold().FontSize(10.4f);
-
-                                deductions.Item().Table(table =>
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Table(table =>
                                 {
                                     table.ColumnsDefinition(columns =>
                                     {
-                                        columns.RelativeColumn(1.8f);
-                                        columns.RelativeColumn(1.2f);
-                                        columns.ConstantColumn(58);
-                                        columns.ConstantColumn(96);
+                                        columns.ConstantColumn(118);
+                                        columns.RelativeColumn();
                                     });
 
-                                    IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4).Background(Colors.Grey.Lighten4);
-                                    IContainer BodyCell(IContainer c) => c.Border(1).BorderColor(Colors.Grey.Lighten2).Padding(4);
+                                    IContainer LabelCell(IContainer c) => c.PaddingVertical(2);
+                                    IContainer ValueCell(IContainer c) => c.PaddingVertical(2);
 
-                                    table.Header(header =>
-                                    {
-                                        header.Cell().Element(HeaderCell).Text("Description").Bold();
-                                        header.Cell().Element(HeaderCell).Text("Basis").Bold();
-                                        header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold();
-                                        header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold();
-                                    });
-
-                                    foreach (var item in deductionRows)
-                                    {
-                                        table.Cell().Element(BodyCell).Text(item.Label);
-                                        table.Cell().Element(BodyCell).Text(item.Basis);
-                                        table.Cell().Element(BodyCell).AlignCenter().Text("MVR");
-                                        table.Cell().Element(BodyCell).AlignRight().Text(item.Amount.ToString("N2"));
-                                    }
-
-                                    table.Cell().ColumnSpan(2).Element(HeaderCell).Text("Total Deduction").Bold();
-                                    table.Cell().Element(HeaderCell).AlignCenter().Text("MVR").Bold();
-                                    table.Cell().Element(HeaderCell).AlignRight().Text(totalDeduction.ToString("N2")).Bold();
+                                    table.Cell().Element(LabelCell).Text("Period Days").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(periodDays.ToString("N0"));
+                                    table.Cell().Element(LabelCell).Text("Attended Days").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.AttendedDays.ToString("N0"));
+                                    table.Cell().Element(LabelCell).Text("Absent Days").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.AbsentDays.ToString("N0"));
+                                    table.Cell().Element(LabelCell).Text("Rate Per Day").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Money(model.RatePerDay));
                                 });
-                            });
                         });
 
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Background(Colors.Grey.Lighten5).Padding(8).Table(table =>
+                        column.Item().Row(row =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                            });
+                            row.Spacing(10);
 
-                            IContainer MetricLabel(IContainer c) => c.PaddingBottom(2);
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(earnings =>
+                                {
+                                    earnings.Spacing(6);
+                                    earnings.Item().Text("Earnings").Bold().FontSize(10.4f).FontColor(Ink);
 
-                            table.Cell().Column(cell =>
-                            {
-                                cell.Item().Element(MetricLabel).Text("Total Salary").SemiBold().FontColor(Colors.Grey.Darken2);
-                                cell.Item().Text(Money(model.TotalSalary)).Bold().FontSize(11);
-                            });
+                                    earnings.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn();
+                                            columns.ConstantColumn(58);
+                                            columns.ConstantColumn(96);
+                                        });
 
-                            table.Cell().Column(cell =>
-                            {
-                                cell.Item().Element(MetricLabel).Text("Total Deduction").SemiBold().FontColor(Colors.Grey.Darken2);
-                                cell.Item().Text(Money(totalDeduction)).Bold().FontSize(11);
-                            });
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
 
-                            table.Cell().Column(cell =>
-                            {
-                                cell.Item().Element(MetricLabel).Text("Net Payable").SemiBold().FontColor(Colors.Grey.Darken2);
-                                cell.Item().Text(Money(model.TotalPayable)).Bold().FontSize(12);
-                            });
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var i = 0; i < earningRows.Length; i++)
+                                        {
+                                            var item = earningRows[i];
+                                            var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.Label);
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text("MVR");
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.Amount.ToString("N2"));
+                                        }
+
+                                        table.Cell().Element(HeaderCell).Text("Total Salary").Bold().FontColor(Ink);
+                                        table.Cell().Element(HeaderCell).AlignCenter().Text("MVR").Bold().FontColor(Ink);
+                                        table.Cell().Element(HeaderCell).AlignRight().Text(model.TotalSalary.ToString("N2")).Bold().FontColor(Ink);
+                                    });
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(deductions =>
+                                {
+                                    deductions.Spacing(6);
+                                    deductions.Item().Text("Deductions").Bold().FontSize(10.4f).FontColor(Ink);
+
+                                    deductions.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn(1.8f);
+                                            columns.RelativeColumn(1.2f);
+                                            columns.ConstantColumn(58);
+                                            columns.ConstantColumn(96);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Item").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Basis").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var i = 0; i < deductionRows.Length; i++)
+                                        {
+                                            var item = deductionRows[i];
+                                            var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.Label);
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.Basis);
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text("MVR");
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.Amount.ToString("N2"));
+                                        }
+
+                                        table.Cell().ColumnSpan(2).Element(HeaderCell).Text("Total Deduction").Bold().FontColor(Ink);
+                                        table.Cell().Element(HeaderCell).AlignCenter().Text("MVR").Bold().FontColor(Ink);
+                                        table.Cell().Element(HeaderCell).AlignRight().Text(totalDeduction.ToString("N2")).Bold().FontColor(Ink);
+                                    });
+                                });
                         });
 
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(bank =>
+                        column.Item().Row(row =>
                         {
-                            bank.Spacing(3);
-                            bank.Item().Text("Bank Transfer Details").Bold().FontSize(10.4f);
-                            bank.Item().Text($"Bank: {Safe(model.BankName)}");
-                            bank.Item().Text($"Account Name: {Safe(payoutAccountName)}");
-                            bank.Item().Text($"Account Number: {Safe(model.AccountNumber)}");
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(4);
+                                    summary.Item().Text("Settlement Summary").Bold().FontSize(10.4f).FontColor(Ink);
+                                    summary.Item().Text($"Total Salary: {Money(model.TotalSalary)}").SemiBold();
+                                    summary.Item().Text($"Total Deduction: {Money(totalDeduction)}").SemiBold();
+                                    summary.Item().Text($"Net Payable: {Money(model.TotalPayable)}").Bold().FontSize(11.2f);
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(bank =>
+                                {
+                                    bank.Spacing(4);
+                                    bank.Item().Text("Bank Transfer Details").Bold().FontSize(10.4f).FontColor(Ink);
+                                    bank.Item().Text($"Bank: {Safe(model.BankName)}");
+                                    bank.Item().Text($"Account Name: {Safe(payoutAccountName)}");
+                                    bank.Item().Text($"Account Number: {Safe(model.AccountNumber)}");
+                                    bank.Item().Text($"Food Allowance: {model.FoodAllowanceDays:N0} day(s) x {Money(model.FoodAllowanceRate)}")
+                                        .FontColor(Muted);
+                                });
                         });
                     });
 
-                    page.Footer().AlignCenter().Text(text =>
+                    page.Footer().Row(footer =>
                     {
-                        text.DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Darken2));
-                        text.Span("This is a system-generated salary slip.");
-                        text.Span(" • ");
-                        text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("This is a system-generated salary slip.");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
+
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
+                        });
                     });
                 });
             })
             .GeneratePdf();
     }
+
 
     public byte[] BuildCustomersPdf(IReadOnlyList<CustomerDto> customers, string companyName, string companyInfo)
     {
@@ -798,197 +1501,465 @@ public class PdfExportService : IPdfExportService
 
     public byte[] BuildPayrollPeriodPdf(PayrollPeriodDetailDto model, string companyName, string companyInfo)
     {
+        const string Ink = "#263A63";
+        const string Muted = "#6D7EA3";
+        const string Border = "#D9E3F6";
+        const string HeaderFill = "#EEF3FF";
+        const string SummaryFill = "#F7FAFF";
+
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string Money(decimal value) => value.ToString("N2");
+
+        var totalPay = model.Entries.Sum(x => x.TotalPay);
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Size(PageSizes.A4.Landscape());
-                    page.Margin(16);
-                    page.DefaultTextStyle(x => x.FontSize(8.5f));
+                    page.Size(PageSizes.A3.Landscape());
+                    page.Margin(18);
+                    page.DefaultTextStyle(x => x.FontSize(7f).FontColor(Ink));
 
                     page.Header().Column(column =>
                     {
-                        column.Spacing(2);
-                        column.Item().Text(companyName).Bold().FontSize(15);
-                        column.Item().Text(companyInfo).FontSize(8).FontColor(Colors.Grey.Darken2);
+                        column.Spacing(3);
+                        column.Item().Text(companyName).Bold().FontSize(16);
+                        column.Item().Text(companyInfo).FontSize(8).FontColor(Muted);
                         column.Item().PaddingTop(3).Text($"Payroll Detail - {model.Year}-{model.Month:00}").Bold().FontSize(11.5f);
                         column.Item().Text(
                             $"Period: {model.StartDate:yyyy-MM-dd} to {model.EndDate:yyyy-MM-dd} | Days: {model.PeriodDays} | Entries: {model.Entries.Count} | Total Net Payable: MVR {model.TotalNetPayable:N2}")
                             .FontSize(8)
-                            .FontColor(Colors.Grey.Darken2);
+                            .FontColor(Muted);
                     });
 
-                    page.Content().Table(table =>
+                    page.Content().Column(content =>
                     {
-                        table.ColumnsDefinition(columns =>
+                        content.Spacing(8);
+
+                        content.Item().Row(row =>
                         {
-                            columns.RelativeColumn(2f);    // staff
-                            columns.RelativeColumn(0.65f); // attended
-                            columns.RelativeColumn(0.65f); // food days
-                            columns.RelativeColumn(0.85f); // ot pay
-                            columns.RelativeColumn(0.95f); // salary advance
-                            columns.RelativeColumn(0.85f); // pension
-                            columns.RelativeColumn(0.95f); // total pay
-                            columns.RelativeColumn(0.95f); // net payable
-                            columns.RelativeColumn(0.75f); // bank
-                            columns.RelativeColumn(1.05f); // account name
-                            columns.RelativeColumn(1.05f); // account number
-                            columns.RelativeColumn(0.95f); // designation
-                            columns.RelativeColumn(0.95f); // work site
+                            row.Spacing(6);
+
+                            void Metric(IContainer container, string label, string value)
+                            {
+                                container
+                                    .Border(1)
+                                    .BorderColor(Border)
+                                    .Background(SummaryFill)
+                                    .CornerRadius(10)
+                                    .PaddingVertical(6)
+                                    .PaddingHorizontal(8)
+                                    .Column(metric =>
+                                    {
+                                        metric.Spacing(2);
+                                        metric.Item().Text(label).FontSize(7.2f).SemiBold().FontColor(Muted);
+                                        metric.Item().Text(value).FontSize(9.2f).Bold();
+                                    });
+                            }
+
+                            row.RelativeItem().Element(c => Metric(c, "Entries", model.Entries.Count.ToString("N0")));
+                            row.RelativeItem().Element(c => Metric(c, "Period Days", model.PeriodDays.ToString("N0")));
+                            row.RelativeItem().Element(c => Metric(c, "Total Pay", $"MVR {totalPay:N2}"));
+                            row.RelativeItem().Element(c => Metric(c, "Total Salary", $"MVR {model.TotalNetPayable:N2}"));
                         });
 
-                        IContainer HeaderCell(IContainer c) => c.Border(1).Background(Colors.Grey.Lighten3).Padding(3);
-                        IContainer BodyCell(IContainer c) => c.Border(1).Padding(3);
-
-                        table.Header(header =>
+                        content.Item().Table(table =>
                         {
-                            header.Cell().Element(HeaderCell).Text("Staff").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Attended").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Food Days").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("OT Pay").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Salary Advance").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Pension").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Total Pay").Bold();
-                            header.Cell().Element(HeaderCell).AlignRight().Text("Net Payable").Bold();
-                            header.Cell().Element(HeaderCell).Text("Bank").Bold();
-                            header.Cell().Element(HeaderCell).Text("Account Name").Bold();
-                            header.Cell().Element(HeaderCell).Text("Account Number").Bold();
-                            header.Cell().Element(HeaderCell).Text("Designation").Bold();
-                            header.Cell().Element(HeaderCell).Text("Work Site").Bold();
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(1.0f);  // staff id
+                                columns.RelativeColumn(1.7f);  // staff name
+                                columns.RelativeColumn(1.1f);  // designation
+                                columns.RelativeColumn(1.0f);  // work site
+                                columns.RelativeColumn(0.95f); // basic
+                                columns.RelativeColumn(1.0f);  // service allowance
+                                columns.RelativeColumn(1.0f);  // other allowance
+                                columns.RelativeColumn(1.0f);  // phone allowance
+                                columns.RelativeColumn(0.95f); // sub total
+                                columns.RelativeColumn(0.7f);  // attended
+                                columns.RelativeColumn(0.9f);  // rate / day
+                                columns.RelativeColumn(0.8f);  // food days
+                                columns.RelativeColumn(0.95f); // absent deduction
+                                columns.RelativeColumn(0.8f);  // absent days
+                                columns.RelativeColumn(0.95f); // food rate
+                                columns.RelativeColumn(1.0f);  // food allowance
+                                columns.RelativeColumn(0.85f); // ot pay
+                                columns.RelativeColumn(0.9f);  // pension
+                                columns.RelativeColumn(1.0f);  // salary advance
+                                columns.RelativeColumn(0.95f); // total pay
+                                columns.RelativeColumn(1.25f); // account number
+                                columns.RelativeColumn(1.0f);  // total salary
+                            });
+
+                            IContainer HeaderCell(IContainer c) => c
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(HeaderFill)
+                                .PaddingVertical(4)
+                                .PaddingHorizontal(3)
+                                .AlignMiddle();
+
+                            IContainer BodyCell(IContainer c) => c
+                                .Border(1)
+                                .BorderColor(Border)
+                                .PaddingVertical(3)
+                                .PaddingHorizontal(3);
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Staff ID").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Staff Name").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Designation").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Work Site").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Basic").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Service").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Other").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Phone").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Sub Total").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Attended").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Rate / Day").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Food Days").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Absent").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Absent Days").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Food A Rate").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Food Allowance").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("OT Pay").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Pension").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Salary Advance").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Total Pay").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Account Number").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("Total Salary").Bold();
+                            });
+
+                            foreach (var entry in model.Entries)
+                            {
+                                table.Cell().Element(BodyCell).Text(entry.StaffCode);
+                                table.Cell().Element(BodyCell).Text(entry.StaffName);
+                                table.Cell().Element(BodyCell).Text(Safe(entry.Designation));
+                                table.Cell().Element(BodyCell).Text(Safe(entry.WorkSite));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.Basic));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.ServiceAllowance));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.OtherAllowance));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.PhoneAllowance));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.SubTotal));
+                                table.Cell().Element(BodyCell).AlignRight().Text(entry.AttendedDays.ToString("N0"));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.RatePerDay));
+                                table.Cell().Element(BodyCell).AlignRight().Text(entry.FoodAllowanceDays.ToString("N0"));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.AbsentDeduction));
+                                table.Cell().Element(BodyCell).AlignRight().Text(entry.AbsentDays.ToString("N0"));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.FoodAllowanceRate));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.FoodAllowance));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.OvertimePay));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.PensionDeduction));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.SalaryAdvanceDeduction));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.TotalPay));
+                                table.Cell().Element(BodyCell).Text(Safe(entry.AccountNumber));
+                                table.Cell().Element(BodyCell).AlignRight().Text(Money(entry.NetPayable));
+                            }
+
+                            table.Cell().ColumnSpan(19).Element(BodyCell).AlignRight().Text("TOTAL").Bold();
+                            table.Cell().Element(BodyCell).AlignRight().Text(Money(totalPay)).Bold();
+                            table.Cell().Element(BodyCell).Text(string.Empty);
+                            table.Cell().Element(BodyCell).AlignRight().Text(Money(model.TotalNetPayable)).Bold();
+                        });
+                    });
+
+                    page.Footer().AlignRight().Text(text =>
+                    {
+                        text.Span("Page ");
+                        text.CurrentPageNumber();
+                        text.Span(" / ");
+                        text.TotalPages();
+                    });
+                });
+            })
+            .GeneratePdf();
+    }
+
+    public byte[] BuildSalesSummaryReportPdf(SalesSummaryReportDto model, string companyName, string companyInfo, string? logoUrl)
+    {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+
+        void Metric(IContainer container, string label, string value, string detail, string fillColor)
+        {
+            container.Border(1)
+                .BorderColor(Border)
+                .Background(fillColor)
+                .CornerRadius(14)
+                .Padding(10)
+                .Column(metric =>
+                {
+                    metric.Spacing(3);
+                    metric.Item().Text(label).FontSize(8.4f).SemiBold().FontColor(Muted);
+                    metric.Item().Text(value).FontSize(11.2f).Bold().FontColor(Ink);
+                    metric.Item().Text(detail).FontSize(8.1f).FontColor(Muted);
+                });
+        }
+
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var strongestInvoiceDay = model.Rows
+            .OrderByDescending(x => x.InvoiceCount)
+            .ThenByDescending(x => x.SalesMvr + x.SalesUsd)
+            .FirstOrDefault();
+        var strongestMvrDay = model.Rows.OrderByDescending(x => x.SalesMvr).FirstOrDefault();
+        var strongestUsdDay = model.Rows.OrderByDescending(x => x.SalesUsd).FirstOrDefault();
+        var openExposureDays = model.Rows.Count(x => x.PendingMvr > 0m || x.PendingUsd > 0m);
+        var averageInvoicesPerDay = model.Rows.Count == 0 ? 0m : Math.Round((decimal)model.TotalInvoices / model.Rows.Count, 2, MidpointRounding.AwayFromZero);
+
+        return Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.3f).FontColor(Ink));
+
+                    page.Header().Column(header =>
+                    {
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(64)
+                                            .Height(64)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Sales Summary Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Sales Summary Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(270)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("SUMMARY REPORT").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Preset: {model.Meta.DatePreset}").SemiBold();
+                                    meta.Item().AlignRight().Text(
+                                        $"Range: {ToMaldivesTime(model.Meta.RangeStartUtc):yyyy-MM-dd HH:mm} to {ToMaldivesTime(model.Meta.RangeEndUtc):yyyy-MM-dd HH:mm} MVT")
+                                        .FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Customer Scope: {model.Meta.CustomerFilterLabel}").FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Generated: {ToMaldivesTime(model.Meta.GeneratedAtUtc):yyyy-MM-dd HH:mm} MVT").FontSize(8.6f);
+                                });
                         });
 
-                        foreach (var entry in model.Entries)
+                        header.Item()
+                            .Text("Daily billing, receipts, and exposure trends aligned into one management-ready reporting sheet.")
+                            .FontSize(8.5f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
+                    });
+
+                    page.Content().Column(column =>
+                    {
+                        column.Spacing(12);
+
+                        column.Item().Row(row =>
                         {
-                            table.Cell().Element(BodyCell).Text($"{entry.StaffCode} - {entry.StaffName}");
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.AttendedDays.ToString("N0"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.FoodAllowanceDays.ToString("N0"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.OvertimePay.ToString("N2"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.SalaryAdvanceDeduction.ToString("N2"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.PensionDeduction.ToString("N2"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.TotalPay.ToString("N2"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(entry.NetPayable.ToString("N2"));
-                            table.Cell().Element(BodyCell).Text(entry.BankName ?? "-");
-                            table.Cell().Element(BodyCell).Text(string.IsNullOrWhiteSpace(entry.AccountName) ? "-" : entry.AccountName);
-                            table.Cell().Element(BodyCell).Text(string.IsNullOrWhiteSpace(entry.AccountNumber) ? "-" : entry.AccountNumber);
-                            table.Cell().Element(BodyCell).Text(string.IsNullOrWhiteSpace(entry.Designation) ? "-" : entry.Designation);
-                            table.Cell().Element(BodyCell).Text(string.IsNullOrWhiteSpace(entry.WorkSite) ? "-" : entry.WorkSite);
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(profile =>
+                                {
+                                    profile.Spacing(4);
+                                    profile.Item().Text("Reporting Profile").Bold().FontSize(10.4f).FontColor(Ink);
+                                    profile.Item().Text($"Rows in summary: {model.Rows.Count:N0}").FontColor(Muted);
+                                    profile.Item().Text($"Distinct customers billed: {model.TotalCustomers:N0}").FontColor(Muted);
+                                    profile.Item().Text(
+                                            strongestInvoiceDay is null
+                                                ? "Peak invoice day: -"
+                                                : $"Peak invoice day: {strongestInvoiceDay.Date:yyyy-MM-dd} ({strongestInvoiceDay.InvoiceCount:N0} invoice(s))")
+                                        .FontColor(Muted);
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(highlights =>
+                                {
+                                    highlights.Spacing(4);
+                                    highlights.Item().Text("Commercial Highlights").Bold().FontSize(10.4f).FontColor(Ink);
+                                    highlights.Item().Text(
+                                            strongestMvrDay is null
+                                                ? "Highest MVR day: -"
+                                                : $"Highest MVR day: {strongestMvrDay.Date:yyyy-MM-dd} ({Money("MVR", strongestMvrDay.SalesMvr)})")
+                                        .FontColor(Muted);
+                                    highlights.Item().Text(
+                                            strongestUsdDay is null
+                                                ? "Highest USD day: -"
+                                                : $"Highest USD day: {strongestUsdDay.Date:yyyy-MM-dd} ({Money("USD", strongestUsdDay.SalesUsd)})")
+                                        .FontColor(Muted);
+                                    highlights.Item().Text($"Days carrying open exposure: {openExposureDays:N0}").FontColor(Muted);
+                                });
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(8);
+                            row.RelativeItem().Element(c => Metric(c, "Total Invoices", model.TotalInvoices.ToString("N0"), "Invoices issued in the selected range.", "#EEF3FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Total Customers", model.TotalCustomers.ToString("N0"), "Distinct billed customers included.", "#F2FBF7"));
+                            row.RelativeItem().Element(c => Metric(c, "Sales Mix", $"{Money("MVR", model.TotalSales.Mvr)} | {Money("USD", model.TotalSales.Usd)}", "Gross billed amount by currency.", "#F4F1FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Collections", $"{Money("MVR", model.TotalReceived.Mvr)} | {Money("USD", model.TotalReceived.Usd)}", "Cash received inside the reporting range.", "#EEF9FF"));
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(8);
+                            row.RelativeItem().Element(c => Metric(c, "Pending Exposure", $"{Money("MVR", model.TotalPending.Mvr)} | {Money("USD", model.TotalPending.Usd)}", "Open receivables still unsettled.", "#FFF4F7"));
+                            row.RelativeItem().Element(c => Metric(c, "Tax Posted", $"{Money("MVR", model.TotalTax.Mvr)} | {Money("USD", model.TotalTax.Usd)}", "Tax recognized across all invoices.", "#FFF8EE"));
+                            row.RelativeItem().Element(c => Metric(c, "Avg Invoices / Day", averageInvoicesPerDay.ToString("N2"), "Average invoice volume per reported day.", "#F9F8FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Coverage Days", model.Rows.Count.ToString("N0"), "Daily rows present in the exported range.", "#F6FBFF"));
+                        });
+
+                        if (model.Rows.Count == 0)
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .PaddingVertical(34)
+                                .AlignCenter()
+                                .Text("No sales summary rows were available for the selected range.")
+                                .SemiBold()
+                                .FontColor(Muted);
                         }
-
-                        table.Cell().ColumnSpan(7).Element(BodyCell).AlignRight().Text("TOTAL").Bold();
-                        table.Cell().Element(BodyCell).AlignRight().Text(model.TotalNetPayable.ToString("N2")).Bold();
-                        table.Cell().Element(BodyCell).Text(string.Empty);
-                        table.Cell().Element(BodyCell).Text(string.Empty);
-                        table.Cell().Element(BodyCell).Text(string.Empty);
-                        table.Cell().Element(BodyCell).Text(string.Empty);
-                        table.Cell().Element(BodyCell).Text(string.Empty);
-                    });
-                });
-            })
-            .GeneratePdf();
-    }
-
-    public byte[] BuildSalesSummaryReportPdf(SalesSummaryReportDto model, string companyName, string companyInfo)
-    {
-        return Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    page.Size(PageSizes.A4.Landscape());
-                    page.Margin(18);
-                    page.DefaultTextStyle(x => x.FontSize(9));
-
-                    page.Header().Column(column =>
-                    {
-                        column.Spacing(2);
-                        column.Item().Text(companyName).Bold().FontSize(16);
-                        column.Item().Text(companyInfo).FontSize(8).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(4).Text("Sales Summary Report").Bold().FontSize(12);
-                        column.Item().Text(BuildMetaLine(model.Meta)).FontSize(8).FontColor(Colors.Grey.Darken2);
-                    });
-
-                    page.Content().Column(column =>
-                    {
-                        column.Spacing(8);
-
-                        column.Item().Table(table =>
+                        else
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                                columns.RelativeColumn();
-                            });
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(section =>
+                                {
+                                    section.Spacing(8);
+                                    section.Item().Text("Daily Sales Breakdown").Bold().FontSize(10.5f).FontColor(Ink);
 
-                            void Metric(string label, string value)
-                            {
-                                table.Cell().Border(1).Padding(4).Text(label).Bold().FontSize(8);
-                                table.Cell().Border(1).Padding(4).Text(value).AlignRight();
-                            }
+                                    section.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(82);
+                                            columns.ConstantColumn(56);
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                        });
 
-                            Metric("Total Invoices", model.TotalInvoices.ToString("N0"));
-                            Metric("Total Sales (MVR)", model.TotalSales.Mvr.ToString("N2"));
-                            Metric("Total Sales (USD)", model.TotalSales.Usd.ToString("N2"));
-                            Metric("Total Received (MVR)", model.TotalReceived.Mvr.ToString("N2"));
-                            Metric("Total Received (USD)", model.TotalReceived.Usd.ToString("N2"));
-                            Metric("Total Customers", model.TotalCustomers.ToString("N0"));
-                            Metric("Total Pending (MVR)", model.TotalPending.Mvr.ToString("N2"));
-                            Metric("Total Pending (USD)", model.TotalPending.Usd.ToString("N2"));
-                            Metric("Total Tax (MVR)", model.TotalTax.Mvr.ToString("N2"));
-                            Metric("Total Tax (USD)", model.TotalTax.Usd.ToString("N2"));
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Date").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Invoices").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Sales MVR").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Sales USD").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Received MVR").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Received USD").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Pending MVR").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Pending USD").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var index = 0; index < model.Rows.Count; index++)
+                                        {
+                                            var item = model.Rows.ElementAt(index);
+                                            var background = index % 2 == 0 ? "#FFFFFF" : Panel;
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.Date.ToString("yyyy-MM-dd"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.InvoiceCount.ToString("N0"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.SalesMvr.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.SalesUsd.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.ReceivedMvr.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.ReceivedUsd.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.PendingMvr.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.PendingUsd.ToString("N2"));
+                                        }
+
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text("TOTAL").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalInvoices.ToString("N0")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalSales.Mvr.ToString("N2")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalSales.Usd.ToString("N2")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalReceived.Mvr.ToString("N2")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalReceived.Usd.ToString("N2")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalPending.Mvr.ToString("N2")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalPending.Usd.ToString("N2")).Bold().FontColor(Ink);
+                                    });
+                                });
+                        }
+                    });
+
+                    page.Footer().Row(footer =>
+                    {
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
                         });
 
-                        column.Item().Table(table =>
+                        footer.ConstantItem(54).AlignRight().Text(text =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn(1.2f);
-                                columns.RelativeColumn(1.1f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                            });
-
-                            IContainer HeaderCell(IContainer c) => c.Border(1).Padding(4).Background(Colors.Grey.Lighten3);
-                            IContainer BodyCell(IContainer c) => c.Border(1).Padding(4);
-
-                            table.Header(header =>
-                            {
-                                header.Cell().Element(HeaderCell).Text("Date").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Invoices").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Sales MVR").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Sales USD").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Received MVR").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Received USD").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Pending MVR").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Pending USD").Bold();
-                            });
-
-                            foreach (var row in model.Rows)
-                            {
-                                table.Cell().Element(BodyCell).Text(row.Date.ToString("yyyy-MM-dd"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.InvoiceCount.ToString("N0"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.SalesMvr.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.SalesUsd.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.ReceivedMvr.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.ReceivedUsd.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.PendingMvr.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.PendingUsd.ToString("N2"));
-                            }
-
-                            table.Cell().Element(BodyCell).Text("TOTAL").Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalInvoices.ToString("N0")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalSales.Mvr.ToString("N2")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalSales.Usd.ToString("N2")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalReceived.Mvr.ToString("N2")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalReceived.Usd.ToString("N2")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalPending.Mvr.ToString("N2")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalPending.Usd.ToString("N2")).Bold();
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
                         });
                     });
                 });
@@ -996,92 +1967,308 @@ public class PdfExportService : IPdfExportService
             .GeneratePdf();
     }
 
-    public byte[] BuildSalesTransactionsReportPdf(SalesTransactionsReportDto model, string companyName, string companyInfo)
+    public byte[] BuildSalesTransactionsReportPdf(SalesTransactionsReportDto model, string companyName, string companyInfo, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static (string Fill, string Outline, string Text) StatusColors(string status) => status.Trim() switch
+        {
+            "Paid" => ("#DCF6E8", "#95D8B0", "#0F8B57"),
+            "Partial" => ("#FFF1D8", "#F2C37E", "#B46A00"),
+            _ => ("#FFE7EF", "#F2A8BF", "#B33E63")
+        };
+
+        void Metric(IContainer container, string label, string value, string detail, string fillColor)
+        {
+            container.Border(1)
+                .BorderColor(Border)
+                .Background(fillColor)
+                .CornerRadius(14)
+                .Padding(9)
+                .Column(metric =>
+                {
+                    metric.Spacing(3);
+                    metric.Item().Text(label).FontSize(8.1f).SemiBold().FontColor(Muted);
+                    metric.Item().Text(value).FontSize(10.6f).Bold().FontColor(Ink);
+                    metric.Item().Text(detail).FontSize(7.8f).FontColor(Muted);
+                });
+        }
+
+        void StatusChip(IContainer container, string status)
+        {
+            var colors = StatusColors(status);
+            container.AlignCenter().AlignMiddle().PaddingVertical(2).Element(chip =>
+                chip.Border(1)
+                    .BorderColor(colors.Outline)
+                    .Background(colors.Fill)
+                    .CornerRadius(10)
+                    .PaddingHorizontal(6)
+                    .PaddingVertical(3)
+                    .Text(status.Trim())
+                    .SemiBold()
+                    .FontSize(7.4f)
+                    .FontColor(colors.Text));
+        }
+
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var paidCount = model.Rows.Count(x => string.Equals(x.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase));
+        var partialCount = model.Rows.Count(x => string.Equals(x.PaymentStatus, "Partial", StringComparison.OrdinalIgnoreCase));
+        var openCount = Math.Max(model.Rows.Count - paidCount - partialCount, 0);
+        var cashCount = model.Rows.Count(x => !string.Equals(x.PaymentMethod, "-", StringComparison.OrdinalIgnoreCase));
+        var latestReceipt = model.Rows
+            .Where(x => x.ReceivedOn.HasValue)
+            .Select(x => x.ReceivedOn!.Value)
+            .DefaultIfEmpty()
+            .Max();
+        var hasLatestReceipt = latestReceipt != default;
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Size(PageSizes.A4.Landscape());
-                    page.Margin(16);
-                    page.DefaultTextStyle(x => x.FontSize(8.2f));
+                    page.Size(PageSizes.A3.Landscape());
+                    page.Margin(20);
+                    page.DefaultTextStyle(x => x.FontSize(8.6f).FontColor(Ink));
 
-                    page.Header().Column(column =>
+                    page.Header().Column(header =>
                     {
-                        column.Spacing(2);
-                        column.Item().Text(companyName).Bold().FontSize(15);
-                        column.Item().Text(companyInfo).FontSize(8).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(3).Text("Sales Transactions Report").Bold().FontSize(11.5f);
-                        column.Item().Text(BuildMetaLine(model.Meta)).FontSize(7.6f).FontColor(Colors.Grey.Darken2);
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(64)
+                                            .Height(64)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Sales Transactions Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Sales Transactions Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(285)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("TRANSACTION REPORT").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Preset: {model.Meta.DatePreset}").SemiBold();
+                                    meta.Item().AlignRight().Text(
+                                        $"Range: {ToMaldivesTime(model.Meta.RangeStartUtc):yyyy-MM-dd HH:mm} to {ToMaldivesTime(model.Meta.RangeEndUtc):yyyy-MM-dd HH:mm} MVT")
+                                        .FontSize(8.4f);
+                                    meta.Item().AlignRight().Text($"Customer Scope: {model.Meta.CustomerFilterLabel}").FontSize(8.4f);
+                                    meta.Item().AlignRight().Text($"Generated: {ToMaldivesTime(model.Meta.GeneratedAtUtc):yyyy-MM-dd HH:mm} MVT").FontSize(8.4f);
+                                });
+                        });
+
+                        header.Item()
+                            .Text("Invoice-level activity with payment state, receipt timing, and balance exposure across every exported transaction.")
+                            .FontSize(8.2f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(6);
-                        column.Item().Text(
-                            $"Transactions: {model.TotalTransactions:N0} | Sales MVR: {model.TotalSales.Mvr:N2} | Sales USD: {model.TotalSales.Usd:N2} | Pending MVR: {model.TotalPending.Mvr:N2} | Pending USD: {model.TotalPending.Usd:N2}");
+                        column.Spacing(12);
 
-                        column.Item().Table(table =>
+                        column.Item().Row(row =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn(1.2f);
-                                columns.RelativeColumn(1f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.3f);
-                                columns.RelativeColumn(2.1f);
-                                columns.RelativeColumn(0.8f);
-                                columns.RelativeColumn(1.05f);
-                                columns.RelativeColumn(1.05f);
-                                columns.RelativeColumn(1.05f);
-                                columns.RelativeColumn(1f);
-                                columns.RelativeColumn(1.05f);
-                            });
+                            row.Spacing(8);
+                            row.RelativeItem().Element(c => Metric(c, "Transactions", model.TotalTransactions.ToString("N0"), "Invoice rows included in this export.", "#EEF3FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Gross Sales", $"{Money("MVR", model.TotalSales.Mvr)} | {Money("USD", model.TotalSales.Usd)}", "Total invoiced amount by currency.", "#ECFAF6"));
+                            row.RelativeItem().Element(c => Metric(c, "Collections", $"{Money("MVR", model.TotalReceived.Mvr)} | {Money("USD", model.TotalReceived.Usd)}", "Payments recorded against these invoices.", "#EEF9FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Open Balance", $"{Money("MVR", model.TotalPending.Mvr)} | {Money("USD", model.TotalPending.Usd)}", "Outstanding value still unpaid.", "#FFF4F7"));
+                            row.RelativeItem().Element(c => Metric(c, "Latest Receipt", hasLatestReceipt ? latestReceipt.ToString("yyyy-MM-dd") : "-", "Most recent payment date present in the export.", "#FFF8EE"));
+                            row.RelativeItem().Element(c => Metric(c, "Active Collection Rows", cashCount.ToString("N0"), "Rows carrying a payment method entry.", "#F7F5FF"));
+                        });
 
-                            IContainer HeaderCell(IContainer c) => c.Border(1).Padding(3).Background(Colors.Grey.Lighten3);
-                            IContainer BodyCell(IContainer c) => c.Border(1).Padding(3);
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
 
-                            table.Header(header =>
-                            {
-                                header.Cell().Element(HeaderCell).Text("Invoice No").Bold();
-                                header.Cell().Element(HeaderCell).Text("Date Issued").Bold();
-                                header.Cell().Element(HeaderCell).Text("Customer").Bold();
-                                header.Cell().Element(HeaderCell).Text("Vessel").Bold();
-                                header.Cell().Element(HeaderCell).Text("Description").Bold();
-                                header.Cell().Element(HeaderCell).Text("CCY").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold();
-                                header.Cell().Element(HeaderCell).Text("Status").Bold();
-                                header.Cell().Element(HeaderCell).Text("Method").Bold();
-                                header.Cell().Element(HeaderCell).Text("Received On").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Balance").Bold();
-                            });
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(4);
+                                    summary.Item().Text("Payment Status Mix").Bold().FontSize(10.1f).FontColor(Ink);
+                                    summary.Item().Text($"Paid rows: {paidCount:N0}").FontColor(Muted);
+                                    summary.Item().Text($"Partial rows: {partialCount:N0}").FontColor(Muted);
+                                    summary.Item().Text($"Open rows: {openCount:N0}").FontColor(Muted);
+                                });
 
-                            foreach (var row in model.Rows)
-                            {
-                                table.Cell().Element(BodyCell).Text(row.InvoiceNo);
-                                table.Cell().Element(BodyCell).Text(row.DateIssued.ToString("yyyy-MM-dd"));
-                                table.Cell().Element(BodyCell).Text(row.Customer);
-                                table.Cell().Element(BodyCell).Text(row.Vessel);
-                                table.Cell().Element(BodyCell).Text(row.Description);
-                                table.Cell().Element(BodyCell).Text(row.Currency);
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.Amount.ToString("N2"));
-                                table.Cell().Element(BodyCell).Text(row.PaymentStatus);
-                                table.Cell().Element(BodyCell).Text(row.PaymentMethod);
-                                table.Cell().Element(BodyCell).Text(row.ReceivedOn?.ToString("yyyy-MM-dd") ?? "-");
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.Balance.ToString("N2"));
-                            }
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(4);
+                                    summary.Item().Text("Scope and Filters").Bold().FontSize(10.1f).FontColor(Ink);
+                                    summary.Item().Text($"Customer filter: {model.Meta.CustomerFilterLabel}").FontColor(Muted);
+                                    summary.Item().Text($"Date preset: {model.Meta.DatePreset}").FontColor(Muted);
+                                    summary.Item().Text($"Receipt-bearing rows: {model.Rows.Count(x => x.ReceivedOn.HasValue):N0}").FontColor(Muted);
+                                });
+                        });
 
-                            table.Cell().Element(BodyCell).Text("TOTAL").Bold();
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{model.TotalSales.Mvr:N2}/{model.TotalSales.Usd:N2}").Bold();
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).Text(string.Empty);
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{model.TotalPending.Mvr:N2}/{model.TotalPending.Usd:N2}").Bold();
+                        if (model.Rows.Count == 0)
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .PaddingVertical(34)
+                                .AlignCenter()
+                                .Text("No sales transactions matched the selected report criteria.")
+                                .SemiBold()
+                                .FontColor(Muted);
+                        }
+                        else
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(section =>
+                                {
+                                    section.Spacing(8);
+                                    section.Item().Text("Transaction Register").Bold().FontSize(10.3f).FontColor(Ink);
+
+                                    section.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(96);
+                                            columns.ConstantColumn(72);
+                                            columns.RelativeColumn(1.2f);
+                                            columns.RelativeColumn(1.05f);
+                                            columns.RelativeColumn(1.8f);
+                                            columns.ConstantColumn(48);
+                                            columns.ConstantColumn(76);
+                                            columns.ConstantColumn(72);
+                                            columns.ConstantColumn(76);
+                                            columns.ConstantColumn(72);
+                                            columns.ConstantColumn(76);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(4);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(4);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Invoice No").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Issued").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Customer").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Vessel").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("Status").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Method").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Received").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Balance").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var index = 0; index < model.Rows.Count; index++)
+                                        {
+                                            var item = model.Rows.ElementAt(index);
+                                            var background = index % 2 == 0 ? "#FFFFFF" : Panel;
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.InvoiceNo));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.DateIssued.ToString("yyyy-MM-dd"));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.Customer));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.Vessel));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.Description));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text(Safe(item.Currency));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.Amount.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).Element(c => StatusChip(c, item.PaymentStatus));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.PaymentMethod));
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(item.ReceivedOn?.ToString("yyyy-MM-dd") ?? "-");
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.Balance.ToString("N2"));
+                                        }
+
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text("TOTAL").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text($"{model.TotalSales.Mvr:N2} / {model.TotalSales.Usd:N2}").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text(string.Empty);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text($"{model.TotalPending.Mvr:N2} / {model.TotalPending.Usd:N2}").Bold().FontColor(Ink);
+                                    });
+                                });
+                        }
+                    });
+
+                    page.Footer().Row(footer =>
+                    {
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
+
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
                         });
                     });
                 });
@@ -1089,76 +2276,280 @@ public class PdfExportService : IPdfExportService
             .GeneratePdf();
     }
 
-    public byte[] BuildSalesByVesselReportPdf(SalesByVesselReportDto model, string companyName, string companyInfo)
+    public byte[] BuildSalesByVesselReportPdf(SalesByVesselReportDto model, string companyName, string companyInfo, string? logoUrl)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+
+        void Metric(IContainer container, string label, string value, string detail, string fillColor)
+        {
+            container.Border(1)
+                .BorderColor(Border)
+                .Background(fillColor)
+                .CornerRadius(14)
+                .Padding(10)
+                .Column(metric =>
+                {
+                    metric.Spacing(3);
+                    metric.Item().Text(label).FontSize(8.4f).SemiBold().FontColor(Muted);
+                    metric.Item().Text(value).FontSize(11.2f).Bold().FontColor(Ink);
+                    metric.Item().Text(detail).FontSize(8.1f).FontColor(Muted);
+                });
+        }
+
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var vesselCount = model.Rows.Select(x => x.Vessel).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        var leadMvrVessel = model.Rows
+            .Where(x => string.Equals(x.Currency, "MVR", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.TotalSales)
+            .FirstOrDefault();
+        var leadUsdVessel = model.Rows
+            .Where(x => string.Equals(x.Currency, "USD", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.TotalSales)
+            .FirstOrDefault();
+        var topShare = model.Rows.OrderByDescending(x => x.PercentageOfCurrencySales).FirstOrDefault();
+
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4.Landscape());
-                    page.Margin(18);
-                    page.DefaultTextStyle(x => x.FontSize(9));
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.3f).FontColor(Ink));
 
-                    page.Header().Column(column =>
+                    page.Header().Column(header =>
                     {
-                        column.Spacing(2);
-                        column.Item().Text(companyName).Bold().FontSize(16);
-                        column.Item().Text(companyInfo).FontSize(8).FontColor(Colors.Grey.Darken2);
-                        column.Item().PaddingTop(4).Text("Sales By Vessel Report").Bold().FontSize(12);
-                        column.Item().Text(BuildMetaLine(model.Meta)).FontSize(8).FontColor(Colors.Grey.Darken2);
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(64)
+                                            .Height(64)
+                                            .Border(1)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(4)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(container => RenderLogo(container, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Sales By Vessel Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Sales By Vessel Report").SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.5f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(270)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("VESSEL REPORT").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Preset: {model.Meta.DatePreset}").SemiBold();
+                                    meta.Item().AlignRight().Text(
+                                        $"Range: {ToMaldivesTime(model.Meta.RangeStartUtc):yyyy-MM-dd HH:mm} to {ToMaldivesTime(model.Meta.RangeEndUtc):yyyy-MM-dd HH:mm} MVT")
+                                        .FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Customer Scope: {model.Meta.CustomerFilterLabel}").FontSize(8.6f);
+                                    meta.Item().AlignRight().Text($"Generated: {ToMaldivesTime(model.Meta.GeneratedAtUtc):yyyy-MM-dd HH:mm} MVT").FontSize(8.6f);
+                                });
+                        });
+
+                        header.Item()
+                            .Text("Vessel contribution, collections, and outstanding balances grouped by currency for operator-level decision making.")
+                            .FontSize(8.5f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(8);
-                        column.Item().Text(
-                            $"Transactions: {model.TotalTransactions:N0} | Sales MVR: {model.TotalSales.Mvr:N2} | Sales USD: {model.TotalSales.Usd:N2} | Pending MVR: {model.TotalPending.Mvr:N2} | Pending USD: {model.TotalPending.Usd:N2}");
+                        column.Spacing(12);
 
-                        column.Item().Table(table =>
+                        column.Item().Row(row =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.RelativeColumn(2f);
-                                columns.RelativeColumn(0.9f);
-                                columns.RelativeColumn(1.1f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.5f);
-                                columns.RelativeColumn(1.2f);
-                            });
+                            row.Spacing(8);
+                            row.RelativeItem().Element(c => Metric(c, "Transactions", model.TotalTransactions.ToString("N0"), "Total invoice records behind this vessel mix.", "#EEF3FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Active Vessels", vesselCount.ToString("N0"), "Distinct vessels appearing in the export.", "#ECFAF6"));
+                            row.RelativeItem().Element(c => Metric(c, "Sales Mix", $"{Money("MVR", model.TotalSales.Mvr)} | {Money("USD", model.TotalSales.Usd)}", "Total sales aggregated by currency.", "#EFF8FF"));
+                            row.RelativeItem().Element(c => Metric(c, "Pending Mix", $"{Money("MVR", model.TotalPending.Mvr)} | {Money("USD", model.TotalPending.Usd)}", "Outstanding balance by vessel currency mix.", "#FFF4F7"));
+                        });
 
-                            IContainer HeaderCell(IContainer c) => c.Border(1).Padding(4).Background(Colors.Grey.Lighten3);
-                            IContainer BodyCell(IContainer c) => c.Border(1).Padding(4);
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
 
-                            table.Header(header =>
-                            {
-                                header.Cell().Element(HeaderCell).Text("Vessel").Bold();
-                                header.Cell().Element(HeaderCell).Text("CCY").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Transactions").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Total Sales").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Total Received").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Pending").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("% CCY Sales").Bold();
-                            });
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(4);
+                                    summary.Item().Text("Lead Vessel Positions").Bold().FontSize(10.2f).FontColor(Ink);
+                                    summary.Item().Text(
+                                            leadMvrVessel is null
+                                                ? "Top MVR vessel: -"
+                                                : $"Top MVR vessel: {Safe(leadMvrVessel.Vessel)} ({Money("MVR", leadMvrVessel.TotalSales)})")
+                                        .FontColor(Muted);
+                                    summary.Item().Text(
+                                            leadUsdVessel is null
+                                                ? "Top USD vessel: -"
+                                                : $"Top USD vessel: {Safe(leadUsdVessel.Vessel)} ({Money("USD", leadUsdVessel.TotalSales)})")
+                                        .FontColor(Muted);
+                                    summary.Item().Text(
+                                            topShare is null
+                                                ? "Highest currency share: -"
+                                                : $"Highest currency share: {Safe(topShare.Vessel)} ({topShare.PercentageOfCurrencySales:N2}%)")
+                                        .FontColor(Muted);
+                                });
 
-                            foreach (var row in model.Rows)
-                            {
-                                table.Cell().Element(BodyCell).Text(row.Vessel);
-                                table.Cell().Element(BodyCell).Text(row.Currency);
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.TransactionCount.ToString("N0"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.TotalSales.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.TotalReceived.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text(row.PendingAmount.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text($"{row.PercentageOfCurrencySales:N2}%");
-                            }
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(summary =>
+                                {
+                                    summary.Spacing(4);
+                                    summary.Item().Text("Collection View").Bold().FontSize(10.2f).FontColor(Ink);
+                                    summary.Item().Text($"Received MVR: {Money("MVR", model.TotalReceived.Mvr)}").FontColor(Muted);
+                                    summary.Item().Text($"Received USD: {Money("USD", model.TotalReceived.Usd)}").FontColor(Muted);
+                                    summary.Item().Text($"Rows with open balance: {model.Rows.Count(x => x.PendingAmount > 0m):N0}").FontColor(Muted);
+                                });
+                        });
 
-                            table.Cell().Element(BodyCell).Text("TOTAL").Bold();
-                            table.Cell().Element(BodyCell).Text("-").Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text(model.TotalTransactions.ToString("N0")).Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{model.TotalSales.Mvr:N2}/{model.TotalSales.Usd:N2}").Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{model.TotalReceived.Mvr:N2}/{model.TotalReceived.Usd:N2}").Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text($"{model.TotalPending.Mvr:N2}/{model.TotalPending.Usd:N2}").Bold();
-                            table.Cell().Element(BodyCell).AlignRight().Text("-").Bold();
+                        if (model.Rows.Count == 0)
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .PaddingVertical(34)
+                                .AlignCenter()
+                                .Text("No vessel sales records were available for the selected range.")
+                                .SemiBold()
+                                .FontColor(Muted);
+                        }
+                        else
+                        {
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(section =>
+                                {
+                                    section.Spacing(8);
+                                    section.Item().Text("Vessel Contribution Table").Bold().FontSize(10.5f).FontColor(Ink);
+
+                                    section.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn(1.9f);
+                                            columns.ConstantColumn(56);
+                                            columns.ConstantColumn(74);
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.RelativeColumn();
+                                            columns.ConstantColumn(84);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Vessel").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignCenter().Text("CCY").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Transactions").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Total Sales").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Total Received").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("Pending").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).AlignRight().Text("% of CCY").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var index = 0; index < model.Rows.Count; index++)
+                                        {
+                                            var item = model.Rows.ElementAt(index);
+                                            var background = index % 2 == 0 ? "#FFFFFF" : Panel;
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(Safe(item.Vessel));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text(Safe(item.Currency));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.TransactionCount.ToString("N0"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.TotalSales.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.TotalReceived.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(item.PendingAmount.ToString("N2"));
+                                            table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text($"{item.PercentageOfCurrencySales:N2}%");
+                                        }
+
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text("TOTAL").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).Text("-").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text(model.TotalTransactions.ToString("N0")).Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text($"{model.TotalSales.Mvr:N2} / {model.TotalSales.Usd:N2}").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text($"{model.TotalReceived.Mvr:N2} / {model.TotalReceived.Usd:N2}").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text($"{model.TotalPending.Mvr:N2} / {model.TotalPending.Usd:N2}").Bold().FontColor(Ink);
+                                        table.Cell().Element(c => BodyCell(c, HeaderFill)).AlignRight().Text("-").Bold().FontColor(Ink);
+                                    });
+                                });
+                        }
+                    });
+
+                    page.Footer().Row(footer =>
+                    {
+                        footer.RelativeItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
+
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
                         });
                     });
                 });
@@ -1168,43 +2559,72 @@ public class PdfExportService : IPdfExportService
 
     public byte[] BuildPortalAdminInvoicePdf(PortalAdminBillingInvoiceDetailDto model, PortalAdminBillingSettingsDto settings)
     {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string HeaderFill = "#EEF3FF";
+        const string Accent = "#6F7FF5";
+
         static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static (string Fill, string Outline, string Text) StatusColors(AdminInvoiceStatus status) => status switch
+        {
+            AdminInvoiceStatus.Emailed => ("#DCF6E8", "#95D8B0", "#0F8B57"),
+            AdminInvoiceStatus.Issued => ("#FFF1D8", "#F2C37E", "#B46A00"),
+            AdminInvoiceStatus.EmailFailed => ("#FFE0E7", "#F2A4B6", "#B33E63"),
+            AdminInvoiceStatus.Cancelled => ("#ECEFF6", "#C6D0E6", "#60708F"),
+            _ => ("#E7EDFF", "#AFC1F8", "#4157B2")
+        };
+
         var monthLabel = model.BillingMonth.ToString("MMMM yyyy");
         var currency = string.IsNullOrWhiteSpace(model.Currency) ? "MVR" : model.Currency.Trim().ToUpperInvariant();
         var logoAsset = ResolvePortalAdminLogo(settings.LogoUrl);
+        var statusColors = StatusColors(model.Status);
+        var latestEmailLog = model.EmailLogs.OrderByDescending(x => x.AttemptedAt).FirstOrDefault();
+        var orderedLineItems = model.LineItems.OrderBy(x => x.SortOrder).ThenBy(x => x.Description, StringComparer.OrdinalIgnoreCase).ToList();
+        var orderedEmailLogs = model.EmailLogs.OrderByDescending(x => x.AttemptedAt).ToList();
 
         return Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.Margin(24);
-                    page.DefaultTextStyle(x => x.FontSize(9.8f));
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.6f).FontColor(Ink));
 
-                    page.Header().Column(column =>
+                    page.Header().Column(header =>
                     {
-                        column.Spacing(4);
-                        column.Item().Row(row =>
+                        header.Spacing(8);
+                        header.Item().Row(row =>
                         {
+                            row.Spacing(12);
                             row.RelativeItem().Element(left =>
                             {
                                 if (logoAsset?.HasValue == true)
                                 {
                                     left.Row(brand =>
                                     {
-                                        brand.Spacing(10);
-                                        brand.ConstantItem(106)
-                                            .Height(54)
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(68)
+                                            .Height(68)
                                             .Border(1)
-                                            .BorderColor(Colors.Grey.Lighten2)
-                                            .Padding(4)
+                                            .BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(5)
                                             .AlignCenter()
                                             .AlignMiddle()
                                             .Element(container => RenderLogo(container, logoAsset));
                                         brand.RelativeItem().Column(text =>
                                         {
-                                            text.Item().Text("myDhathuru Platform").Bold().FontSize(18);
-                                            text.Item().Text("Platform Billing Invoice").FontSize(10).FontColor(Colors.Grey.Darken2);
+                                            text.Spacing(2);
+                                            text.Item().Text("myDhathuru Platform").Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text("Platform Billing Invoice").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                            if (!string.IsNullOrWhiteSpace(settings.EmailFromName))
+                                            {
+                                                text.Item().Text(settings.EmailFromName!).FontSize(8.6f).FontColor(Muted);
+                                            }
                                         });
                                     });
                                 }
@@ -1212,36 +2632,132 @@ public class PdfExportService : IPdfExportService
                                 {
                                     left.Column(text =>
                                     {
-                                        text.Item().Text("myDhathuru Platform").Bold().FontSize(18);
-                                        text.Item().Text("Platform Billing Invoice").FontSize(10).FontColor(Colors.Grey.Darken2);
+                                        text.Spacing(2);
+                                        text.Item().Text("myDhathuru Platform").Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text("Platform Billing Invoice").FontSize(10.6f).SemiBold().FontColor(Accent);
+                                        if (!string.IsNullOrWhiteSpace(settings.EmailFromName))
+                                        {
+                                            text.Item().Text(settings.EmailFromName!).FontSize(8.6f).FontColor(Muted);
+                                        }
                                     });
                                 }
                             });
-                            row.ConstantItem(230).Column(right =>
-                            {
-                                right.Item().AlignRight().Text("INVOICE").Bold().FontSize(20);
-                                right.Item().AlignRight().Text($"Invoice #: {model.InvoiceNumber}");
-                                right.Item().AlignRight().Text($"Invoice Date: {model.InvoiceDate:yyyy-MM-dd}");
-                                right.Item().AlignRight().Text($"Billing Month: {monthLabel}");
-                                right.Item().AlignRight().Text($"Due Date: {model.DueDate:yyyy-MM-dd}");
-                            });
+
+                            row.ConstantItem(230)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(right =>
+                                {
+                                    right.Spacing(4);
+                                    right.Item().AlignRight().Text("INVOICE").Bold().FontSize(16).FontColor(Ink);
+                                    right.Item().AlignRight().Element(chip =>
+                                        chip.Border(1)
+                                            .BorderColor(statusColors.Outline)
+                                            .Background(statusColors.Fill)
+                                            .CornerRadius(12)
+                                            .PaddingHorizontal(10)
+                                            .PaddingVertical(4)
+                                            .Text(model.Status.ToString())
+                                            .SemiBold()
+                                            .FontSize(8.8f)
+                                            .FontColor(statusColors.Text));
+                                    right.Item().AlignRight().Text($"Invoice No: {Safe(model.InvoiceNumber)}").SemiBold();
+                                    right.Item().AlignRight().Text($"Invoice Date: {model.InvoiceDate:yyyy-MM-dd}");
+                                    right.Item().AlignRight().Text($"Billing Month: {monthLabel}");
+                                    right.Item().AlignRight().Text($"Due Date: {model.DueDate:yyyy-MM-dd}");
+                                });
                         });
+
+                        header.Item().Text(
+                                $"Platform billing for {Safe(model.CompanyName)} | Staff: {model.StaffCount:N0} | Vessels: {model.VesselCount:N0}")
+                            .FontSize(8.6f)
+                            .FontColor(Muted);
+                        header.Item().LineHorizontal(1).LineColor(Border);
                     });
 
                     page.Content().Column(column =>
                     {
-                        column.Spacing(10);
+                        column.Spacing(12);
 
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(billTo =>
+                        column.Item().Row(row =>
                         {
-                            billTo.Spacing(2);
-                            billTo.Item().Text("Bill To").Bold().FontSize(10.6f);
-                            billTo.Item().Text(model.CompanyName).Bold();
-                            billTo.Item().Text($"Email: {Safe(model.CompanyEmail)}");
-                            billTo.Item().Text($"Phone: {Safe(model.CompanyPhone)}");
-                            billTo.Item().Text($"TIN: {Safe(model.CompanyTinNumber)}");
-                            billTo.Item().Text($"Registration: {Safe(model.CompanyRegistrationNumber)}");
-                            billTo.Item().Text($"Primary Admin: {Safe(model.CompanyAdminName)} ({Safe(model.CompanyAdminEmail)})");
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(billTo =>
+                                {
+                                    billTo.Spacing(4);
+                                    billTo.Item().Text("Bill To").Bold().FontSize(10.4f).FontColor(Ink);
+                                    billTo.Item().Text(model.CompanyName).Bold().FontSize(11.4f).FontColor(Ink);
+                                    billTo.Item().Text($"Email: {Safe(model.CompanyEmail)}").FontColor(Muted);
+                                    billTo.Item().Text($"Phone: {Safe(model.CompanyPhone)}").FontColor(Muted);
+                                    billTo.Item().Text($"TIN: {Safe(model.CompanyTinNumber)}").FontColor(Muted);
+                                    billTo.Item().Text($"Registration: {Safe(model.CompanyRegistrationNumber)}").FontColor(Muted);
+                                    billTo.Item().Text($"Primary Admin: {Safe(model.CompanyAdminName)} ({Safe(model.CompanyAdminEmail)})")
+                                        .FontColor(Muted);
+                                });
+
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Table(table =>
+                                {
+                                    table.ColumnsDefinition(columns =>
+                                    {
+                                        columns.ConstantColumn(104);
+                                        columns.RelativeColumn();
+                                    });
+
+                                    IContainer LabelCell(IContainer c) => c.PaddingVertical(2);
+                                    IContainer ValueCell(IContainer c) => c.PaddingVertical(2);
+
+                                    table.Cell().Element(LabelCell).Text("Invoice Type").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(model.IsCustom ? "Custom billing run" : "Standard billing cycle");
+                                    table.Cell().Element(LabelCell).Text("Created").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(ToMaldivesTime(model.CreatedAt).ToString("yyyy-MM-dd HH:mm") + " MVT");
+                                    table.Cell().Element(LabelCell).Text("Email Status").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(latestEmailLog?.Status.ToString() ?? "Not sent");
+                                    table.Cell().Element(LabelCell).Text("Reply To").SemiBold().FontColor(Muted);
+                                    table.Cell().Element(ValueCell).Text(Safe(settings.ReplyToEmail));
+                                });
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(8);
+
+                            void Metric(IContainer container, string label, string value)
+                            {
+                                container
+                                    .Border(1)
+                                    .BorderColor(Border)
+                                    .Background(Panel)
+                                    .CornerRadius(12)
+                                    .PaddingVertical(7)
+                                    .PaddingHorizontal(9)
+                                    .Column(metric =>
+                                    {
+                                        metric.Spacing(2);
+                                        metric.Item().Text(label).FontSize(7.4f).SemiBold().FontColor(Muted);
+                                        metric.Item().Text(value).FontSize(10.4f).Bold().FontColor(Ink);
+                                    });
+                            }
+
+                            row.RelativeItem().Element(c => Metric(c, "Software Fee", Money(currency, model.BaseSoftwareFee)));
+                            row.RelativeItem().Element(c => Metric(c, $"Vessel Fees ({model.VesselCount:N0})", Money(currency, model.VesselAmount)));
+                            row.RelativeItem().Element(c => Metric(c, $"Staff Fees ({model.StaffCount:N0})", Money(currency, model.StaffAmount)));
+                            row.RelativeItem().Element(c => Metric(c, "Total Due", Money(currency, model.Total)));
                         });
 
                         column.Item().Table(table =>
@@ -1255,65 +2771,159 @@ public class PdfExportService : IPdfExportService
                                 columns.ConstantColumn(90);
                             });
 
-                            IContainer HeaderCell(IContainer c) => c.Border(1).Padding(5).Background(Colors.Grey.Lighten3);
-                            IContainer BodyCell(IContainer c) => c.Border(1).Padding(5);
+                            IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(6);
+                            IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(6);
 
                             table.Header(header =>
                             {
-                                header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold();
-                                header.Cell().Element(HeaderCell).Text("Description").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Quantity").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Rate").Bold();
-                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold();
+                                header.Cell().Element(HeaderCell).AlignCenter().Text("#").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Quantity").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Rate").Bold().FontColor(Ink);
+                                header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor(Ink);
                             });
 
-                            for (var i = 0; i < model.LineItems.Count; i++)
+                            if (orderedLineItems.Count == 0)
                             {
-                                var line = model.LineItems[i];
-                                table.Cell().Element(BodyCell).AlignCenter().Text((i + 1).ToString());
-                                table.Cell().Element(BodyCell).Text(line.Description);
-                                table.Cell().Element(BodyCell).AlignRight().Text(line.Quantity.ToString("N2"));
-                                table.Cell().Element(BodyCell).AlignRight().Text($"{currency} {line.Rate:N2}");
-                                table.Cell().Element(BodyCell).AlignRight().Text($"{currency} {line.Amount:N2}");
+                                table.Cell().ColumnSpan(5)
+                                    .Element(c => BodyCell(c, Colors.White))
+                                    .AlignCenter()
+                                    .Text("No billing line items");
+                            }
+                            else
+                            {
+                                for (var i = 0; i < orderedLineItems.Count; i++)
+                                {
+                                    var line = orderedLineItems[i];
+                                    var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignCenter().Text((i + 1).ToString());
+                                    table.Cell().Element(c => BodyCell(c, background)).Text(line.Description);
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(line.Quantity.ToString("N2"));
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(currency, line.Rate));
+                                    table.Cell().Element(c => BodyCell(c, background)).AlignRight().Text(Money(currency, line.Amount));
+                                }
                             }
                         });
 
-                        column.Item().AlignRight().Table(table =>
+                        column.Item().Row(row =>
                         {
-                            table.ColumnsDefinition(columns =>
-                            {
-                                columns.ConstantColumn(160);
-                                columns.ConstantColumn(150);
-                            });
+                            row.Spacing(10);
 
-                            IContainer TotalsLabel(IContainer c) => c.Border(1).Padding(5).Background(Colors.Grey.Lighten4);
-                            IContainer TotalsValue(IContainer c) => c.Border(1).Padding(5);
+                            row.RelativeItem()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(payment =>
+                                {
+                                    payment.Spacing(4);
+                                    payment.Item().Text("Payment Details").Bold().FontSize(10.4f).FontColor(Ink);
+                                    payment.Item().Text($"Account Name: {Safe(settings.AccountName)}").SemiBold();
+                                    payment.Item().Text($"Account Number: {Safe(settings.AccountNumber)}").FontColor(Muted);
+                                    payment.Item().Text($"Bank: {Safe(settings.BankName)} | Branch: {Safe(settings.Branch)}")
+                                        .FontColor(Muted);
+                                    payment.Item().Text(Safe(settings.PaymentInstructions)).FontColor(Muted);
+                                });
 
-                            table.Cell().Element(TotalsLabel).Text("Subtotal").Bold();
-                            table.Cell().Element(TotalsValue).AlignRight().Text($"{currency} {model.Subtotal:N2}");
-                            table.Cell().Element(TotalsLabel).Text("Total").Bold().FontSize(11);
-                            table.Cell().Element(TotalsValue).AlignRight().Text($"{currency} {model.Total:N2}").Bold().FontSize(11);
+                            row.ConstantItem(220)
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(totals =>
+                                {
+                                    totals.Spacing(5);
+                                    totals.Item().Text("Invoice Summary").Bold().FontSize(10.4f).FontColor(Ink);
+                                    totals.Item().Row(summary =>
+                                    {
+                                        summary.RelativeItem().Text("Subtotal").SemiBold().FontColor(Muted);
+                                        summary.ConstantItem(100).AlignRight().Text(Money(currency, model.Subtotal));
+                                    });
+                                    totals.Item().Row(summary =>
+                                    {
+                                        summary.RelativeItem().Text("Total").Bold().FontColor(Ink);
+                                        summary.ConstantItem(100).AlignRight().Text(Money(currency, model.Total)).Bold().FontSize(11);
+                                    });
+                                });
                         });
 
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(payment =>
+                        if (!string.IsNullOrWhiteSpace(model.Notes) || !string.IsNullOrWhiteSpace(settings.InvoiceTerms))
                         {
-                            payment.Spacing(2);
-                            payment.Item().Text("Payment Details").Bold().FontSize(10.6f);
-                            payment.Item().Text($"Account Name: {Safe(settings.AccountName)}");
-                            payment.Item().Text($"Account Number: {Safe(settings.AccountNumber)}");
-                            payment.Item().Text($"Bank: {Safe(settings.BankName)}");
-                            payment.Item().Text($"Branch: {Safe(settings.Branch)}");
-                            payment.Item().Text($"Instructions: {Safe(settings.PaymentInstructions)}");
-                        });
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(notes =>
+                                {
+                                    notes.Spacing(4);
+                                    notes.Item().Text("Notes & Terms").Bold().FontSize(10.4f).FontColor(Ink);
+                                    if (!string.IsNullOrWhiteSpace(model.Notes))
+                                    {
+                                        notes.Item().Text(model.Notes!.Trim()).FontColor(Muted);
+                                    }
 
-                        if (!string.IsNullOrWhiteSpace(model.Notes))
-                        {
-                            column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Text($"Notes: {model.Notes}");
+                                    if (!string.IsNullOrWhiteSpace(settings.InvoiceTerms))
+                                    {
+                                        notes.Item().Text(settings.InvoiceTerms!.Trim()).FontColor(Muted);
+                                    }
+                                });
                         }
 
-                        if (!string.IsNullOrWhiteSpace(settings.InvoiceTerms))
+                        if (orderedEmailLogs.Count > 0)
                         {
-                            column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Text($"Terms: {settings.InvoiceTerms}");
+                            column.Item()
+                                .Border(1)
+                                .BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(logs =>
+                                {
+                                    logs.Spacing(6);
+                                    logs.Item().Text("Email Activity").Bold().FontSize(10.4f).FontColor(Ink);
+                                    logs.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.ConstantColumn(110);
+                                            columns.ConstantColumn(92);
+                                            columns.RelativeColumn(1.4f);
+                                            columns.RelativeColumn(1.8f);
+                                        });
+
+                                        IContainer HeaderCell(IContainer c) => c.Border(1).BorderColor(Border).Background(HeaderFill).Padding(5);
+                                        IContainer BodyCell(IContainer c, string background) => c.Border(1).BorderColor(Border).Background(background).Padding(5);
+
+                                        table.Header(header =>
+                                        {
+                                            header.Cell().Element(HeaderCell).Text("Attempted").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Status").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Recipient").Bold().FontColor(Ink);
+                                            header.Cell().Element(HeaderCell).Text("Subject / Error").Bold().FontColor(Ink);
+                                        });
+
+                                        for (var i = 0; i < orderedEmailLogs.Count; i++)
+                                        {
+                                            var log = orderedEmailLogs[i];
+                                            var background = i % 2 == 0 ? "#FFFFFF" : Panel;
+                                            var subjectText = string.IsNullOrWhiteSpace(log.ErrorMessage)
+                                                ? log.Subject
+                                                : $"{log.Subject} | {log.ErrorMessage!.Trim()}";
+                                            var recipientText = string.IsNullOrWhiteSpace(log.CcEmail)
+                                                ? log.ToEmail
+                                                : $"{log.ToEmail} | CC: {log.CcEmail!.Trim()}";
+
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(ToMaldivesTime(log.AttemptedAt).ToString("yyyy-MM-dd HH:mm") + " MVT");
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(log.Status.ToString());
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(recipientText);
+                                            table.Cell().Element(c => BodyCell(c, background)).Text(subjectText);
+                                        }
+                                    });
+                                });
                         }
                     });
 
@@ -1322,21 +2932,33 @@ public class PdfExportService : IPdfExportService
                         column.Spacing(2);
                         if (!string.IsNullOrWhiteSpace(settings.InvoiceFooterNote))
                         {
-                            column.Item().AlignCenter().Text(settings.InvoiceFooterNote).FontSize(8.3f).FontColor(Colors.Grey.Darken1);
+                            column.Item().AlignCenter().Text(settings.InvoiceFooterNote).FontSize(8.3f).FontColor(Muted);
                         }
 
-                        column.Item().AlignCenter().Text(text =>
+                        column.Item().Row(row =>
                         {
-                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Darken2));
-                            text.Span("Generated by myDhathuru Portal Admin");
-                            text.Span(" • ");
-                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                            row.RelativeItem().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.Span("Generated by myDhathuru Portal Admin");
+                                text.Span(" | ");
+                                text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                            });
+
+                            row.ConstantItem(54).AlignRight().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.CurrentPageNumber();
+                                text.Span(" / ");
+                                text.TotalPages();
+                            });
                         });
                     });
                 });
             })
             .GeneratePdf();
     }
+
 
     private static string BuildMetaLine(ReportMetaDto meta)
     {
@@ -1349,7 +2971,7 @@ public class PdfExportService : IPdfExportService
         return ResolveLogoAsset(
             logoUrl,
             includeTenantUploads: false,
-            fallbackLogoFileName: DefaultInvoiceLogoFileName,
+            fallbackLogoFileName: DefaultAppLogoFileName,
             warningMessage: "Unable to load portal admin billing logo for PDF rendering.");
     }
 

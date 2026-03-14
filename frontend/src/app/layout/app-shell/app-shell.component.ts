@@ -313,6 +313,11 @@ type NavItem = {
     nav {
       display: grid;
       gap: .26rem;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding-right: .12rem;
+      scrollbar-width: thin;
     }
     nav a {
       color: #4c5d7d;
@@ -371,77 +376,32 @@ type NavItem = {
       box-shadow: 0 6px 12px rgba(117, 142, 194, .22);
     }
     .support-card {
-      background: linear-gradient(170deg, rgba(251, 253, 255, 0.96), rgba(236, 244, 255, 0.9));
-      border: 1px solid #d8e4fd;
-      border-radius: 16px;
-      padding: .68rem;
       display: grid;
-      gap: .38rem;
-      margin-top: auto;
+      gap: .46rem;
     }
     .support-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 999px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(145deg, #8ab8ff, #8feadf);
-      color: #234065;
-      font-family: var(--font-heading);
-      font-weight: 600;
     }
     .support-card h3 {
       margin: 0;
-      font-size: 1rem;
-      color: #364a73;
-      font-family: var(--font-heading);
-      font-weight: 600;
     }
     .support-card p {
       margin: 0;
-      font-size: .8rem;
-      line-height: 1.35;
-      color: #5f7096;
     }
     .support-btn,
     .bug-btn {
-      border-radius: 10px;
-      padding: .44rem .62rem;
-      font-family: var(--font-heading);
-      font-size: .76rem;
-      font-weight: 600;
       text-align: center;
       text-decoration: none;
       cursor: pointer;
-      transition: transform .15s ease;
-    }
-    .support-btn {
-      border: 1px solid #d8e4ff;
-      color: #fff;
-      background: linear-gradient(135deg, #7f8ff7, #67a8ec);
-    }
-    .bug-btn {
-      border: 1px solid #d7e4fa;
-      color: #4d628f;
-      background: linear-gradient(135deg, #f8fbff, #e8f0ff);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
     }
     .developed-by {
-      margin: .18rem 0 0;
+      margin: .22rem auto 0;
       text-align: center;
-      font-size: .74rem;
-      color: #7c8caf;
-      letter-spacing: .01em;
-      font-family: var(--font-heading);
-      font-weight: 600;
-      text-transform: lowercase;
-      padding-top: .1rem;
     }
     .user-box {
-      margin-top: .18rem;
-      border-top: 1px solid #dce5f8;
-      padding-top: .72rem;
+      margin-top: .22rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -452,27 +412,13 @@ type NavItem = {
       display: flex;
       align-items: center;
       gap: .46rem;
-      background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(239,245,255,.82));
-      border: 1px solid #d9e3f8;
-      border-radius: 14px;
-      padding: .36rem .48rem;
       flex: 1;
       min-width: 0;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
     }
     .user-avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 11px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: .8rem;
-      font-family: var(--font-heading);
-      font-weight: 600;
-      color: #f7fbff;
-      background: linear-gradient(145deg, #7b8af8, #67b8ef);
-      box-shadow: 0 8px 16px rgba(97, 124, 216, .28);
       flex: 0 0 auto;
     }
     .user-meta {
@@ -498,21 +444,8 @@ type NavItem = {
       color: #3a4868;
     }
     .logout-btn {
-      border: 1px solid #d6def5;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #7685f7, #6684ee);
-      color: #fff;
-      padding: .5rem .72rem;
       cursor: pointer;
-      font-family: var(--font-heading);
-      font-weight: 600;
-      box-shadow: 0 10px 18px rgba(97, 113, 206, .24);
       flex: 0 0 auto;
-    }
-    .logout-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 14px 24px rgba(86, 108, 204, .3);
-      filter: saturate(1.06);
     }
     .sidebar.sidebar-collapsed {
       align-items: center;
@@ -528,9 +461,6 @@ type NavItem = {
     .sidebar.sidebar-collapsed .sidebar-top {
       justify-content: center;
       width: 100%;
-    }
-    .sidebar.sidebar-collapsed .collapse-btn svg {
-      transform: rotate(180deg);
     }
     .sidebar.sidebar-collapsed nav {
       width: 100%;

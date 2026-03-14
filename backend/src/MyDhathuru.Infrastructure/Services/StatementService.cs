@@ -251,7 +251,7 @@ public class StatementService : IStatementService
         var statement = await GetStatementAsync(customerId, year, cancellationToken);
         var settings = await GetTenantSettingsAsync(cancellationToken);
         var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
-        return _pdfExportService.BuildStatementPdf(statement, settings.CompanyName, companyInfo);
+        return _pdfExportService.BuildStatementPdf(statement, settings.CompanyName, companyInfo, settings.LogoUrl);
     }
 
     private async Task<TenantSettings> GetTenantSettingsAsync(CancellationToken cancellationToken)

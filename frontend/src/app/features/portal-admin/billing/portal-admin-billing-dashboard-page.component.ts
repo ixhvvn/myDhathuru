@@ -133,6 +133,10 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     }
     .kpi {
       --card-padding: .78rem .86rem;
+      --card-shadow: none;
+      --card-hover-shadow: none;
+      --card-hover-transform: none;
+      --card-shimmer-display: none;
       display: grid;
       gap: .18rem;
     }
@@ -152,11 +156,11 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       font-family: var(--font-heading);
       font-weight: 600;
     }
-    .kpi-indigo { background: linear-gradient(145deg, rgba(236,241,255,.94), rgba(223,232,255,.9)); }
-    .kpi-teal { background: linear-gradient(145deg, rgba(226,252,245,.94), rgba(209,244,233,.9)); }
-    .kpi-cyan { background: linear-gradient(145deg, rgba(227,248,255,.94), rgba(214,241,255,.9)); }
-    .kpi-green { background: linear-gradient(145deg, rgba(229,249,238,.94), rgba(213,242,225,.9)); }
-    .kpi-rose { background: linear-gradient(145deg, rgba(255,237,244,.94), rgba(252,225,236,.9)); }
+    .kpi-indigo { --card-bg: linear-gradient(145deg, rgba(236,241,255,.94), rgba(223,232,255,.9)); }
+    .kpi-teal { --card-bg: linear-gradient(145deg, rgba(226,252,245,.94), rgba(209,244,233,.9)); }
+    .kpi-cyan { --card-bg: linear-gradient(145deg, rgba(227,248,255,.94), rgba(214,241,255,.9)); }
+    .kpi-green { --card-bg: linear-gradient(145deg, rgba(229,249,238,.94), rgba(213,242,225,.9)); }
+    .kpi-rose { --card-bg: linear-gradient(145deg, rgba(255,237,244,.94), rgba(252,225,236,.9)); }
     .quick-grid {
       margin-top: .85rem;
       display: grid;

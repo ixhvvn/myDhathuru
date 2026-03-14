@@ -4,6 +4,7 @@ import { portalAdminAuthPageGuard } from '../../core/guards/portal-admin-auth-pa
 import { portalAdminAuthGuard } from '../../core/guards/portal-admin-auth.guard';
 import { AuthLayoutComponent } from '../../layout/auth-layout/auth-layout.component';
 import { PortalAdminShellComponent } from '../../layout/portal-admin-shell/portal-admin-shell.component';
+import { PortalAdminAccountControlsPageComponent } from './account-controls/portal-admin-account-controls-page.component';
 import { PortalAdminAuditLogsPageComponent } from './audit-logs/portal-admin-audit-logs-page.component';
 import { PortalAdminLoginPageComponent } from './auth/portal-admin-login-page.component';
 import { PortalAdminResetPasswordPageComponent } from './auth/portal-admin-reset-password-page.component';
@@ -40,7 +41,7 @@ export const portalAdminRoutes: Routes = [
       { path: 'signup-requests', component: PortalAdminSignupRequestsPageComponent },
       { path: 'businesses', component: PortalAdminBusinessesPageComponent },
       { path: 'business-users', component: PortalAdminUsersPageComponent },
-      { path: 'account-controls', component: PortalAdminBusinessesPageComponent },
+      { path: 'account-controls', component: PortalAdminAccountControlsPageComponent },
       { path: 'billing', component: PortalAdminBillingDashboardPageComponent },
       { path: 'billing/dashboard', redirectTo: 'billing', pathMatch: 'full' },
       { path: 'billing/invoices', component: PortalAdminBillingInvoicesPageComponent },

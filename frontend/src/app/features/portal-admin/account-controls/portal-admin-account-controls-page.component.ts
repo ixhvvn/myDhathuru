@@ -1,10 +1,11 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { PortalAdminBusinessDetail, PortalAdminBusinessListItem } from '../../../core/models/app.models';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppEmptyStateComponent } from '../../../shared/components/app-empty-state/app-empty-state.component';
@@ -12,36 +13,13 @@ import { AppLoaderComponent } from '../../../shared/components/app-loader/app-lo
 import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 
 @Component({
-  selector: 'app-portal-admin-businesses-page',
+  selector: 'app-portal-admin-account-controls-page',
   standalone: true,
   imports: [CommonModule, DatePipe, ReactiveFormsModule, AppButtonComponent, AppCardComponent, AppEmptyStateComponent, AppLoaderComponent],
   template: `
     <section class="page-head">
-      <h1>Businesses</h1>
-      <p>Review tenant business profiles, operational size, and recent platform activity.</p>
-    </section>
-
-    <section class="summary-grid">
-      <app-card class="summary-card summary-indigo">
-        <span>Businesses Shown</span>
-        <strong>{{ rows().length }}</strong>
-        <small>Visible on this page</small>
-      </app-card>
-      <app-card class="summary-card summary-green">
-        <span>Active Businesses</span>
-        <strong>{{ activeCount() }}</strong>
-        <small>Businesses with access enabled</small>
-      </app-card>
-      <app-card class="summary-card summary-cyan">
-        <span>Total Staff</span>
-        <strong>{{ visibleStaffCount() }}</strong>
-        <small>Across visible businesses</small>
-      </app-card>
-      <app-card class="summary-card summary-peach">
-        <span>Total Vessels</span>
-        <strong>{{ visibleVesselCount() }}</strong>
-        <small>Across visible businesses</small>
-      </app-card>
+      <h1>Account Controls</h1>
+      <p>Control business access, update login details, and send password reset actions without the business analytics view.</p>
     </section>
 
     <app-card class="filter-card">
@@ -80,36 +58,35 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     <app-card *ngIf="!loading()" class="results-card">
       <app-empty-state
         *ngIf="rows().length === 0"
-        title="No businesses found"
-        description="No records match the selected filter.">
+        title="No account control records found"
+        description="No businesses match the selected account filter.">
       </app-empty-state>
 
       <div class="table-wrap" *ngIf="rows().length > 0">
         <table>
           <thead>
             <tr>
-              <th class="company-col">Company</th>
-              <th class="status-col">Status</th>
-              <th class="count-col">Staff</th>
-              <th class="count-col">Vessels</th>
-              <th class="created-col">Created</th>
+              <th class="company-col">Business</th>
+              <th class="email-col">Company Contact</th>
+              <th class="status-col">Access</th>
               <th class="activity-col">Last Activity</th>
-              <th class="action-col">Details</th>
+              <th class="action-col">Controls</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let row of rows()">
               <td class="company-cell">
                 <strong>{{ row.companyName }}</strong>
-                <small>{{ row.companyEmail }}</small>
-                <small>{{ row.companyPhone }}</small>
+                <small>Registration: {{ row.businessRegistrationNumber || '-' }}</small>
+                <small>TIN: {{ row.tinNumber || '-' }}</small>
+              </td>
+              <td class="contact-cell">
+                <span>{{ row.companyEmail || '-' }}</span>
+                <small>{{ row.companyPhone || '-' }}</small>
               </td>
               <td class="status-cell">
                 <span class="status" [attr.data-status]="row.status">{{ row.status }}</span>
               </td>
-              <td class="count-cell">{{ row.staffCount }}</td>
-              <td class="count-cell">{{ row.vesselCount }}</td>
-              <td class="created-cell">{{ row.createdAt | date:'yyyy-MM-dd' }}</td>
               <td class="activity-cell">
                 <ng-container *ngIf="row.lastActivityAt; else noLastActivity">
                   <span>{{ row.lastActivityAt | date:'yyyy-MM-dd' }}</span>
@@ -118,7 +95,27 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
                 <ng-template #noLastActivity>-</ng-template>
               </td>
               <td class="actions-cell">
-                <app-button size="sm" variant="secondary" (clicked)="viewDetails(row.tenantId)">View</app-button>
+                <div class="control-cluster">
+                  <div class="control-row control-row--support">
+                    <app-button class="action-btn action-btn--view" size="sm" variant="secondary" (clicked)="viewDetails(row.tenantId)">View</app-button>
+                    <app-button class="action-btn action-btn--edit" size="sm" variant="secondary" (clicked)="editBusiness(row.tenantId)">Edit Login</app-button>
+                  </div>
+                  <div class="control-row control-row--state">
+                    <app-button class="action-btn action-btn--reset" size="sm" variant="warning" (clicked)="sendResetLink(row.tenantId)">Send Reset</app-button>
+                    <app-button
+                      *ngIf="row.status === 'Active'"
+                      class="action-btn action-btn--status action-btn--danger"
+                      size="sm"
+                      variant="danger"
+                      (clicked)="openDisableModal(row)">Disable</app-button>
+                    <app-button
+                      *ngIf="row.status === 'Disabled'"
+                      class="action-btn action-btn--status action-btn--enable"
+                      size="sm"
+                      variant="success"
+                      (clicked)="enableBusiness(row)">Enable</app-button>
+                  </div>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -127,7 +124,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 
       <div class="results-footer" *ngIf="rows().length > 0">
         <div class="results-meta">
-          Total {{ totalCount() }} business{{ totalCount() === 1 ? '' : 'es' }}
+          Total {{ totalCount() }} business account{{ totalCount() === 1 ? '' : 's' }}
         </div>
 
         <div class="pagination">
@@ -140,71 +137,78 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       </div>
     </app-card>
 
-    <div class="modal-backdrop" *ngIf="detail()"></div>
+    <div class="modal-backdrop" *ngIf="detail() || editDetail() || disableTarget()"></div>
 
     <section class="modal" *ngIf="detail() as selected">
-      <h2>Business Details</h2>
+      <h2>Business Account Details</h2>
       <dl>
         <div><dt>Company</dt><dd>{{ selected.companyName }}</dd></div>
         <div><dt>Email</dt><dd>{{ selected.companyEmail }}</dd></div>
         <div><dt>Phone</dt><dd>{{ selected.companyPhone }}</dd></div>
-        <div><dt>TIN</dt><dd>{{ selected.tinNumber }}</dd></div>
-        <div><dt>Business Registration</dt><dd>{{ selected.businessRegistrationNumber }}</dd></div>
         <div><dt>Status</dt><dd>{{ selected.status }}</dd></div>
         <div><dt>Primary Admin</dt><dd>{{ selected.primaryAdmin?.fullName || '-' }} ({{ selected.primaryAdmin?.email || '-' }})</dd></div>
-        <div><dt>Staff Count</dt><dd>{{ selected.staffCount }}</dd></div>
-        <div><dt>Vessel Count</dt><dd>{{ selected.vesselCount }}</dd></div>
-        <div><dt>Customer Count</dt><dd>{{ selected.customerCount }}</dd></div>
-        <div><dt>Invoice Count</dt><dd>{{ selected.invoiceCount }}</dd></div>
+        <div><dt>Registration</dt><dd>{{ selected.businessRegistrationNumber || '-' }}</dd></div>
+        <div><dt>TIN</dt><dd>{{ selected.tinNumber || '-' }}</dd></div>
         <div *ngIf="selected.disabledReason"><dt>Disabled Reason</dt><dd>{{ selected.disabledReason }}</dd></div>
       </dl>
       <div class="modal-actions">
         <app-button variant="secondary" (clicked)="detail.set(null)">Close</app-button>
       </div>
     </section>
+
+    <section class="modal" *ngIf="editDetail() as selected">
+      <h2>Edit Business Login Details</h2>
+      <form [formGroup]="editForm" (ngSubmit)="saveEdit(selected.tenantId)">
+        <label>
+          Admin Full Name
+          <input type="text" formControlName="adminFullName">
+        </label>
+        <small class="error" *ngIf="editForm.controls.adminFullName.touched && editForm.controls.adminFullName.hasError('pattern')">
+          Name must not contain numbers.
+        </small>
+        <label>
+          Admin Login Email
+          <input type="email" formControlName="adminLoginEmail">
+        </label>
+        <small class="error" *ngIf="editForm.controls.adminLoginEmail.touched && editForm.controls.adminLoginEmail.hasError('email')">
+          Enter a valid email.
+        </small>
+        <label>
+          Company Email
+          <input type="email" formControlName="companyEmail">
+        </label>
+        <label>
+          Company Phone
+          <input type="text" formControlName="companyPhone">
+        </label>
+        <small class="error" *ngIf="editForm.controls.companyPhone.touched && editForm.controls.companyPhone.hasError('pattern')">
+          Phone must contain only digits.
+        </small>
+        <div class="modal-actions">
+          <app-button type="button" variant="secondary" (clicked)="cancelEdit()">Cancel</app-button>
+          <app-button type="submit" [loading]="actionLoading()">Save</app-button>
+        </div>
+      </form>
+    </section>
+
+    <section class="modal" *ngIf="disableTarget() as selected">
+      <h2>Disable Business Account</h2>
+      <p>Disabled businesses cannot log in until re-enabled by portal admin.</p>
+      <form [formGroup]="disableForm" (ngSubmit)="confirmDisable(selected.tenantId)">
+        <label>
+          Reason (optional)
+          <textarea rows="4" formControlName="reason" placeholder="Reason for disabling"></textarea>
+        </label>
+        <div class="modal-actions">
+          <app-button type="button" variant="secondary" (clicked)="disableTarget.set(null)">Cancel</app-button>
+          <app-button type="submit" variant="danger" [loading]="actionLoading()">Disable</app-button>
+        </div>
+      </form>
+    </section>
   `,
   styles: `
     .page-head h1 { margin: 0; font-family: var(--font-heading); color: #2f4269; font-size: 1.46rem; font-weight: 600; }
     .page-head p { margin: .3rem 0 0; color: #61739a; }
-    .summary-grid {
-      margin-top: .78rem;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: .68rem;
-    }
-    .summary-card {
-      --card-padding: .78rem .86rem;
-      --card-shadow: none;
-      --card-hover-shadow: none;
-      --card-hover-transform: none;
-      --card-shimmer-display: none;
-      display: grid;
-      gap: .18rem;
-    }
-    .summary-card span {
-      color: #5f73a0;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      font-size: .74rem;
-      font-family: var(--font-heading);
-      font-weight: 600;
-    }
-    .summary-card strong {
-      color: #2b3f68;
-      font-size: 1.34rem;
-      line-height: 1.2;
-      font-family: var(--font-heading);
-      font-weight: 600;
-    }
-    .summary-card small {
-      color: #697ca5;
-      font-size: .75rem;
-      line-height: 1.3;
-    }
-    .summary-indigo { --card-bg: linear-gradient(145deg, rgba(236,241,255,.94), rgba(223,232,255,.9)); }
-    .summary-green { --card-bg: linear-gradient(145deg, rgba(229,249,238,.94), rgba(213,242,225,.9)); }
-    .summary-cyan { --card-bg: linear-gradient(145deg, rgba(227,248,255,.94), rgba(214,241,255,.9)); }
-    .summary-peach { --card-bg: linear-gradient(145deg, rgba(255,242,228,.94), rgba(252,232,213,.9)); }
     .filter-card { margin-top: .75rem; --card-padding: .8rem; }
     .results-card { margin-top: .78rem; }
     .filters {
@@ -292,20 +296,17 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       white-space: nowrap;
       text-align: left;
     }
-    .company-col { width: 32%; }
-    .status-col { width: 9%; text-align: center; }
-    .count-col { width: 7%; text-align: center; }
-    .created-col { width: 11%; text-align: center; }
+    .company-col { width: 28%; }
+    .email-col { width: 22%; }
+    .status-col { width: 10%; text-align: center; }
     .activity-col { width: 12%; text-align: center; }
     .action-col {
-      width: 9%;
-      min-width: 110px;
-      text-align: center;
+      width: 24%;
+      min-width: 280px;
+      text-align: right;
     }
-    .company-cell {
-      min-width: 0;
-    }
-    .company-cell strong {
+    .company-cell strong,
+    .contact-cell span {
       display: block;
       color: #2f4369;
       font-family: var(--font-heading);
@@ -313,7 +314,8 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       font-size: .82rem;
       line-height: 1.25;
     }
-    .company-cell small {
+    .company-cell small,
+    .contact-cell small {
       display: block;
       color: #63779f;
       font-size: .75rem;
@@ -340,11 +342,6 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       background: rgba(255, 219, 230, .74);
     }
     .status-cell,
-    .count-cell,
-    .created-cell {
-      text-align: center;
-      white-space: nowrap;
-    }
     .activity-cell {
       text-align: center;
       white-space: nowrap;
@@ -355,20 +352,64 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       line-height: 1.3;
     }
     .actions-cell {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: .32rem;
-      justify-content: center;
-      align-items: center;
+      text-align: right;
       white-space: normal;
     }
-    .actions-cell app-button { flex: 0 0 auto; }
+    .control-cluster {
+      display: inline-grid;
+      gap: .34rem;
+      justify-items: end;
+      min-width: 0;
+    }
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .34rem;
+      justify-content: flex-end;
+    }
+    .control-row--state {
+      align-items: center;
+    }
+    .actions-cell app-button {
+      flex: 0 0 auto;
+    }
     :host ::ng-deep .actions-cell app-button .app-btn {
-      min-height: 30px;
-      padding: .34rem .56rem;
+      min-height: 31px;
+      padding: .34rem .58rem;
       font-size: .72rem;
       white-space: nowrap;
-      border-radius: 11px;
+      border-radius: 12px;
+      box-shadow: none;
+    }
+    :host ::ng-deep .actions-cell .action-btn--view .app-btn,
+    :host ::ng-deep .actions-cell .action-btn--edit .app-btn {
+      background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(240,245,255,.92));
+      border-color: #d2dcf3;
+      color: #52658e;
+    }
+    :host ::ng-deep .actions-cell .action-btn--edit .app-btn {
+      background: linear-gradient(145deg, rgba(246,249,255,.97), rgba(234,241,255,.92));
+      color: #465f95;
+    }
+    :host ::ng-deep .actions-cell .action-btn--reset .app-btn {
+      background: linear-gradient(135deg, #f5b563, #ea9b36);
+      box-shadow: 0 8px 16px rgba(214, 144, 55, .2);
+    }
+    :host ::ng-deep .actions-cell .action-btn--status .app-btn {
+      min-width: 78px;
+      justify-content: center;
+      font-weight: 700;
+    }
+    :host ::ng-deep .actions-cell .action-btn--danger .app-btn {
+      background: linear-gradient(135deg, #e88fa5, #dc7892);
+      box-shadow: 0 8px 16px rgba(212, 94, 122, .18);
+    }
+    :host ::ng-deep .actions-cell .action-btn--enable .app-btn {
+      background: linear-gradient(135deg, #56ba91, #419d77);
+      box-shadow: 0 8px 16px rgba(68, 160, 123, .18);
+    }
+    :host ::ng-deep .actions-cell app-button .app-btn:not(:disabled):hover {
+      transform: translateY(-1px);
     }
     .pagination {
       display: flex;
@@ -442,6 +483,11 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       color: #33486c;
       font-size: .88rem;
     }
+    .error {
+      color: #c14d71;
+      font-size: .76rem;
+      margin-top: -.26rem;
+    }
     .modal-actions {
       margin-top: .62rem;
       display: flex;
@@ -449,9 +495,6 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       gap: .46rem;
     }
     @media (max-width: 1240px) {
-      .summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
       .filters > label {
         flex: 1 1 calc(50% - .56rem);
       }
@@ -472,7 +515,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
         min-width: 980px;
       }
       .action-col {
-        min-width: 120px;
+        min-width: 250px;
       }
       .results-footer,
       .pagination {
@@ -485,26 +528,37 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     }
   `
 })
-export class PortalAdminBusinessesPageComponent {
+export class PortalAdminAccountControlsPageComponent {
   private readonly api = inject(PortalAdminApiService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
 
   readonly loading = signal(true);
+  readonly actionLoading = signal(false);
   readonly rows = signal<PortalAdminBusinessListItem[]>([]);
   readonly detail = signal<PortalAdminBusinessDetail | null>(null);
+  readonly editDetail = signal<PortalAdminBusinessDetail | null>(null);
+  readonly disableTarget = signal<PortalAdminBusinessListItem | null>(null);
   readonly page = signal(1);
   readonly pageSize = signal(10);
   readonly totalCount = signal(0);
   readonly totalPages = signal(1);
-  readonly activeCount = computed(() => this.rows().filter((row) => row.status === 'Active').length);
-  readonly visibleStaffCount = computed(() => this.rows().reduce((total, row) => total + row.staffCount, 0));
-  readonly visibleVesselCount = computed(() => this.rows().reduce((total, row) => total + row.vesselCount, 0));
 
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
     status: [''],
     pageSize: [10]
+  });
+
+  readonly disableForm = this.fb.nonNullable.group({
+    reason: ['', [Validators.maxLength(300)]]
+  });
+
+  readonly editForm = this.fb.nonNullable.group({
+    adminFullName: ['', [Validators.required, Validators.pattern(NAME_REGEX)]],
+    adminLoginEmail: ['', [Validators.required, Validators.email]],
+    companyEmail: ['', [Validators.required, Validators.email]],
+    companyPhone: ['', [Validators.required, Validators.pattern(PHONE_REGEX)]]
   });
 
   constructor() {
@@ -535,8 +589,99 @@ export class PortalAdminBusinessesPageComponent {
   viewDetails(tenantId: string): void {
     this.api.getBusinessById(tenantId).subscribe({
       next: (result) => this.detail.set(result),
-      error: (error) => this.toast.error(extractApiError(error, 'Unable to load business details.'))
+      error: (error) => this.toast.error(extractApiError(error, 'Unable to load business account details.'))
     });
+  }
+
+  editBusiness(tenantId: string): void {
+    this.api.getBusinessById(tenantId).subscribe({
+      next: (result) => {
+        this.editDetail.set(result);
+        this.editForm.reset({
+          adminFullName: result.primaryAdmin?.fullName || '',
+          adminLoginEmail: result.primaryAdmin?.email || '',
+          companyEmail: result.companyEmail,
+          companyPhone: result.companyPhone
+        });
+      },
+      error: (error) => this.toast.error(extractApiError(error, 'Unable to load business login details.'))
+    });
+  }
+
+  cancelEdit(): void {
+    if (this.actionLoading()) {
+      return;
+    }
+    this.editDetail.set(null);
+  }
+
+  saveEdit(tenantId: string): void {
+    if (this.editForm.invalid) {
+      this.editForm.markAllAsTouched();
+      return;
+    }
+
+    this.actionLoading.set(true);
+    this.api.updateBusinessLoginDetails(tenantId, this.editForm.getRawValue())
+      .pipe(finalize(() => this.actionLoading.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Business login details updated.');
+          this.editDetail.set(null);
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to update login details.'))
+      });
+  }
+
+  openDisableModal(row: PortalAdminBusinessListItem): void {
+    this.disableForm.reset({ reason: '' });
+    this.disableTarget.set(row);
+  }
+
+  confirmDisable(tenantId: string): void {
+    this.actionLoading.set(true);
+    this.api.disableBusiness(tenantId, this.disableForm.getRawValue().reason)
+      .pipe(finalize(() => this.actionLoading.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Business account disabled.');
+          this.disableTarget.set(null);
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to disable business account.'))
+      });
+  }
+
+  enableBusiness(row: PortalAdminBusinessListItem): void {
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`Enable business account for ${row.companyName}?`)
+      : true;
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.actionLoading.set(true);
+    this.api.enableBusiness(row.tenantId)
+      .pipe(finalize(() => this.actionLoading.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Business account enabled.');
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to enable business account.'))
+      });
+  }
+
+  sendResetLink(tenantId: string): void {
+    this.actionLoading.set(true);
+    this.api.sendBusinessResetLink(tenantId)
+      .pipe(finalize(() => this.actionLoading.set(false)))
+      .subscribe({
+        next: () => this.toast.success('Password reset link sent.'),
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to send reset link.'))
+      });
   }
 
   private load(): void {
@@ -551,15 +696,15 @@ export class PortalAdminBusinessesPageComponent {
       pageNumber: this.page(),
       pageSize: selectedPageSize
     })
-    .pipe(finalize(() => this.loading.set(false)))
-    .subscribe({
-      next: (result) => {
-        this.rows.set(result.items);
-        this.totalCount.set(result.totalCount);
-        this.totalPages.set(Math.max(1, result.totalPages));
-      },
-      error: (error) => this.toast.error(extractApiError(error, 'Unable to load businesses.'))
-    });
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.rows.set(result.items);
+          this.totalCount.set(result.totalCount);
+          this.totalPages.set(Math.max(1, result.totalPages));
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to load account controls.'))
+      });
   }
 
   private resolvePageSize(pageSize: unknown): number {
@@ -567,4 +712,3 @@ export class PortalAdminBusinessesPageComponent {
     return parsed === 10 || parsed === 20 || parsed === 50 || parsed === 80 || parsed === 100 ? parsed : 10;
   }
 }
-

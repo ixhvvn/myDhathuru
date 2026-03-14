@@ -310,7 +310,7 @@ public class DeliveryNoteService : IDeliveryNoteService
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
         var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
-        return _pdfExportService.BuildDeliveryNotePdf(note, settings.CompanyName, companyInfo);
+        return _pdfExportService.BuildDeliveryNotePdf(note, settings.CompanyName, companyInfo, settings.LogoUrl);
     }
 
     private static DeliveryNoteDetailDto MapDeliveryNote(DeliveryNote note)

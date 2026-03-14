@@ -69,7 +69,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 
     <app-loader *ngIf="loading()"></app-loader>
 
-    <app-card *ngIf="!loading()">
+    <app-card *ngIf="!loading()" class="results-card">
       <app-empty-state
         *ngIf="rows().length === 0"
         title="No signup requests found"
@@ -169,15 +169,27 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: .68rem;
     }
-    .count { --card-padding: .8rem .9rem; display: grid; gap: .2rem; }
+    .count {
+      --card-padding: .8rem .9rem;
+      --card-shadow: none;
+      --card-hover-shadow: none;
+      --card-hover-transform: none;
+      --card-hover-border: rgba(255,255,255,.85);
+      --card-shimmer-display: none;
+      display: grid;
+      gap: .2rem;
+    }
     .count span { font-size: .78rem; color: #5c709d; font-family: var(--font-heading); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
     .count strong { font-size: 1.45rem; color: #2d4068; font-family: var(--font-heading); font-weight: 600; }
-    .count.pending { background: linear-gradient(160deg, rgba(255, 239, 213, .72), rgba(255, 229, 184, .7)); }
-    .count.accepted { background: linear-gradient(160deg, rgba(218, 247, 232, .78), rgba(199, 240, 216, .74)); }
-    .count.rejected { background: linear-gradient(160deg, rgba(255, 224, 234, .78), rgba(255, 211, 224, .72)); }
+    .count.pending { --card-bg: linear-gradient(160deg, rgba(255, 239, 213, .9), rgba(255, 229, 184, .84)); }
+    .count.accepted { --card-bg: linear-gradient(160deg, rgba(218, 247, 232, .92), rgba(199, 240, 216, .86)); }
+    .count.rejected { --card-bg: linear-gradient(160deg, rgba(255, 224, 234, .9), rgba(255, 211, 224, .84)); }
     .filter-card {
       margin-top: .75rem;
       --card-padding: .8rem;
+    }
+    .results-card {
+      margin-top: .78rem;
     }
     .filters {
       display: flex;

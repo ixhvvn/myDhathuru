@@ -101,9 +101,20 @@ interface ReportPresetOption
         </p>
 
         <div class="actions-row">
-          <app-button variant="secondary" [disabled]="loading()" (clicked)="exportReport('excel')">Export Excel</app-button>
-          <app-button variant="secondary" [disabled]="loading()" (clicked)="exportReport('pdf')">Export PDF</app-button>
-          <app-button [loading]="loading()" (clicked)="generateReport()">Generate Report</app-button>
+          <app-button
+            variant="secondary"
+            [loading]="exportLoading() === 'excel'"
+            [disabled]="previewLoading() || exportLoading() !== null"
+            (clicked)="exportReport('excel')">Export Excel</app-button>
+          <app-button
+            variant="secondary"
+            [loading]="exportLoading() === 'pdf'"
+            [disabled]="previewLoading() || exportLoading() !== null"
+            (clicked)="exportReport('pdf')">Export PDF</app-button>
+          <app-button
+            [loading]="previewLoading()"
+            [disabled]="exportLoading() !== null"
+            (clicked)="generateReport()">Generate Report</app-button>
         </div>
       </app-card>
 
@@ -518,7 +529,8 @@ export class ReportsPageComponent implements OnInit {
   readonly customerSearch = signal('');
   readonly selectedCustomerId = signal('');
   readonly validationError = signal<string | null>(null);
-  readonly loading = signal(false);
+  readonly previewLoading = signal(false);
+  readonly exportLoading = signal<'excel' | 'pdf' | null>(null);
   readonly hasGenerated = signal(false);
 
   readonly customers = signal<Customer[]>([]);
@@ -628,7 +640,7 @@ export class ReportsPageComponent implements OnInit {
       return;
     }
 
-    this.loading.set(true);
+    this.previewLoading.set(true);
     const params = this.buildFilterParams();
 
     switch (this.selectedReportType())
@@ -641,11 +653,11 @@ export class ReportsPageComponent implements OnInit {
             this.salesTransactions.set(null);
             this.salesByVessel.set(null);
             this.hasGenerated.set(true);
-            this.loading.set(false);
+            this.previewLoading.set(false);
           },
           error: (error) =>
           {
-            this.loading.set(false);
+            this.previewLoading.set(false);
             this.toast.error(this.readError(error, 'Failed to generate sales summary report.'));
           }
         });
@@ -658,11 +670,11 @@ export class ReportsPageComponent implements OnInit {
             this.salesSummary.set(null);
             this.salesByVessel.set(null);
             this.hasGenerated.set(true);
-            this.loading.set(false);
+            this.previewLoading.set(false);
           },
           error: (error) =>
           {
-            this.loading.set(false);
+            this.previewLoading.set(false);
             this.toast.error(this.readError(error, 'Failed to generate sales transactions report.'));
           }
         });
@@ -675,17 +687,17 @@ export class ReportsPageComponent implements OnInit {
             this.salesSummary.set(null);
             this.salesTransactions.set(null);
             this.hasGenerated.set(true);
-            this.loading.set(false);
+            this.previewLoading.set(false);
           },
           error: (error) =>
           {
-            this.loading.set(false);
+            this.previewLoading.set(false);
             this.toast.error(this.readError(error, 'Failed to generate sales by vessel report.'));
           }
         });
         break;
       default:
-        this.loading.set(false);
+        this.previewLoading.set(false);
         this.toast.error('Unsupported report type.');
         break;
     }
@@ -697,7 +709,7 @@ export class ReportsPageComponent implements OnInit {
       return;
     }
 
-    this.loading.set(true);
+    this.exportLoading.set(format);
     const payload = this.buildExportPayload();
     const request$ = format === 'excel'
       ? this.api.exportReportExcel(payload)
@@ -707,12 +719,12 @@ export class ReportsPageComponent implements OnInit {
       next: (file) =>
       {
         this.download(file, `${this.reportSlug()}-${this.todayIso()}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-        this.loading.set(false);
+        this.exportLoading.set(null);
         this.toast.success(`Report exported to ${format.toUpperCase()}.`);
       },
       error: (error) =>
       {
-        this.loading.set(false);
+        this.exportLoading.set(null);
         this.toast.error(this.readError(error, `Failed to export report ${format.toUpperCase()}.`));
       }
     });

@@ -50,7 +50,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 
     <app-loader *ngIf="loading()"></app-loader>
 
-    <app-card *ngIf="!loading()">
+    <app-card *ngIf="!loading()" class="results-card">
       <app-empty-state
         *ngIf="rows().length === 0"
         title="No business users found"
@@ -85,14 +85,18 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
         </table>
       </div>
 
-      <div class="results-meta" *ngIf="rows().length > 0">
-        Total {{ totalCount() }} record{{ totalCount() === 1 ? '' : 's' }}
-      </div>
+      <div class="results-footer" *ngIf="rows().length > 0">
+        <div class="results-meta">
+          Total {{ totalCount() }} business user{{ totalCount() === 1 ? '' : 's' }}
+        </div>
 
-      <div class="pagination" *ngIf="totalCount() > pageSize()">
-        <button type="button" [disabled]="page() <= 1" (click)="changePage(page() - 1)">Prev</button>
-        <span>Page {{ page() }} of {{ totalPages() }}</span>
-        <button type="button" [disabled]="page() >= totalPages()" (click)="changePage(page() + 1)">Next</button>
+        <div class="pagination">
+          <span>Page {{ page() }} of {{ totalPages() }}</span>
+          <div class="pagination-actions">
+            <app-button size="sm" variant="secondary" [disabled]="page() <= 1" (clicked)="changePage(page() - 1)">Previous</app-button>
+            <app-button size="sm" variant="secondary" [disabled]="page() >= totalPages()" (clicked)="changePage(page() + 1)">Next</app-button>
+          </div>
+        </div>
       </div>
     </app-card>
   `,
@@ -100,6 +104,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     .page-head h1 { margin: 0; font-family: var(--font-heading); color: #2f4269; font-size: 1.45rem; font-weight: 600; }
     .page-head p { margin: .32rem 0 0; color: #61739a; }
     .filter-card { margin-top: .75rem; --card-padding: .8rem; }
+    .results-card { margin-top: .78rem; }
     .filters {
       display: flex;
       flex-wrap: wrap;
@@ -151,10 +156,18 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       overflow: auto;
       margin-top: .2rem;
     }
+    .results-footer {
+      margin-top: .72rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+      flex-wrap: wrap;
+    }
     .results-meta {
-      margin-top: .56rem;
       color: #5f739d;
       font-size: .83rem;
+      font-weight: 600;
     }
     table {
       width: 100%;
@@ -210,27 +223,17 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       background: rgba(255, 219, 230, .74);
     }
     .pagination {
-      margin-top: .62rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: .65rem;
       color: #5f739d;
       font-size: .84rem;
-    }
-    .pagination button {
-      border: 1px solid #d6e1f8;
-      background: linear-gradient(140deg, #f6f9ff, #edf4ff);
-      color: #50638a;
-      border-radius: 10px;
-      padding: .42rem .62rem;
-      font-family: var(--font-heading);
-      font-size: .8rem;
       font-weight: 600;
-      cursor: pointer;
     }
-    .pagination button:disabled {
-      opacity: .55;
-      cursor: not-allowed;
+    .pagination-actions {
+      display: inline-flex;
+      gap: .42rem;
+      align-items: center;
     }
     @media (max-width: 1240px) {
       .filters > label {
@@ -248,6 +251,14 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
         min-width: 0;
       }
       .actions { width: 100%; justify-content: flex-start; }
+      .results-footer,
+      .pagination {
+        align-items: flex-start;
+      }
+      .pagination {
+        width: 100%;
+        justify-content: space-between;
+      }
     }
   `
 })

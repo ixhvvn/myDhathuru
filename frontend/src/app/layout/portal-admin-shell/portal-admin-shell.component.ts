@@ -30,39 +30,58 @@ type AdminNavItem = {
       <div class="mobile-overlay" [class.visible]="mobileMenuOpen()" (click)="closeMobileMenu()"></div>
 
       <aside class="sidebar" [class.mobile-open]="mobileMenuOpen()">
-        <div class="brand">
-          <img src="/logo.svg" alt="myDhathuru logo">
-          <div>
-            <h2>myDhathuru</h2>
-            <p>Portal Admin</p>
-          </div>
-        </div>
-
-        <nav>
-          <a
-            *ngFor="let item of navItems"
-            [routerLink]="item.path"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: true }"
-            (click)="onNavItemClick()">
-            <span class="icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path *ngFor="let iconPath of item.iconPaths" [attr.d]="iconPath"></path>
-              </svg>
-            </span>
-            <span>{{ item.label }}</span>
-          </a>
-        </nav>
-
-        <div class="footer">
-          <div class="user">
-            <span class="avatar">{{ initials() }}</span>
-            <div class="meta">
-              <strong>{{ auth.user()?.fullName || 'Super Admin' }}</strong>
-              <small>{{ auth.user()?.email }}</small>
+        <div class="sidebar-header">
+          <div class="brand">
+            <img src="/logo.svg" alt="myDhathuru logo">
+            <div>
+              <h2>myDhathuru</h2>
+              <p>Portal Admin</p>
             </div>
           </div>
-          <button type="button" class="logout-btn" (click)="logout()">Logout</button>
+
+          <button type="button" class="sidebar-close" aria-label="Close navigation menu" (click)="closeMobileMenu()">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12"></path>
+              <path d="M18 6L6 18"></path>
+            </svg>
+          </button>
+        </div>
+
+        <section class="nav-panel">
+          <div class="nav-panel__head">
+            <span>Portal Navigation</span>
+            <small>{{ navItems.length }} modules</small>
+          </div>
+
+          <nav>
+            <a
+              *ngFor="let item of navItems"
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+              (click)="onNavItemClick()">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path *ngFor="let iconPath of item.iconPaths" [attr.d]="iconPath"></path>
+                </svg>
+              </span>
+              <span>{{ item.label }}</span>
+            </a>
+          </nav>
+        </section>
+
+        <div class="footer">
+          <div class="footer-card">
+            <span class="footer-chip">Portal Super Admin</span>
+            <div class="user">
+              <span class="avatar">{{ initials() }}</span>
+              <div class="meta">
+                <strong>{{ auth.user()?.fullName || 'Super Admin' }}</strong>
+                <small>{{ auth.user()?.email }}</small>
+              </div>
+            </div>
+            <button type="button" class="logout-btn" (click)="logout()">Logout</button>
+          </div>
         </div>
       </aside>
 
@@ -91,53 +110,119 @@ type AdminNavItem = {
     .sidebar {
       border-radius: 22px;
       border: 1px solid rgba(255,255,255,.82);
-      background: linear-gradient(170deg, rgba(255,255,255,.86), rgba(243,248,255,.78));
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow-soft);
-      padding: .9rem;
+      background:
+        radial-gradient(circle at 12% 10%, rgba(143, 161, 255, .16), transparent 34%),
+        radial-gradient(circle at 88% 90%, rgba(108, 220, 206, .14), transparent 30%),
+        linear-gradient(170deg, rgba(255,255,255,.88), rgba(243,248,255,.8));
+      backdrop-filter: blur(12px);
+      box-shadow: 0 24px 44px rgba(61, 83, 136, .14);
+      padding: .78rem;
       display: grid;
       grid-template-rows: auto 1fr auto;
-      gap: .8rem;
+      gap: .72rem;
       height: calc(100dvh - 2rem);
       position: sticky;
       top: 1rem;
       overflow: hidden;
     }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
     .brand {
       display: flex;
       align-items: center;
       gap: .65rem;
-      border: 1px solid #d9e3f9;
-      border-radius: 14px;
-      background: linear-gradient(140deg, #f7faff, #ecf3ff);
-      padding: .52rem .58rem;
+      border: 1px solid rgba(194, 208, 242, .76);
+      border-radius: 18px;
+      background:
+        linear-gradient(140deg, rgba(248,251,255,.98), rgba(236,243,255,.9)),
+        radial-gradient(circle at 12% 16%, rgba(148, 169, 255, .12), transparent 34%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.9),
+        0 10px 22px rgba(89, 110, 167, .08);
+      padding: .6rem .66rem;
+      flex: 1;
+      min-width: 0;
     }
     .brand img {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
       border: 1px solid #d5dff6;
       object-fit: cover;
       background: #fff;
+      box-shadow: 0 10px 20px rgba(103, 125, 184, .14);
     }
     .brand h2 {
       margin: 0;
       color: #304264;
       font-family: var(--font-heading);
-      font-size: 1.02rem;
+      font-size: 1.08rem;
       font-weight: 600;
+      line-height: 1.1;
     }
     .brand p {
-      margin: .08rem 0 0;
+      margin: .16rem 0 0;
       color: #60729a;
       font-size: .76rem;
+    }
+    .sidebar-close {
+      display: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      border: 1px solid rgba(194, 208, 242, .76);
+      background: linear-gradient(145deg, rgba(248,251,255,.96), rgba(236,243,255,.88));
+      color: #4f648f;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+    }
+    .sidebar-close svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .nav-panel {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: .55rem;
+      padding: .58rem;
+      border-radius: 20px;
+      border: 1px solid rgba(198, 211, 242, .72);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.82), rgba(242,247,255,.72)),
+        radial-gradient(circle at 100% 0%, rgba(130, 222, 211, .08), transparent 35%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.86);
+    }
+    .nav-panel__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+      padding: 0 .1rem;
+    }
+    .nav-panel__head span,
+    .nav-panel__head small {
+      color: #6177a4;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 700;
     }
     nav {
       display: grid;
       align-content: start;
       gap: .3rem;
       overflow: auto;
-      padding-right: .1rem;
+      padding-right: .15rem;
     }
     nav a {
       display: flex;
@@ -145,9 +230,9 @@ type AdminNavItem = {
       gap: .62rem;
       color: #4e5f7f;
       text-decoration: none;
-      border-radius: 12px;
+      border-radius: 15px;
       border: 1px solid transparent;
-      padding: .5rem .58rem;
+      padding: .48rem .56rem;
       font-family: var(--font-heading);
       font-weight: 600;
       transition: background .2s ease, color .2s ease, border-color .2s ease;
@@ -198,25 +283,50 @@ type AdminNavItem = {
         inset 0 1px 0 rgba(255, 255, 255, .9);
     }
     .footer {
-      border-top: 1px solid #dbe4f8;
-      padding-top: .7rem;
+      padding-top: .05rem;
+    }
+    .footer-card {
       display: grid;
-      gap: .56rem;
+      gap: .62rem;
+      padding: .68rem;
+      border-radius: 20px;
+      border: 1px solid rgba(194, 208, 242, .76);
+      background:
+        radial-gradient(circle at 90% 12%, rgba(116, 217, 223, .16), transparent 34%),
+        linear-gradient(150deg, rgba(255,255,255,.94), rgba(238,244,255,.86));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.92),
+        0 14px 30px rgba(87, 110, 173, .12);
+    }
+    .footer-chip {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      border-radius: 999px;
+      padding: .26rem .58rem;
+      border: 1px solid rgba(164, 182, 236, .58);
+      background: rgba(245, 248, 255, .86);
+      color: #6076a2;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
     }
     .user {
       display: flex;
       align-items: center;
       gap: .55rem;
-      border: 1px solid #d8e2f9;
-      border-radius: 13px;
-      padding: .42rem .5rem;
-      background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(237,244,255,.82));
+      border: 1px solid rgba(214, 224, 247, .8);
+      border-radius: 16px;
+      padding: .5rem .56rem;
+      background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(237,244,255,.88));
       min-width: 0;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.86);
     }
     .avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 11px;
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -241,7 +351,7 @@ type AdminNavItem = {
     }
     .meta strong {
       font-family: var(--font-heading);
-      font-size: .86rem;
+      font-size: .9rem;
       font-weight: 600;
     }
     .meta small {
@@ -250,15 +360,16 @@ type AdminNavItem = {
     }
     .logout-btn {
       border: 1px solid #d5def6;
-      border-radius: 12px;
+      border-radius: 14px;
       background: linear-gradient(135deg, #7585f8, #6689ed);
       color: #fff;
       font-family: var(--font-heading);
-      font-size: .86rem;
+      font-size: .88rem;
       font-weight: 600;
-      padding: .52rem .7rem;
+      padding: .66rem .8rem;
       cursor: pointer;
       box-shadow: 0 12px 22px rgba(94, 113, 203, .22);
+      width: 100%;
     }
     .logout-btn:hover {
       transform: translateY(-1px);
@@ -282,26 +393,29 @@ type AdminNavItem = {
         align-items: center;
         justify-content: space-between;
         gap: .5rem;
-        border-radius: 15px;
+        border-radius: 18px;
         border: 1px solid rgba(255,255,255,.82);
-        background: linear-gradient(150deg, rgba(255,255,255,.92), rgba(241,247,255,.84));
-        box-shadow: var(--shadow-soft);
-        padding: .55rem .62rem;
+        background:
+          radial-gradient(circle at 10% 20%, rgba(139, 159, 255, .14), transparent 32%),
+          linear-gradient(150deg, rgba(255,255,255,.94), rgba(241,247,255,.86));
+        box-shadow: 0 18px 30px rgba(73, 94, 148, .12);
+        padding: .58rem .64rem;
         position: sticky;
-        top: 0;
+        top: .35rem;
         z-index: 90;
       }
       .menu-btn {
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
         border: 1px solid #d5e0f8;
-        background: #f4f7ff;
+        background: linear-gradient(145deg, #f4f7ff, #edf5ff);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         flex-direction: column;
         gap: 4px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
       }
       .menu-btn span {
         width: 16px;
@@ -372,6 +486,9 @@ type AdminNavItem = {
         pointer-events: none;
         transition: transform .34s cubic-bezier(.22, 1, .36, 1), opacity .24s ease;
       }
+      .sidebar-close {
+        display: inline-flex;
+      }
       .sidebar.mobile-open {
         transform: translateX(0);
         opacity: 1;
@@ -381,6 +498,17 @@ type AdminNavItem = {
       .content {
         margin-top: .7rem;
         padding: .82rem .75rem;
+      }
+    }
+    @media (max-width: 560px) {
+      .top-logout {
+        display: none;
+      }
+      .mobile-brand strong {
+        font-size: .88rem;
+      }
+      .nav-panel {
+        padding: .5rem;
       }
     }
   `

@@ -19,38 +19,46 @@ import {
 } from 'ng-apexcharts';
 import {
   DashboardAnalytics,
-  DashboardTrend,
-  DashboardTopCustomer
+  DashboardTopCustomer,
+  DashboardVesselSales
 } from '../../../core/models/app.models';
 import { ToastService } from '../../../core/services/toast.service';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
-import { AppEmptyStateComponent } from '../../../shared/components/app-empty-state/app-empty-state.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
-import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
+import { AppEmptyStateComponent } from '../../../shared/components/app-empty-state/app-empty-state.component';
 import { PortalApiService } from '../../services/portal-api.service';
 
 type MetricTone = 'indigo' | 'teal' | 'sky' | 'violet' | 'rose' | 'emerald';
-type TrendDirection = 'up' | 'down' | 'neutral';
 type SupportedCurrency = 'MVR' | 'USD';
 
-interface TrendChip {
+interface FocusCard {
   label: string;
-  direction: TrendDirection;
-}
-
-interface MetricValueLine {
-  label?: string;
   value: string;
-  trend?: TrendChip;
+  meta: string;
+  tone: MetricTone;
 }
 
-interface MetricCard {
+interface CollectionRing {
   label: string;
-  subtitle: string;
-  lines: MetricValueLine[];
+  percent: number;
+  settled: string;
+  pending: string;
   tone: MetricTone;
-  summaryTrend?: TrendChip;
-  currencyMode?: boolean;
+}
+
+interface ActivityLane {
+  label: string;
+  value: string;
+  meta: string;
+  percent: number;
+  tone: MetricTone;
+}
+
+interface SignalPanel {
+  label: string;
+  value: string;
+  meta: string;
+  tone: MetricTone;
 }
 
 type SalesChartOptions = {
@@ -86,23 +94,31 @@ type VesselChartOptions = {
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [
-    CommonModule,
-    NgApexchartsModule,
-    AppCardComponent,
-    AppCurrencyPipe,
-    AppPageHeaderComponent,
-    AppEmptyStateComponent
-  ],
+  imports: [CommonModule, NgApexchartsModule, AppCardComponent, AppCurrencyPipe, AppEmptyStateComponent],
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss'
 })
 export class DashboardPageComponent implements OnInit {
   readonly loading = signal(true);
   readonly analytics = signal<DashboardAnalytics | null>(null);
-  readonly skeletonMetricCards = Array.from({ length: 6 });
-  readonly vesselPalette = ['#6f7ff5', '#59c7e4', '#59c79e', '#8c7dfa', '#ff9fb5', '#7ed4a6', '#9eb4ff'];
   readonly selectedVesselCurrency = signal<SupportedCurrency>('MVR');
+  readonly vesselPalette = ['#6f7ff5', '#59c7e4', '#59c79e', '#8c7dfa', '#ff9fb5', '#7ed4a6', '#9eb4ff'];
+  readonly toneBackgrounds: Record<MetricTone, string> = {
+    indigo: 'linear-gradient(150deg, rgba(239,244,255,.98), rgba(228,234,255,.92))',
+    teal: 'linear-gradient(150deg, rgba(236,251,248,.98), rgba(216,242,235,.92))',
+    sky: 'linear-gradient(150deg, rgba(238,247,255,.98), rgba(220,238,255,.92))',
+    violet: 'linear-gradient(150deg, rgba(244,241,255,.98), rgba(232,226,255,.92))',
+    rose: 'linear-gradient(150deg, rgba(255,241,246,.98), rgba(255,229,239,.92))',
+    emerald: 'linear-gradient(150deg, rgba(238,251,246,.98), rgba(218,241,232,.92))'
+  };
+  readonly toneColors: Record<MetricTone, string> = {
+    indigo: '#6f7ff5',
+    teal: '#4dbfba',
+    sky: '#58b4de',
+    violet: '#8d79ef',
+    rose: '#e986a6',
+    emerald: '#54ba87'
+  };
 
   private readonly compactFormatter = new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -113,8 +129,14 @@ export class DashboardPageComponent implements OnInit {
   readonly topCustomers = computed(() => this.analytics()?.topCustomers ?? []);
   readonly salesTimeline = computed(() => this.analytics()?.salesLast6Months ?? []);
   readonly vesselSales = computed(() => this.analytics()?.vesselSales ?? []);
+  readonly activeVesselCount = computed(() =>
+    this.vesselSales().filter((vessel) => vessel.salesMvr > 0 || vessel.salesUsd > 0).length);
+  readonly activePeriodLabel = computed(() => {
+    const timeline = this.salesTimeline();
+    return timeline.length ? timeline[timeline.length - 1].label : 'Current month';
+  });
 
-  readonly metricCards = computed<MetricCard[]>(() => {
+  readonly focusCards = computed<FocusCard[]>(() => {
     const summary = this.summary();
     if (!summary) {
       return [];
@@ -122,68 +144,135 @@ export class DashboardPageComponent implements OnInit {
 
     return [
       {
-        label: 'Current Month Invoices',
-        subtitle: 'Invoices created this month',
-        lines: [{ value: summary.currentMonthInvoices.toString() }],
-        tone: 'indigo',
-        summaryTrend: this.mapTrend(summary.invoicesTrend)
+        label: 'Invoices',
+        value: summary.currentMonthInvoices.toString(),
+        meta: summary.invoicesTrend.label,
+        tone: 'indigo'
       },
       {
-        label: 'Current Month Sales',
-        subtitle: 'Invoice sales recorded this month',
-        lines: [
-          {
-            label: 'MVR',
-            value: this.formatCurrency(summary.currentMonthSales.mvr, 'MVR'),
-            trend: this.mapTrend(summary.salesTrend.mvr)
-          },
-          {
-            label: 'USD',
-            value: this.formatCurrency(summary.currentMonthSales.usd, 'USD'),
-            trend: this.mapTrend(summary.salesTrend.usd)
-          }
-        ],
-        tone: 'teal',
-        currencyMode: true
+        label: 'Delivery Notes',
+        value: summary.currentMonthDeliveryNotes.toString(),
+        meta: summary.deliveryNotesTrend.label,
+        tone: 'violet'
       },
       {
-        label: 'Current Month Pending',
-        subtitle: 'Outstanding balances from this month',
-        lines: [
-          {
-            label: 'MVR',
-            value: this.formatCurrency(summary.currentMonthPending.mvr, 'MVR'),
-            trend: this.mapTrend(summary.pendingTrend.mvr)
-          },
-          {
-            label: 'USD',
-            value: this.formatCurrency(summary.currentMonthPending.usd, 'USD'),
-            trend: this.mapTrend(summary.pendingTrend.usd)
-          }
-        ],
-        tone: 'sky',
-        currencyMode: true
+        label: 'MVR Sales',
+        value: this.formatCurrency(summary.currentMonthSales.mvr, 'MVR'),
+        meta: summary.salesTrend.mvr.label,
+        tone: 'teal'
       },
       {
-        label: 'Current Month Delivery Notes',
-        subtitle: 'Delivery notes created this month',
-        lines: [{ value: summary.currentMonthDeliveryNotes.toString() }],
-        tone: 'violet',
-        summaryTrend: this.mapTrend(summary.deliveryNotesTrend)
-      },
+        label: 'USD Sales',
+        value: this.formatCurrency(summary.currentMonthSales.usd, 'USD'),
+        meta: summary.salesTrend.usd.label,
+        tone: 'sky'
+      }
+    ];
+  });
+
+  readonly collectionRings = computed<CollectionRing[]>(() => {
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
+
+    return [
+      this.buildCollectionRing('MVR Collection', summary.currentMonthSales.mvr, summary.currentMonthPending.mvr, 'MVR', 'teal'),
+      this.buildCollectionRing('USD Collection', summary.currentMonthSales.usd, summary.currentMonthPending.usd, 'USD', 'sky')
+    ];
+  });
+
+  readonly activityLanes = computed<ActivityLane[]>(() => {
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
+
+    const lanes = [
       {
         label: 'New Customers',
-        subtitle: 'Customers added this month',
-        lines: [{ value: summary.currentMonthNewCustomers.toString() }],
-        tone: 'rose',
-        summaryTrend: this.mapTrend(summary.newCustomersTrend)
+        rawValue: summary.currentMonthNewCustomers,
+        value: summary.currentMonthNewCustomers.toString(),
+        meta: summary.newCustomersTrend.label,
+        tone: 'rose' as MetricTone
       },
       {
-        label: 'Payroll This Month',
-        subtitle: 'Net payroll for current month',
-        lines: [{ value: this.formatCurrency(summary.currentMonthPayroll, 'MVR') }],
-        tone: 'emerald',
-        summaryTrend: this.mapTrend(summary.payrollTrend)
+        label: 'Active Vessels',
+        rawValue: this.activeVesselCount(),
+        value: this.activeVesselCount().toString(),
+        meta: `${this.vesselSales().length} vessel entries in mix view`,
+        tone: 'emerald' as MetricTone
+      },
+      {
+        label: 'Pending MVR',
+        rawValue: summary.currentMonthPending.mvr,
+        value: this.formatCompactNumber(summary.currentMonthPending.mvr),
+        meta: summary.pendingTrend.mvr.label,
+        tone: 'sky' as MetricTone
+      },
+      {
+        label: 'Payroll',
+        rawValue: summary.currentMonthPayroll,
+        value: this.formatCompactNumber(summary.currentMonthPayroll),
+        meta: summary.payrollTrend.label,
+        tone: 'violet' as MetricTone
+      }
+    ];
+
+    const max = Math.max(...lanes.map((lane) => lane.rawValue), 1);
+
+    return lanes.map((lane) => ({
+      label: lane.label,
+      value: lane.value,
+      meta: lane.meta,
+      percent: Math.max(10, Math.round((lane.rawValue / max) * 100)),
+      tone: lane.tone
+    }));
+  });
+
+  readonly compactTopCustomers = computed(() => this.topCustomers().slice(0, 2));
+
+  readonly visibleVessels = computed(() => {
+    const currency = this.selectedVesselCurrency();
+    return [...this.vesselSales()]
+      .sort((a, b) => this.vesselAmount(b, currency) - this.vesselAmount(a, currency))
+      .slice(0, 4);
+  });
+
+  readonly signalPanels = computed<SignalPanel[]>(() => {
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
+
+    const leadCustomer = this.compactTopCustomers()[0] ?? null;
+    const leadVessel = this.visibleVessels()[0] ?? null;
+    const averageMvr = this.salesTimeline().length
+      ? this.salesTimeline().reduce((sum, month) => sum + month.salesMvr, 0) / this.salesTimeline().length
+      : 0;
+
+    return [
+      {
+        label: 'Pending Exposure',
+        value: `${this.formatCurrency(summary.currentMonthPending.mvr, 'MVR')} | ${this.formatCurrency(summary.currentMonthPending.usd, 'USD')}`,
+        meta: 'Current-month receivables still open.',
+        tone: 'sky'
+      },
+      {
+        label: 'Lead Account',
+        value: leadCustomer?.customerName ?? 'Awaiting invoice momentum',
+        meta: leadCustomer
+          ? `${leadCustomer.invoiceCount} invoice${leadCustomer.invoiceCount === 1 ? '' : 's'} | ${this.formatCurrency(leadCustomer.salesMvr, 'MVR')}`
+          : 'Top customer visibility appears after invoicing begins.',
+        tone: 'teal'
+      },
+      {
+        label: 'Lead Vessel',
+        value: leadVessel?.vesselName ?? 'No vessel sales yet',
+        meta: leadVessel
+          ? `${this.formatCurrency(leadVessel.salesMvr, 'MVR')} | ${this.formatCurrency(leadVessel.salesUsd, 'USD')}`
+          : `Average MVR month ${this.formatCurrency(averageMvr, 'MVR')}`,
+        tone: 'emerald'
       }
     ];
   });
@@ -192,7 +281,7 @@ export class DashboardPageComponent implements OnInit {
     this.salesTimeline().some((month) => month.salesMvr > 0 || month.salesUsd > 0));
 
   readonly hasVesselData = computed(() =>
-    this.vesselSales().some((vessel) => this.vesselAmount(vessel) > 0));
+    this.vesselSales().some((vessel) => this.vesselAmount(vessel, this.selectedVesselCurrency()) > 0));
 
   readonly salesChartOptions = computed<SalesChartOptions>(() => {
     const timeline = this.salesTimeline();
@@ -207,11 +296,12 @@ export class DashboardPageComponent implements OnInit {
       ],
       chart: {
         type: 'area',
-        height: 330,
+        height: 236,
         toolbar: { show: false },
         zoom: { enabled: false },
         fontFamily: 'Gotham, Segoe UI, sans-serif',
-        foreColor: '#607197'
+        foreColor: '#607197',
+        sparkline: { enabled: false }
       },
       colors: ['#6f7ff5', '#56b8da'],
       dataLabels: { enabled: false },
@@ -219,7 +309,7 @@ export class DashboardPageComponent implements OnInit {
       grid: {
         strokeDashArray: 4,
         borderColor: '#e3ebfb',
-        padding: { left: 8, right: 8 }
+        padding: { left: 6, right: 6, top: 2, bottom: 0 }
       },
       xaxis: {
         categories: labels,
@@ -227,7 +317,7 @@ export class DashboardPageComponent implements OnInit {
         axisTicks: { show: false },
         labels: {
           style: {
-            fontSize: '12px',
+            fontSize: '11px',
             colors: Array.from({ length: labels.length }, () => '#6c7ea7')
           }
         }
@@ -249,16 +339,16 @@ export class DashboardPageComponent implements OnInit {
         type: 'gradient',
         gradient: {
           shadeIntensity: 1,
-          opacityFrom: 0.4,
-          opacityTo: 0.06,
-          stops: [0, 95, 100]
+          opacityFrom: 0.34,
+          opacityTo: 0.05,
+          stops: [0, 92, 100]
         }
       },
       markers: {
-        size: 4,
+        size: 3,
         strokeColors: '#ffffff',
         strokeWidth: 2,
-        hover: { size: 6 }
+        hover: { size: 5 }
       },
       legend: {
         show: true,
@@ -270,7 +360,7 @@ export class DashboardPageComponent implements OnInit {
         {
           breakpoint: 760,
           options: {
-            chart: { height: 280 },
+            chart: { height: 218 },
             legend: { position: 'bottom', horizontalAlign: 'center' }
           }
         }
@@ -279,44 +369,35 @@ export class DashboardPageComponent implements OnInit {
   });
 
   readonly vesselChartOptions = computed<VesselChartOptions>(() => {
-    const vessels = this.vesselSales();
+    const vessels = this.visibleVessels();
     const selectedCurrency = this.selectedVesselCurrency();
     const labels = vessels.map((vessel) => vessel.vesselName);
-    const series = vessels.map((vessel) =>
-      Number(selectedCurrency === 'USD' ? vessel.salesUsd : vessel.salesMvr));
+    const series = vessels.map((vessel) => Number(this.vesselAmount(vessel, selectedCurrency)));
     const total = series.reduce((sum, value) => sum + value, 0);
 
     return {
       series: series as ApexNonAxisChartSeries,
       chart: {
         type: 'donut',
-        height: 330,
+        height: 196,
         fontFamily: 'Gotham, Segoe UI, sans-serif',
         foreColor: '#607197'
       },
       labels,
       colors: this.vesselPalette,
-      legend: {
-        position: 'bottom',
-        horizontalAlign: 'center',
-        labels: { colors: '#586a92' },
-        formatter: (name: string, options: { seriesIndex: number }) => {
-          const value = series[options.seriesIndex] ?? 0;
-          return `${name}: ${this.formatCurrency(value, selectedCurrency)}`;
-        }
-      },
+      legend: { show: false },
       tooltip: {
         y: {
           formatter: (value?: number) => this.formatCurrency(value ?? 0, selectedCurrency)
         }
       },
       dataLabels: {
-        formatter: (value: number) => `${value.toFixed(1)}%`
+        formatter: (value: number) => `${value.toFixed(0)}%`
       },
       plotOptions: {
         pie: {
           donut: {
-            size: '68%',
+            size: '70%',
             labels: {
               show: true,
               total: {
@@ -332,19 +413,13 @@ export class DashboardPageComponent implements OnInit {
           }
         }
       },
-      stroke: {
-        width: 2,
-        colors: ['#f8faff']
-      },
-      fill: {
-        type: 'gradient'
-      },
+      stroke: { width: 2, colors: ['#f8faff'] },
+      fill: { type: 'gradient' },
       responsive: [
         {
           breakpoint: 760,
           options: {
-            chart: { height: 290 },
-            legend: { position: 'bottom' }
+            chart: { height: 208 }
           }
         }
       ]
@@ -358,22 +433,24 @@ export class DashboardPageComponent implements OnInit {
     this.loadAnalytics();
   }
 
-  trackByCustomer(index: number, customer: DashboardTopCustomer): string {
-    return `${customer.customerId}-${index}`;
-  }
-
   setVesselCurrency(currency: SupportedCurrency): void {
     this.selectedVesselCurrency.set(currency);
   }
 
-  vesselAmount(vessel: { salesMvr: number; salesUsd: number }): number {
-    return this.selectedVesselCurrency() === 'USD' ? vessel.salesUsd : vessel.salesMvr;
+  toneBackground(tone: MetricTone): string {
+    return this.toneBackgrounds[tone];
   }
 
-  vesselContribution(vessel: { contributionMvrPercentage: number; contributionUsdPercentage: number }): number {
-    return this.selectedVesselCurrency() === 'USD'
-      ? vessel.contributionUsdPercentage
-      : vessel.contributionMvrPercentage;
+  toneColor(tone: MetricTone): string {
+    return this.toneColors[tone];
+  }
+
+  customerBarWidth(customer: DashboardTopCustomer): number {
+    return Math.max(12, Math.max(customer.contributionMvrPercentage, customer.contributionUsdPercentage));
+  }
+
+  vesselAmount(vessel: DashboardVesselSales, currency: SupportedCurrency = this.selectedVesselCurrency()): number {
+    return currency === 'USD' ? vessel.salesUsd : vessel.salesMvr;
   }
 
   private loadAnalytics(): void {
@@ -392,10 +469,22 @@ export class DashboardPageComponent implements OnInit {
     });
   }
 
-  private mapTrend(trend: DashboardTrend): TrendChip {
+  private buildCollectionRing(
+    label: string,
+    invoiced: number,
+    pending: number,
+    currency: SupportedCurrency,
+    tone: MetricTone
+  ): CollectionRing {
+    const settled = Math.max((invoiced ?? 0) - (pending ?? 0), 0);
+    const percent = invoiced > 0 ? Math.round((settled / invoiced) * 100) : 0;
+
     return {
-      label: trend.label,
-      direction: trend.direction
+      label,
+      percent,
+      settled: `${this.formatCurrency(settled, currency)} settled`,
+      pending: `${this.formatCurrency(pending ?? 0, currency)} pending`,
+      tone
     };
   }
 
@@ -409,6 +498,6 @@ export class DashboardPageComponent implements OnInit {
   }
 
   private formatCompactNumber(value: number): string {
-    return this.compactFormatter.format(value);
+    return this.compactFormatter.format(value ?? 0);
   }
 }
