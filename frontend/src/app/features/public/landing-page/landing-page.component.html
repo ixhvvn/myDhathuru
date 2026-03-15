@@ -1,7 +1,7 @@
-<div class="landing-page landing-page--v2">
-  <span class="ambient ambient-a"></span>
-  <span class="ambient ambient-b"></span>
-  <span class="ambient ambient-c"></span>
+<div class="landing-page">
+  <span class="page-halo page-halo--indigo"></span>
+  <span class="page-halo page-halo--mint"></span>
+  <span class="page-halo page-halo--lilac"></span>
 
   <header class="top-nav" aria-label="Primary">
     <a class="brand" routerLink="/" aria-label="myDhathuru home">
@@ -11,441 +11,492 @@
       <span class="brand-name">myDhathuru</span>
     </a>
 
-    <nav class="main-nav" aria-label="Main Navigation">
+    <nav class="main-nav" aria-label="Main navigation">
       @for (link of navLinks; track link.label) {
         <a href="" (click)="scrollToSection($event, link.target)">{{ link.label }}</a>
       }
     </nav>
 
     <div class="nav-actions">
-      <a class="btn btn-secondary" [attr.href]="businessSignUpUrl()">Get started</a>
-      <a class="btn btn-primary" [attr.href]="businessSignInUrl()">Sign in</a>
+      <a class="nav-link-button" [attr.href]="businessSignInUrl()">Portal sign in</a>
+      <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Get started</a>
     </div>
   </header>
 
-  <main>
+  <main class="landing-main">
     <section class="section hero" id="home">
       <div class="hero-copy">
-        <p class="eyebrow" data-reveal="up">Vessel operations OS</p>
+        <p class="eyebrow" data-reveal="up">Operations + finance + compliance</p>
         <h1 data-reveal="up" style="--reveal-delay: 60ms;">
-          Turn delivery notes, invoicing, payroll, and reporting into one live control system.
+          One live control system for operations, finance, payroll, compliance, and reporting.
         </h1>
-        <p class="hero-description" data-reveal="up" style="--reveal-delay: 120ms;">
-          myDhathuru gives vessel-based businesses a single premium workspace for operations, finance,
-          customer balances, payroll close, and executive-ready exports.
+        <p class="section-description hero-description" data-reveal="up" style="--reveal-delay: 120ms;">
+          myDhathuru gives businesses one modern workspace for delivery notes, quotations, invoices,
+          received invoices, customer statements, payment vouchers, rent, expenses, payroll, MIRA tax
+          workflows, and BPT reporting.
         </p>
 
         <div class="hero-actions" data-reveal="up" style="--reveal-delay: 180ms;">
-          <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Create workspace</a>
-          <a class="btn btn-secondary" [attr.href]="businessSignInUrl()">Sign in</a>
+          <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Get started</a>
+          <a class="btn btn-secondary" [attr.href]="requestDemoUrl">Request demo</a>
         </div>
 
-        <div class="hero-tags" aria-label="Platform highlights" data-reveal="up" style="--reveal-delay: 240ms;">
-          <span>Delivery to invoice</span>
-          <span>Customer statements</span>
-          <span>Payroll and salary slips</span>
-          <span>Reports and exports</span>
+        <div class="hero-chip-row" aria-label="Platform coverage" data-reveal="up" style="--reveal-delay: 240ms;">
+          @for (tag of heroTags; track tag) {
+            <span>{{ tag }}</span>
+          }
         </div>
 
-        <div class="proof-ribbon">
-          @for (metric of proofMetrics; track metric.label; let idx = $index) {
-            <article class="proof-card" data-reveal="up" [style.--reveal-delay]="(280 + idx * 60) + 'ms'">
-              <strong>{{ metric.value }}</strong>
-              <span>{{ metric.label }}</span>
-              <p>{{ metric.detail }}</p>
+        <div class="hero-signal-grid">
+          @for (signal of heroSignals; track signal.label; let idx = $index) {
+            <article
+              class="hero-signal-card"
+              [attr.data-tone]="signal.tone"
+              data-reveal="up"
+              [style.--reveal-delay]="(300 + idx * 55) + 'ms'">
+              <small>{{ signal.label }}</small>
+              <strong>{{ signal.title }}</strong>
+              <p>{{ signal.detail }}</p>
             </article>
           }
         </div>
       </div>
 
-      <div class="hero-visual" aria-hidden="true" data-reveal="right">
-        <article class="command-board" data-reveal="scale" style="--reveal-delay: 120ms;">
-          <div class="board-header">
-            <div>
-              <p>Live command board</p>
-              <h2>Operations in motion</h2>
+      <div class="hero-visual" data-reveal="right">
+        <article class="hero-board" aria-hidden="true">
+          <div class="hero-board__chrome">
+            <span>Live product map</span>
+            <span>Premium workspace</span>
+          </div>
+
+          <svg class="hero-board__routes" viewBox="0 0 720 640" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M360 320 C302 266 262 228 186 164" />
+            <path d="M360 320 C424 264 470 224 554 162" />
+            <path d="M360 320 C302 372 254 420 182 476" />
+            <path d="M360 320 C428 374 474 418 558 478" />
+          </svg>
+
+          <article class="hero-board__core">
+            <small>myDhathuru</small>
+            <strong>One live control system</strong>
+            <p>
+              Operations, finance flow, staff processes, reporting, and compliance sit on one
+              connected data spine.
+            </p>
+
+            <div class="hero-board__core-chips">
+              <span>Tenant-scoped</span>
+              <span>Role-aware</span>
+              <span>Export-ready</span>
             </div>
-            <span>Synced</span>
-          </div>
+          </article>
 
-          <div class="board-signal-grid">
-            @for (highlight of heroHighlights; track highlight.label; let idx = $index) {
-              <article class="signal-card" [attr.data-tone]="highlight.tone" data-reveal="up" [style.--reveal-delay]="(170 + idx * 55) + 'ms'">
-                <small>{{ highlight.label }}</small>
-                <strong>{{ highlight.value }}</strong>
-                <p>{{ highlight.detail }}</p>
-              </article>
-            }
-          </div>
+          @for (cluster of capabilityClusters; track cluster.kicker; let idx = $index) {
+            <article
+              class="hero-cluster-card"
+              [attr.data-slot]="cluster.heroSlot"
+              [attr.data-tone]="cluster.tone"
+              data-reveal="scale"
+              [style.--reveal-delay]="(140 + idx * 70) + 'ms'">
+              <div class="hero-cluster-card__top">
+                <span class="cluster-token">{{ cluster.token }}</span>
+                <small>{{ cluster.kicker }}</small>
+              </div>
+              <strong>{{ cluster.title }}</strong>
+              <p>{{ cluster.heroSummary }}</p>
 
-          <div class="system-map" data-reveal="scale" style="--reveal-delay: 360ms;">
-            <svg viewBox="0 0 520 260" preserveAspectRatio="none" aria-hidden="true">
-              <path class="route-line" d="M258 130 C205 92 150 78 88 80" />
-              <path class="route-line" d="M258 130 C312 92 366 78 430 82" />
-              <path class="route-line" d="M258 130 C208 172 152 188 104 210" />
-              <path class="route-line" d="M258 130 C312 174 366 190 420 210" />
-              <path class="route-line route-line-soft" d="M258 130 C258 82 258 54 258 24" />
-            </svg>
-
-            <div class="system-core">
-              <span>myDhathuru</span>
-              <strong>One data spine</strong>
-            </div>
-
-            <div class="system-node node-top">Reports</div>
-            <div class="system-node node-left">Delivery</div>
-            <div class="system-node node-right">Invoices</div>
-            <div class="system-node node-bottom-left">Accounts</div>
-            <div class="system-node node-bottom-right">Payroll</div>
-          </div>
-
-          <div class="board-footer" data-reveal="up" style="--reveal-delay: 420ms;">
-            <article class="meter-card">
-              <small>Collection progress</small>
-              <strong>84% this cycle</strong>
-              <div class="meter"><span></span></div>
+              <div class="hero-cluster-card__chips">
+                @for (chip of cluster.heroChips; track chip) {
+                  <span>{{ chip }}</span>
+                }
+              </div>
             </article>
+          }
 
-            <article class="export-card">
-              <small>Export deck</small>
-              <strong>PDF / Excel</strong>
-              <p>Invoices, statements, salary slips, and reports ready for handoff.</p>
-            </article>
-          </div>
-        </article>
-
-        <article class="floating-card floating-card--top" data-reveal="left" style="--reveal-delay: 380ms;">
-          <p>Operations pulse</p>
-          <strong>7 pending reconciliations</strong>
-          <span>Customer account visibility stays live.</span>
-        </article>
-
-        <article class="floating-card floating-card--bottom" data-reveal="right" style="--reveal-delay: 430ms;">
-          <p>Payroll ready</p>
-          <strong>Salary slips prepared</strong>
-          <span>Close periods faster with one verified flow.</span>
+          @for (node of heroOrbitNodes; track node.label) {
+            <span
+              class="hero-orbit-node"
+              [attr.data-slot]="node.slot"
+              [attr.data-tone]="node.tone">
+              {{ node.label }}
+            </span>
+          }
         </article>
       </div>
     </section>
 
-    <section class="section section-heading" id="features">
-      <p class="eyebrow" data-reveal="up">Platform overview</p>
-      <h2 data-reveal="up" style="--reveal-delay: 40ms;">
-        Built like an operations infographic, not a generic brochure.
-      </h2>
-      <p data-reveal="up" style="--reveal-delay: 90ms;">
-        Every part of the platform is designed to show what is moving, what is pending,
-        and what is ready to export.
-      </p>
+    <section class="section workflow-section" id="workflow">
+      <div class="section-header section-header--split">
+        <div>
+          <p class="eyebrow" data-reveal="up">From operations to compliance</p>
+          <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+            One connected route from daily work to finance review and statutory output.
+          </h2>
+        </div>
+        <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+          myDhathuru is structured so documents, expenses, payroll, and tax workflows do not live in
+          separate silos. The process map below follows the actual movement of records through the platform.
+        </p>
+      </div>
+
+      <div class="workflow-frame" data-reveal="scale">
+        <div class="workflow-map" aria-label="Operations to compliance workflow map">
+          @for (stage of workflowStages; track stage.title; let idx = $index) {
+            <article
+              class="workflow-node"
+              data-reveal="up"
+              [style.--reveal-delay]="(120 + idx * 45) + 'ms'">
+              <span class="workflow-step">0{{ idx + 1 }}</span>
+              <div class="workflow-node__copy">
+                <small>{{ stage.lane }}</small>
+                <h3>{{ stage.title }}</h3>
+                <p>{{ stage.description }}</p>
+              </div>
+            </article>
+          }
+        </div>
+      </div>
     </section>
 
-    <section class="section feature-stage">
-      <div class="feature-grid" aria-label="Core platform features">
-        @for (feature of features; track feature.title; let idx = $index) {
-          <article class="feature-card" data-reveal="up" [style.--reveal-delay]="(idx * 60) + 'ms'">
-            <div class="feature-topline">
-              <span class="feature-index">0{{ idx + 1 }}</span>
-              <span class="feature-icon" aria-hidden="true">
-                @switch (feature.icon) {
-                  @case ('delivery') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M3 15h18M6 15l1.5-5h9L18 15M6.5 18.5h.01M17.5 18.5h.01M5 19h3m8 0h3" />
-                    </svg>
-                  }
-                  @case ('invoice') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M7 3h10v18l-2-1.2L13 21l-2-1.2L9 21l-2-1.2L5 21V5a2 2 0 0 1 2-2Zm2 5h6m-6 4h6m-6 4h4" />
-                    </svg>
-                  }
-                  @case ('accounts') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M8 14h4" />
-                    </svg>
-                  }
-                  @case ('customers') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m17 0v-2a4 4 0 0 0-3-3.87m-5-7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm8 1a4 4 0 0 1-3 3.87" />
-                    </svg>
-                  }
-                  @case ('payroll') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M4 7h16v12H4zM4 11h16M8 15h2m4 0h2M9 7V5m6 2V5" />
-                    </svg>
-                  }
-                  @case ('reports') {
-                    <svg viewBox="0 0 24 24" fill="none">
-                      <path d="M4 19h16M7 15v-4m5 4V7m5 8v-6" />
-                    </svg>
-                  }
-                }
-              </span>
+    <section class="section cluster-section" id="modules">
+      <div class="section-header">
+        <p class="eyebrow" data-reveal="up">Grouped platform modules</p>
+        <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+          Four connected control lanes inside one premium workspace.
+        </h2>
+        <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+          The product now brings commercial documents, supplier-side tracking, staff processes,
+          and compliance reporting into a single structured system instead of a set of disconnected tools.
+        </p>
+      </div>
+
+      <div class="cluster-grid">
+        @for (cluster of capabilityClusters; track cluster.kicker; let idx = $index) {
+          <article
+            class="cluster-card"
+            [attr.data-tone]="cluster.tone"
+            data-reveal="up"
+            [style.--reveal-delay]="(idx * 70) + 'ms'">
+            <div class="cluster-card__header">
+              <span class="cluster-token">{{ cluster.token }}</span>
+              <div>
+                <p class="cluster-card__kicker">{{ cluster.kicker }}</p>
+                <h3>{{ cluster.title }}</h3>
+              </div>
             </div>
 
-            <h3>{{ feature.title }}</h3>
-            <p>{{ feature.description }}</p>
+            <p class="cluster-card__description">{{ cluster.description }}</p>
+
+            <div class="cluster-chip-grid" aria-label="{{ cluster.kicker }} capabilities">
+              @for (capability of cluster.capabilities; track capability) {
+                <span class="cluster-chip">{{ capability }}</span>
+              }
+            </div>
+
+            <div class="cluster-lane" aria-label="{{ cluster.kicker }} workflow lane">
+              @for (laneItem of cluster.lane; track laneItem) {
+                <span>{{ laneItem }}</span>
+              }
+            </div>
+
+            <p class="cluster-emphasis">{{ cluster.emphasis }}</p>
           </article>
         }
       </div>
-
-      <article class="process-card" aria-label="Operations workflow" data-reveal="scale">
-        <div class="process-head">
-          <p class="eyebrow">Connected workflow</p>
-          <h3>From vessel activity to finance visibility</h3>
-          <span>Always traceable</span>
-        </div>
-
-        <div class="process-timeline">
-          @for (step of workflowSteps; track step.title; let idx = $index) {
-            <article class="process-step" data-reveal="up" [style.--reveal-delay]="(140 + idx * 60) + 'ms'">
-              <span class="process-index">{{ idx + 1 }}</span>
-              <div class="process-copy">
-                <strong>{{ step.title }}</strong>
-                <p>{{ step.description }}</p>
-              </div>
-              <i>{{ step.status }}</i>
-            </article>
-          }
-        </div>
-      </article>
     </section>
 
-    <section class="section analytics-section">
-      <div class="analytics-copy">
-        <p class="eyebrow" data-reveal="up">Analytics and exports</p>
-        <h2 data-reveal="up" style="--reveal-delay: 40ms;">
-          Dashboards that explain performance fast, with export paths built in.
-        </h2>
-        <p data-reveal="up" style="--reveal-delay: 90ms;">
-          Track sales summary, transaction rhythm, customer balances, and vessel contribution
-          in a layout designed for quick reads and finance handoff.
-        </p>
-
-        <div class="analytics-sidegrid">
-          @for (point of controlPoints; track point.title; let idx = $index) {
-            <article class="insight-card" data-reveal="up" [style.--reveal-delay]="(140 + idx * 55) + 'ms'">
-              <small>{{ point.stat }}</small>
-              <strong>{{ point.title }}</strong>
-              <p>{{ point.description }}</p>
-            </article>
-          }
+    <section class="section visibility-section" id="visibility">
+      <div class="section-header section-header--split">
+        <div>
+          <p class="eyebrow" data-reveal="up">Visibility map</p>
+          <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+            One control map for customers, suppliers, payroll, expenses, tax, and reporting.
+          </h2>
         </div>
+        <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+          The strongest systems are easy to read. myDhathuru keeps documents, finance movement,
+          staff records, and compliance views tied together so totals remain traceable.
+        </p>
       </div>
 
-      <article class="analytics-board" aria-hidden="true" data-reveal="right">
-        <div class="analytics-kpis">
-          <div data-reveal="up" style="--reveal-delay: 70ms;">
-            <small>Sales summary</small>
-            <strong>MVR 1.8M</strong>
-          </div>
-          <div data-reveal="up" style="--reveal-delay: 120ms;">
-            <small>Transactions</small>
-            <strong>1,248</strong>
-          </div>
-          <div data-reveal="up" style="--reveal-delay: 170ms;">
-            <small>Export packs</small>
-            <strong>PDF / Excel</strong>
-          </div>
-        </div>
-
-        <div class="chart-area" data-reveal="up" style="--reveal-delay: 230ms;">
-          <div class="chart-head">
-            <strong>Sales trend</strong>
-            <small>Last 6 periods</small>
+      <div class="visibility-layout">
+        <article class="visibility-map" data-reveal="scale" aria-hidden="true">
+          <div class="visibility-map__chrome">
+            <span>Business visibility map</span>
+            <span>Live connections</span>
           </div>
 
-          <div class="chart-canvas" role="img" aria-label="Sales trend chart for the last 6 periods">
-            <svg class="chart-svg" viewBox="0 0 620 190" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="trendAreaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(96,128,255,0.44)" />
-                  <stop offset="100%" stop-color="rgba(34,198,187,0.18)" />
-                </linearGradient>
-                <linearGradient id="trendLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#5f7fff" />
-                  <stop offset="100%" stop-color="#22c3bb" />
-                </linearGradient>
-              </defs>
-
-              <g class="chart-grid">
-                @for (line of salesTrend.gridLines; track $index) {
-                  <line x1="18" [attr.y1]="line" x2="602" [attr.y2]="line"></line>
-                }
-              </g>
-
-              <path class="chart-area-fill" [attr.d]="salesTrend.areaPath"></path>
-              <path class="chart-line" [attr.d]="salesTrend.linePath"></path>
-
-              <g class="chart-points">
-                @for (point of salesTrend.points; track point.label) {
-                  <circle [attr.cx]="point.x" [attr.cy]="point.y" r="4.4">
-                    <title>{{ point.label }}: {{ point.value }}</title>
-                  </circle>
-                }
-              </g>
-            </svg>
-
-            <div class="chart-label-row" aria-hidden="true">
-              @for (point of salesTrend.points; track point.label) {
-                <span>{{ point.label }}</span>
-              }
-            </div>
-          </div>
-        </div>
-
-        <div class="report-stack" data-reveal="up" style="--reveal-delay: 300ms;">
-          <article>
-            <small>Vessel mix</small>
-            <strong>Revenue by route and vessel</strong>
-          </article>
-          <article>
-            <small>Account statements</small>
-            <strong>Customer balance snapshots</strong>
-          </article>
-          <article>
-            <small>Payroll exports</small>
-            <strong>Salary slips and payroll detail sheets</strong>
-          </article>
-        </div>
-      </article>
-    </section>
-
-    <section class="section control-section">
-      <div>
-        <p class="eyebrow" data-reveal="up">Multi-business control</p>
-        <h2 data-reveal="up" style="--reveal-delay: 40ms;">
-          Keep access, records, and finance workflows aligned as operations grow.
-        </h2>
-        <p data-reveal="up" style="--reveal-delay: 90ms;">
-          The public platform story is simple: one structured system for day-to-day work,
-          cleaner finance visibility, and controlled expansion across teams and businesses.
-        </p>
-
-        <div class="control-list">
-          @for (point of controlPoints; track point.title; let idx = $index) {
-            <article data-reveal="up" [style.--reveal-delay]="(130 + idx * 65) + 'ms'">
-              <small>{{ point.stat }}</small>
-              <h3>{{ point.title }}</h3>
-              <p>{{ point.description }}</p>
-            </article>
-          }
-        </div>
-      </div>
-
-      <article class="control-map" aria-hidden="true" data-reveal="scale">
-        <header>
-          <h3>Business visibility map</h3>
-          <span>Access controlled</span>
-        </header>
-
-        <div class="map-canvas">
-          <svg viewBox="0 0 420 280" preserveAspectRatio="none" aria-hidden="true">
-            <path class="route-line" d="M210 140 C154 94 112 84 60 74" />
-            <path class="route-line" d="M210 140 C278 92 320 86 366 72" />
-            <path class="route-line" d="M210 140 C152 188 106 206 70 230" />
-            <path class="route-line" d="M210 140 C276 194 324 206 356 230" />
+          <svg class="visibility-map__routes" viewBox="0 0 720 600" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M360 300 C300 244 246 186 142 126" />
+            <path d="M360 300 C360 230 360 170 360 108" />
+            <path d="M360 300 C420 244 480 188 582 130" />
+            <path d="M360 300 C458 266 528 240 620 210" />
+            <path d="M360 300 C466 308 540 314 624 328" />
+            <path d="M360 300 C430 372 496 424 584 486" />
+            <path d="M360 300 C360 390 360 450 360 522" />
+            <path d="M360 300 C286 378 228 432 144 488" />
+            <path d="M360 300 C254 304 176 308 94 318" />
+            <path d="M360 300 C320 354 286 388 244 434" />
+            <path d="M360 300 C400 356 432 390 480 434" />
           </svg>
 
-          <div class="map-core">Operations Hub</div>
-          <div class="map-node map-node-a">Businesses</div>
-          <div class="map-node map-node-b">Invoices</div>
-          <div class="map-node map-node-c">Users</div>
-          <div class="map-node map-node-d">Payroll</div>
-        </div>
-
-        <div class="map-tags">
-          <span>Access controls</span>
-          <span>Audit history</span>
-          <span>Custom rates</span>
-          <span>Export ready</span>
-        </div>
-      </article>
-    </section>
-
-    <section class="section pricing-section" id="pricing" aria-label="Pricing teaser">
-      <article class="pricing-card" data-reveal="scale">
-        <div class="pricing-copy">
-          <p class="eyebrow" data-reveal="up">Simple pricing</p>
-          <h2 data-reveal="up" style="--reveal-delay: 40ms;">One subscription, full operational stack.</h2>
-          <p data-reveal="up" style="--reveal-delay: 90ms;">
-            Start with a tailored subscription based on the workflows you actually run:
-            delivery notes, invoicing, payroll, reporting, and platform control.
-          </p>
-        </div>
-
-        <div class="pricing-layout">
-          <div class="price-pill" data-reveal="up" style="--reveal-delay: 140ms;">
-            <div class="price-pill__header">
-              <span>Monthly subscription</span>
-              <b>Premium setup</b>
-            </div>
-            <strong>Custom onboarding included</strong>
-            <p>Configured around your business workflows, finance flow, and data structure.</p>
-
-            <div class="price-pill__visual" aria-hidden="true">
-              <div class="price-orbit">
-                <small>Go live</small>
-                <strong>Fast</strong>
-              </div>
-
-              <div class="price-pill__signals">
-                <article>
-                  <small>Configured</small>
-                  <strong>Workflows mapped</strong>
-                </article>
-                <article>
-                  <small>Prepared</small>
-                  <strong>Exports and templates</strong>
-                </article>
-              </div>
-            </div>
-
-            <div class="price-pill__tags">
-              <span>Setup assistance</span>
-              <span>Role and business configuration</span>
-              <span>Document-ready output</span>
-            </div>
+          <div class="visibility-core">
+            <small>myDhathuru</small>
+            <strong>Control map</strong>
+            <p>Operations, finance, payroll, reporting, and compliance in one live workspace.</p>
           </div>
 
-          <div class="pricing-benefits">
-            @for (benefit of pricingBenefits; track benefit.title; let idx = $index) {
-              <article data-reveal="up" [style.--reveal-delay]="(190 + idx * 55) + 'ms'">
-                <strong>{{ benefit.title }}</strong>
-                <p>{{ benefit.detail }}</p>
+          @for (node of visibilityNodes; track node.label; let idx = $index) {
+            <article
+              class="visibility-node"
+              [attr.data-slot]="node.slot"
+              [attr.data-tone]="node.tone"
+              data-reveal="scale"
+              [style.--reveal-delay]="(100 + idx * 40) + 'ms'">
+              <strong>{{ node.label }}</strong>
+              <span>{{ node.detail }}</span>
+            </article>
+          }
+        </article>
+
+        <div class="visibility-insights">
+          @for (insight of mapInsights; track insight.title; let idx = $index) {
+            <article
+              class="visibility-insight"
+              data-reveal="up"
+              [style.--reveal-delay]="(120 + idx * 50) + 'ms'">
+              <strong>{{ insight.title }}</strong>
+              <p>{{ insight.detail }}</p>
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section reporting-section" id="reporting">
+      <div class="reporting-layout">
+        <div class="reporting-copy">
+          <p class="eyebrow" data-reveal="up">Analytics and reporting</p>
+          <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+            Reporting that reads the live system instead of disconnected totals.
+          </h2>
+          <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+            myDhathuru is not only for record entry. It gives visibility across customer statements,
+            expense categories, payroll totals, MIRA-ready data, BPT statements, and export workflows.
+          </p>
+
+          <div class="reporting-highlight-grid">
+            @for (highlight of reportingHighlights; track highlight.title; let idx = $index) {
+              <article
+                class="reporting-highlight"
+                [attr.data-tone]="highlight.tone"
+                data-reveal="up"
+                [style.--reveal-delay]="(140 + idx * 45) + 'ms'">
+                <small>{{ highlight.tag }}</small>
+                <strong>{{ highlight.title }}</strong>
+                <p>{{ highlight.description }}</p>
               </article>
             }
           </div>
+        </div>
+
+        <article class="reporting-board" data-reveal="right" aria-hidden="true">
+          <div class="reporting-board__head">
+            <div>
+              <small>Live reporting canvas</small>
+              <strong>Operational, finance, payroll, and compliance views</strong>
+            </div>
+
+            <div class="export-badges">
+              @for (tag of exportTags; track tag) {
+                <span>{{ tag }}</span>
+              }
+            </div>
+          </div>
+
+          <div class="reporting-board__body">
+            <div class="chart-panel">
+              <div class="chart-panel__head">
+                <strong>Period review map</strong>
+                <span>Illustrative layout fed by live modules</span>
+              </div>
+
+              <div class="chart-bars">
+                @for (lane of reportingChart; track lane.label) {
+                  <article class="report-bar" [attr.data-tone]="lane.tone">
+                    <span>{{ lane.label }}</span>
+                    <div class="report-bar__track">
+                      <i [style.height.%]="lane.height"></i>
+                    </div>
+                  </article>
+                }
+              </div>
+            </div>
+
+            <div class="reporting-widgets">
+              @for (widget of reportingWidgets; track widget.title; let idx = $index) {
+                <article
+                  class="report-widget"
+                  [attr.data-tone]="widget.tone"
+                  data-reveal="up"
+                  [style.--reveal-delay]="(160 + idx * 45) + 'ms'">
+                  <strong>{{ widget.title }}</strong>
+                  <p>{{ widget.detail }}</p>
+                </article>
+              }
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section structure-section">
+      <div class="section-header section-header--split">
+        <div>
+          <p class="eyebrow" data-reveal="up">Built for structured business workflows</p>
+          <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+            Replace scattered records with one organized operating model.
+          </h2>
+        </div>
+        <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+          The platform is designed for businesses that want better traceability, clearer expense visibility,
+          stronger payroll continuity, and cleaner handoff into reporting and compliance.
+        </p>
+      </div>
+
+      <div class="structure-layout">
+        <div class="structure-benefits">
+          @for (benefit of workflowBenefits; track benefit.title; let idx = $index) {
+            <article
+              class="structure-benefit"
+              data-reveal="up"
+              [style.--reveal-delay]="(120 + idx * 45) + 'ms'">
+              <span class="structure-benefit__index">0{{ idx + 1 }}</span>
+              <div>
+                <strong>{{ benefit.title }}</strong>
+                <p>{{ benefit.description }}</p>
+              </div>
+            </article>
+          }
+        </div>
+
+        <article class="structure-board" data-reveal="scale" aria-label="Structured workflow lanes">
+          <div class="structure-board__head">
+            <small>Workspace lanes</small>
+            <strong>Operations, finance, people, and compliance grouped clearly</strong>
+          </div>
+
+          <div class="structure-lanes">
+            @for (lane of structureLanes; track lane.title; let idx = $index) {
+              <article
+                class="structure-lane"
+                [attr.data-tone]="lane.tone"
+                data-reveal="up"
+                [style.--reveal-delay]="(150 + idx * 55) + 'ms'">
+                <strong>{{ lane.title }}</strong>
+                <p>{{ lane.detail }}</p>
+                <div class="structure-lane__items">
+                  @for (item of lane.items; track item) {
+                    <span>{{ item }}</span>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section subscription-section" id="pricing">
+      <article class="subscription-shell" data-reveal="scale">
+        <div class="section-header">
+          <p class="eyebrow" data-reveal="up">One subscription, full operation stack</p>
+          <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+            One premium platform covering operations, finance workflows, payroll, reporting, and compliance readiness.
+          </h2>
+          <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+            Onboarding is structured around your business setup, users, document templates, and reporting flow,
+            so the product matches the way your operation actually runs.
+          </p>
+        </div>
+
+        <div class="subscription-layout">
+          <div class="subscription-layers">
+            @for (layer of subscriptionLayers; track layer.title; let idx = $index) {
+              <article
+                class="subscription-layer"
+                [attr.data-tone]="layer.tone"
+                data-reveal="up"
+                [style.--reveal-delay]="(140 + idx * 55) + 'ms'">
+                <strong>{{ layer.title }}</strong>
+                <p>{{ layer.detail }}</p>
+              </article>
+            }
+          </div>
+
+          <aside class="subscription-side">
+            <article class="subscription-note" data-reveal="up" style="--reveal-delay: 210ms;">
+              <small>Setup direction</small>
+              <strong>Structured onboarding, business configuration, and export-ready templates.</strong>
+              <p>
+                Start with a system that is already organized for daily work, finance review,
+                staff handling, and statutory reporting.
+              </p>
+            </article>
+
+            <div class="subscription-tags" data-reveal="up" style="--reveal-delay: 260ms;">
+              @for (tag of subscriptionTags; track tag) {
+                <span>{{ tag }}</span>
+              }
+            </div>
+
+            <div class="hero-actions" data-reveal="up" style="--reveal-delay: 320ms;">
+              <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Get started</a>
+              <a class="btn btn-secondary" [attr.href]="requestDemoUrl">Request demo</a>
+            </div>
+          </aside>
         </div>
       </article>
     </section>
 
     <section class="section final-cta" id="contact" data-reveal="scale">
-      <p class="eyebrow" data-reveal="up">Ready to launch</p>
-      <h2 data-reveal="up" style="--reveal-delay: 40ms;">
-        Bring vessel work, billing, payroll, and reporting into one modern workspace.
+      <p class="eyebrow" data-reveal="up">Bring it together</p>
+      <h2 class="section-title" data-reveal="up" style="--reveal-delay: 40ms;">
+        Bring delivery work, billing, payroll, expenses, tax workflows, and reporting into one modern workspace.
       </h2>
-      <p data-reveal="up" style="--reveal-delay: 80ms;">
-        Create a business workspace, onboard your team, and operate from one cleaner system.
+      <p class="section-description" data-reveal="up" style="--reveal-delay: 90ms;">
+        Launch with a cleaner operating model for documents, finance flow, staff processes,
+        compliance review, and export-ready reporting.
       </p>
-      <div class="hero-actions" data-reveal="up" style="--reveal-delay: 120ms;">
-        <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Create workspace</a>
-        <a class="btn btn-secondary" [attr.href]="businessSignInUrl()">Sign in</a>
+
+      <div class="hero-actions" data-reveal="up" style="--reveal-delay: 140ms;">
+        <a class="btn btn-primary" [attr.href]="businessSignUpUrl()">Get started</a>
+        <a class="btn btn-secondary" [attr.href]="requestDemoUrl">Request demo</a>
+      </div>
+
+      <div class="contact-strip" data-reveal="up" style="--reveal-delay: 190ms;">
+        <a href="mailto:mydhathuru@gmail.com">mydhathuru@gmail.com</a>
+        <a href="tel:+9607515618">+960 751 5618</a>
       </div>
     </section>
   </main>
 
   <footer class="footer">
     <div class="footer-grid">
-      <div>
+      <div class="footer-brand">
         <a class="brand" routerLink="/" aria-label="myDhathuru home">
           <span class="brand-logo">
             <img src="/logo.svg" alt="myDhathuru logo">
           </span>
           <span class="brand-name">myDhathuru</span>
         </a>
-        <p>One operational system for delivery, invoicing, payroll, and executive reporting.</p>
+        <p>
+          One live system for delivery notes, billing, expenses, payroll, reporting,
+          MIRA workflows, and BPT visibility.
+        </p>
       </div>
 
-      <div>
+      <div class="footer-column">
         <h3>Quick Links</h3>
         <ul>
           @for (link of navLinks; track link.label) {
@@ -454,19 +505,19 @@
         </ul>
       </div>
 
-      <div>
+      <div class="footer-column">
         <h3>Contact</h3>
         <ul>
-          <li>mydhathuru@gmail.com</li>
-          <li>+9607515618</li>
-          <li>Male' City, Maldives.</li>
+          <li><a href="mailto:mydhathuru@gmail.com">mydhathuru@gmail.com</a></li>
+          <li><a href="tel:+9607515618">+960 751 5618</a></li>
+          <li>Male, Maldives</li>
         </ul>
       </div>
     </div>
 
     <div class="footer-bottom">
       <span class="footer-meta">
-        <span class="footer-copyright" aria-hidden="true">&#169;</span>
+        <span aria-hidden="true">&#169;</span>
         {{ currentYear }} myDhathuru. All rights reserved | developed by ixhvvn
       </span>
     </div>
