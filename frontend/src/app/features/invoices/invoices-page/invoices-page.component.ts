@@ -4,6 +4,7 @@ import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { finalize } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
+import { AppConfirmDialogComponent } from '../../../shared/components/app-confirm-dialog/app-confirm-dialog.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
@@ -24,6 +25,7 @@ import { ToastService } from '../../../core/services/toast.service';
     ReactiveFormsModule,
     AppButtonComponent,
     AppCardComponent,
+    AppConfirmDialogComponent,
     AppCurrencyPipe,
     AppDataTableComponent,
     AppDateBadgeComponent,
@@ -43,7 +45,7 @@ import { ToastService } from '../../../core/services/toast.service';
           <option value="">All Dates</option>
           <option *ngFor="let option of datePresetOptions" [value]="option.value">{{ option.label }}</option>
         </select>
-        <app-search-bar [value]="search()" placeholder="Search invoice or customer" (searchChange)="onSearch($event)"></app-search-bar>
+        <app-search-bar [value]="search()" placeholder="Search invoice, quote or customer" (searchChange)="onSearch($event)"></app-search-bar>
       </div>
       <div class="summary" *ngIf="invoices() as page">
         Showing {{ page.totalCount }} invoice{{ page.totalCount === 1 ? '' : 's' }}
@@ -77,6 +79,7 @@ import { ToastService } from '../../../core/services/toast.service';
             <td class="actions">
               <app-button size="sm" variant="secondary" (clicked)="openDetail(invoice)">View</app-button>
               <app-button size="sm" variant="secondary" (clicked)="edit(invoice)">Edit</app-button>
+              <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(invoice)">Delete</app-button>
               <app-button
                 size="sm"
                 [variant]="paymentButtonVariant(invoice.paymentStatus)"
@@ -136,7 +139,15 @@ import { ToastService } from '../../../core/services/toast.service';
           </div>
 
           <div class="two-col">
-            <label>Tax Rate <input type="number" formControlName="taxRate" step="0.01"></label>
+            <ng-container *ngIf="taxApplicable(); else taxDisabledState">
+              <label>Tax Rate <input type="number" formControlName="taxRate" step="0.01"></label>
+            </ng-container>
+            <ng-template #taxDisabledState>
+              <div class="tax-callout">
+                <strong>Tax disabled</strong>
+                <span>Invoices for this business are saved and exported without tax.</span>
+              </div>
+            </ng-template>
             <label>Currency
               <select formControlName="currency">
                 <option value="MVR">MVR</option>
@@ -184,11 +195,13 @@ import { ToastService } from '../../../core/services/toast.service';
       <app-card>
         <h3>Invoice {{ detail()?.invoiceNo }}</h3>
         <p><strong>Customer:</strong> {{ detail()?.customerName }}</p>
+        <p *ngIf="detail()?.quotationNo"><strong>Source Quote:</strong> {{ detail()?.quotationNo }}</p>
         <p><strong>Courier:</strong> {{ detail()?.courierName || '-' }}</p>
         <p><strong>PO No:</strong> {{ detail()?.poNumber || '-' }}</p>
         <p><strong>Currency:</strong> {{ detail()?.currency }}</p>
         <p><strong>Issued:</strong> {{ detail()?.dateIssued }} | <strong>Due:</strong> {{ detail()?.dateDue }}</p>
-        <p><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>GST:</strong> {{ detail()?.taxAmount || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
+        <p *ngIf="taxApplicable()"><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>GST:</strong> {{ detail()?.taxAmount || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
+        <p *ngIf="!taxApplicable()"><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
         <p><strong>Grand Total:</strong> {{ detail()?.grandTotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>Balance:</strong> {{ detail()?.balance || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
         <div class="detail-list">
           <div *ngFor="let item of detail()?.items">{{ item.description }} - {{ item.qty }} x {{ item.rate | appCurrency: (detail()?.currency || 'MVR') }} = {{ item.total || 0 | appCurrency: (detail()?.currency || 'MVR') }}</div>
@@ -237,6 +250,13 @@ import { ToastService } from '../../../core/services/toast.service';
         </form>
       </app-card>
     </div>
+
+    <app-confirm-dialog
+      [open]="deleteDialogOpen()"
+      title="Delete invoice"
+      message="This permanently deletes the invoice, its items, and its payment history from the database."
+      (cancel)="closeDeleteDialog()"
+      (confirm)="deleteInvoice()"></app-confirm-dialog>
 
     <div class="drawer" *ngIf="clearAllDialogOpen()">
       <app-card class="clear-card">
@@ -321,6 +341,25 @@ import { ToastService } from '../../../core/services/toast.service';
     .item-actions { display: flex; align-items: end; }
     .field-note { font-size: .78rem; color: var(--text-muted); margin-top: -.1rem; }
     .field-error { font-size: .75rem; line-height: 1.25; color: #bf2f46; margin-top: .08rem; display: block; }
+    .tax-callout {
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      padding: .68rem .74rem;
+      background: rgba(246, 250, 255, .7);
+      display: grid;
+      gap: .18rem;
+      align-content: start;
+    }
+    .tax-callout strong {
+      color: var(--text-main);
+      font-size: .84rem;
+      font-family: var(--font-heading);
+    }
+    .tax-callout span {
+      color: var(--text-muted);
+      font-size: .77rem;
+      line-height: 1.4;
+    }
     .form-actions { display: flex; justify-content: flex-end; gap: .5rem; }
     .detail-list { margin: .6rem 0; display: grid; gap: .3rem; }
     .clear-card {
@@ -388,6 +427,8 @@ import { ToastService } from '../../../core/services/toast.service';
   `
 })
 export class InvoicesPageComponent implements OnInit {
+  private static readonly salesHistorySearchKey = 'sales-history-search';
+
   readonly invoices = signal<PagedResult<InvoiceListItem> | null>(null);
   readonly search = signal('');
   readonly pageNumber = signal(1);
@@ -402,6 +443,10 @@ export class InvoicesPageComponent implements OnInit {
   readonly paymentInvoiceId = signal<string | null>(null);
   readonly paymentInvoice = signal<Invoice | null>(null);
   readonly paymentMaxAmount = signal(0);
+  readonly taxApplicable = signal(true);
+  readonly defaultTaxRate = signal(0.08);
+  readonly deleteDialogOpen = signal(false);
+  readonly deleteTarget = signal<InvoiceListItem | null>(null);
   readonly clearAllDialogOpen = signal(false);
   readonly clearAllPending = signal(false);
 
@@ -453,6 +498,8 @@ export class InvoicesPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.applyPendingSearch();
+    this.loadSettings();
     this.reload();
     this.loadLookup();
   }
@@ -509,7 +556,17 @@ export class InvoicesPageComponent implements OnInit {
     this.isCustomerLocked.set(false);
     this.isCurrencyLocked.set(false);
     this.isCourierLocked.set(false);
-    this.form.reset({ customerId: '', deliveryNoteId: '', courierId: '', poNumber: '', dateIssued: this.today(), dateDue: this.today(), currency: 'MVR', taxRate: 0.08, notes: '' });
+    this.form.reset({
+      customerId: '',
+      deliveryNoteId: '',
+      courierId: '',
+      poNumber: '',
+      dateIssued: this.today(),
+      dateDue: this.today(),
+      currency: 'MVR',
+      taxRate: this.taxApplicable() ? this.defaultTaxRate() : 0,
+      notes: ''
+    });
     this.form.controls.customerId.enable();
     this.form.controls.currency.enable();
     this.form.controls.courierId.enable();
@@ -645,7 +702,7 @@ export class InvoicesPageComponent implements OnInit {
       dateIssued: raw.dateIssued,
       dateDue: raw.dateDue,
       currency: raw.currency,
-      taxRate: Number(raw.taxRate),
+      taxRate: this.taxApplicable() ? Number(raw.taxRate) : 0,
       notes: raw.notes || null,
       items: raw.items.map((item) => ({
         description: item.description,
@@ -715,6 +772,43 @@ export class InvoicesPageComponent implements OnInit {
     });
   }
 
+  confirmDelete(invoice: InvoiceListItem): void {
+    this.deleteTarget.set(invoice);
+    this.deleteDialogOpen.set(true);
+  }
+
+  closeDeleteDialog(): void {
+    this.deleteDialogOpen.set(false);
+    this.deleteTarget.set(null);
+  }
+
+  deleteInvoice(): void {
+    const target = this.deleteTarget();
+    if (!target) {
+      return;
+    }
+
+    this.api.deleteInvoice(target.id).subscribe({
+      next: () => {
+        this.toast.success('Invoice deleted.');
+        if (this.detail()?.id === target.id) {
+          this.detail.set(null);
+        }
+        if (this.paymentInvoiceId() === target.id) {
+          this.closePayment();
+        }
+        if (this.editId() === target.id) {
+          this.formOpen.set(false);
+          this.editId.set(null);
+        }
+        this.closeDeleteDialog();
+        this.reload();
+        this.loadLookup();
+      },
+      error: (error) => this.toast.error(this.readError(error, 'Unable to delete invoice.'))
+    });
+  }
+
   openClearAllDialog(): void {
     this.clearAllForm.reset({ password: '' });
     this.clearAllDialogOpen.set(true);
@@ -774,6 +868,20 @@ export class InvoicesPageComponent implements OnInit {
     });
   }
 
+  private loadSettings(): void {
+    this.api.getSettings().subscribe({
+      next: (settings) => {
+        this.taxApplicable.set(settings.isTaxApplicable);
+        this.defaultTaxRate.set(settings.defaultTaxRate > 0 ? settings.defaultTaxRate : 0.08);
+
+        if (!this.editId()) {
+          this.form.controls.taxRate.setValue(settings.isTaxApplicable ? this.defaultTaxRate() : 0);
+        }
+      },
+      error: () => this.toast.error('Failed to load invoice settings.')
+    });
+  }
+
   private reload(): void {
     this.api.getInvoices({
       pageNumber: this.pageNumber(),
@@ -784,6 +892,20 @@ export class InvoicesPageComponent implements OnInit {
       next: (result) => this.invoices.set(result),
       error: () => this.toast.error('Failed to load invoices.')
     });
+  }
+
+  private applyPendingSearch(): void {
+    if (typeof sessionStorage === 'undefined') {
+      return;
+    }
+
+    const pendingSearch = sessionStorage.getItem(InvoicesPageComponent.salesHistorySearchKey);
+    if (!pendingSearch) {
+      return;
+    }
+
+    sessionStorage.removeItem(InvoicesPageComponent.salesHistorySearchKey);
+    this.search.set(pendingSearch);
   }
 
   private createItemForm(item?: { description?: string; qty?: number; rate?: number }) {

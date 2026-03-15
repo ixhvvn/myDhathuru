@@ -7,7 +7,7 @@ type ApiErrorPayload = {
   Errors?: string[] | Record<string, string[]>;
 };
 
-export function extractApiError(error: unknown, fallback: string): string {
+export function extractApiError(error: unknown, fallback = 'Something went wrong.'): string {
   const httpError = error as { error?: unknown; message?: string };
   const payload = toPayload(httpError?.error);
 

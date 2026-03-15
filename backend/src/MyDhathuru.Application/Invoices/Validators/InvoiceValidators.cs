@@ -14,6 +14,10 @@ public class CreateInvoiceRequestValidator : AbstractValidator<CreateInvoiceRequ
         RuleFor(x => x.Currency)
             .Must(BeValidCurrency)
             .WithMessage("Currency must be MVR or USD.");
+        RuleFor(x => x.TaxRate)
+            .GreaterThanOrEqualTo(0)
+            .LessThanOrEqualTo(1)
+            .When(x => x.TaxRate.HasValue);
         RuleFor(x => x.Items).NotEmpty();
         RuleForEach(x => x.Items).SetValidator(new InvoiceItemInputDtoValidator());
     }

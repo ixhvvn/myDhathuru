@@ -12,5 +12,9 @@ public interface IDeliveryNoteService
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task ClearAllAsync(string password, CancellationToken cancellationToken = default);
     Task<CreateInvoiceFromDeliveryNoteResultDto> CreateInvoiceFromDeliveryNoteAsync(Guid id, CreateInvoiceFromDeliveryNoteRequest request, CancellationToken cancellationToken = default);
+    Task<DeliveryNoteAttachmentDto> UploadPoAttachmentAsync(Guid id, string fileName, string contentType, byte[] content, CancellationToken cancellationToken = default);
+    Task<DeliveryNoteAttachmentFileDto> GetPoAttachmentAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<DeliveryNoteAttachmentDto> UploadVesselPaymentInvoiceAttachmentAsync(Guid id, string fileName, string contentType, byte[] content, CancellationToken cancellationToken = default);
+    Task<DeliveryNoteAttachmentFileDto> GetVesselPaymentInvoiceAttachmentAsync(Guid id, CancellationToken cancellationToken = default);
     Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default);
 }

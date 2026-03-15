@@ -29,6 +29,8 @@ public class DeliveryNoteListItemDto
     public Guid Id { get; set; }
     public string DeliveryNoteNo { get; set; } = string.Empty;
     public string? PoNumber { get; set; }
+    public bool HasPoAttachment { get; set; }
+    public string? PoAttachmentFileName { get; set; }
     public DateOnly Date { get; set; }
     public string Currency { get; set; } = "MVR";
     public string Details { get; set; } = string.Empty;
@@ -40,6 +42,9 @@ public class DeliveryNoteListItemDto
     public string? InvoiceNo { get; set; }
     public decimal CashPayment { get; set; }
     public decimal VesselPayment { get; set; }
+    public string? VesselPaymentInvoiceNumber { get; set; }
+    public bool HasVesselPaymentInvoiceAttachment { get; set; }
+    public string? VesselPaymentInvoiceAttachmentFileName { get; set; }
 }
 
 public class DeliveryNoteDetailDto
@@ -47,6 +52,10 @@ public class DeliveryNoteDetailDto
     public Guid Id { get; set; }
     public string DeliveryNoteNo { get; set; } = string.Empty;
     public string? PoNumber { get; set; }
+    public bool HasPoAttachment { get; set; }
+    public string? PoAttachmentFileName { get; set; }
+    public string? PoAttachmentContentType { get; set; }
+    public long? PoAttachmentSizeBytes { get; set; }
     public DateOnly Date { get; set; }
     public string Currency { get; set; } = "MVR";
     public Guid CustomerId { get; set; }
@@ -56,6 +65,12 @@ public class DeliveryNoteDetailDto
     public string? Notes { get; set; }
     public string? InvoiceNo { get; set; }
     public Guid? InvoiceId { get; set; }
+    public decimal VesselPaymentFee { get; set; }
+    public string? VesselPaymentInvoiceNumber { get; set; }
+    public bool HasVesselPaymentInvoiceAttachment { get; set; }
+    public string? VesselPaymentInvoiceAttachmentFileName { get; set; }
+    public string? VesselPaymentInvoiceAttachmentContentType { get; set; }
+    public long? VesselPaymentInvoiceAttachmentSizeBytes { get; set; }
     public decimal TotalAmount { get; set; }
     public List<DeliveryNoteItemDto> Items { get; set; } = new();
 }
@@ -67,6 +82,8 @@ public class CreateDeliveryNoteRequest
     public string? Currency { get; set; }
     public Guid CustomerId { get; set; }
     public Guid? VesselId { get; set; }
+    public decimal VesselPaymentFee { get; set; }
+    public string? VesselPaymentInvoiceNumber { get; set; }
     public string? Notes { get; set; }
     public List<DeliveryNoteItemInputDto> Items { get; set; } = new();
 }
@@ -96,4 +113,16 @@ public class CreateInvoiceFromDeliveryNoteResultDto
 {
     public Guid InvoiceId { get; set; }
     public string InvoiceNo { get; set; } = string.Empty;
+}
+
+public class DeliveryNoteAttachmentDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long SizeBytes { get; set; }
+}
+
+public class DeliveryNoteAttachmentFileDto : DeliveryNoteAttachmentDto
+{
+    public byte[] Content { get; set; } = Array.Empty<byte>();
 }

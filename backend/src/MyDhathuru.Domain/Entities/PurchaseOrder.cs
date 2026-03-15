@@ -1,0 +1,21 @@
+using MyDhathuru.Domain.Common;
+
+namespace MyDhathuru.Domain.Entities;
+
+public class PurchaseOrder : TenantEntity
+{
+    public required string PurchaseOrderNo { get; set; }
+    public Guid CustomerId { get; set; }
+    public Customer Customer { get; set; } = null!;
+    public Guid? CourierVesselId { get; set; }
+    public Vessel? CourierVessel { get; set; }
+    public DateOnly DateIssued { get; set; }
+    public DateOnly RequiredDate { get; set; }
+    public string Currency { get; set; } = "MVR";
+    public decimal Subtotal { get; set; }
+    public decimal TaxRate { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal GrandTotal { get; set; }
+    public string? Notes { get; set; }
+    public ICollection<PurchaseOrderItem> Items { get; set; } = new List<PurchaseOrderItem>();
+}

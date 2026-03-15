@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Settings.Dtos;
+using MyDhathuru.Domain.Entities;
+using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Persistence;
 using MyDhathuru.Infrastructure.Security;
 
@@ -41,6 +43,7 @@ public class SettingsService : ISettingsService
         var tenantId = _currentTenantService.TenantId ?? throw new UnauthorizedException("Tenant context missing.");
         var settings = await _dbContext.TenantSettings.FirstOrDefaultAsync(x => x.TenantId == tenantId, cancellationToken)
             ?? throw new NotFoundException("Settings not found.");
+        var taxDisabledNow = settings.IsTaxApplicable && !request.IsTaxApplicable;
 
         settings.Username = request.Username?.Trim() ?? string.Empty;
         settings.CompanyName = request.CompanyName.Trim();
@@ -50,9 +53,20 @@ public class SettingsService : ISettingsService
         settings.BusinessRegistrationNumber = request.BusinessRegistrationNumber.Trim();
         settings.InvoicePrefix = request.InvoicePrefix.Trim();
         settings.DeliveryNotePrefix = request.DeliveryNotePrefix.Trim();
-        settings.DefaultTaxRate = request.DefaultTaxRate;
+        settings.QuotePrefix = request.QuotePrefix.Trim();
+        settings.PurchaseOrderPrefix = request.PurchaseOrderPrefix.Trim();
+        settings.ReceivedInvoicePrefix = request.ReceivedInvoicePrefix.Trim();
+        settings.PaymentVoucherPrefix = request.PaymentVoucherPrefix.Trim();
+        settings.RentEntryPrefix = request.RentEntryPrefix.Trim();
+        settings.WarningFormPrefix = request.WarningFormPrefix.Trim();
+        settings.StatementPrefix = request.StatementPrefix.Trim();
+        settings.SalarySlipPrefix = request.SalarySlipPrefix.Trim();
+        settings.IsTaxApplicable = request.IsTaxApplicable;
+        settings.DefaultTaxRate = request.IsTaxApplicable ? request.DefaultTaxRate : 0m;
         settings.DefaultDueDays = request.DefaultDueDays;
         settings.DefaultCurrency = request.DefaultCurrency.Trim().ToUpperInvariant();
+        settings.TaxableActivityNumber = request.TaxableActivityNumber?.Trim() ?? string.Empty;
+        settings.IsInputTaxClaimEnabled = request.IsInputTaxClaimEnabled;
         settings.BmlMvrAccountName = request.BmlMvrAccountName?.Trim() ?? string.Empty;
         settings.BmlMvrAccountNumber = request.BmlMvrAccountNumber?.Trim() ?? string.Empty;
         settings.BmlUsdAccountName = request.BmlUsdAccountName?.Trim() ?? string.Empty;
@@ -73,6 +87,11 @@ public class SettingsService : ISettingsService
         tenant.CompanyPhone = settings.CompanyPhone;
         tenant.TinNumber = settings.TinNumber;
         tenant.BusinessRegistrationNumber = settings.BusinessRegistrationNumber;
+
+        if (taxDisabledNow)
+        {
+            await RemoveTenantDocumentTaxAsync(tenantId, cancellationToken);
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -111,9 +130,20 @@ public class SettingsService : ISettingsService
             BusinessRegistrationNumber = settings.BusinessRegistrationNumber,
             InvoicePrefix = settings.InvoicePrefix,
             DeliveryNotePrefix = settings.DeliveryNotePrefix,
+            QuotePrefix = settings.QuotePrefix,
+            PurchaseOrderPrefix = settings.PurchaseOrderPrefix,
+            ReceivedInvoicePrefix = settings.ReceivedInvoicePrefix,
+            PaymentVoucherPrefix = settings.PaymentVoucherPrefix,
+            RentEntryPrefix = settings.RentEntryPrefix,
+            WarningFormPrefix = settings.WarningFormPrefix,
+            StatementPrefix = settings.StatementPrefix,
+            SalarySlipPrefix = settings.SalarySlipPrefix,
+            IsTaxApplicable = settings.IsTaxApplicable,
             DefaultTaxRate = settings.DefaultTaxRate,
             DefaultDueDays = settings.DefaultDueDays,
             DefaultCurrency = settings.DefaultCurrency,
+            TaxableActivityNumber = settings.TaxableActivityNumber,
+            IsInputTaxClaimEnabled = settings.IsInputTaxClaimEnabled,
             BmlMvrAccountName = settings.BmlMvrAccountName,
             BmlMvrAccountNumber = settings.BmlMvrAccountNumber,
             BmlUsdAccountName = settings.BmlUsdAccountName,
@@ -127,4 +157,56 @@ public class SettingsService : ISettingsService
             LogoUrl = string.IsNullOrWhiteSpace(settings.LogoUrl) ? DefaultInvoiceLogoUrl : settings.LogoUrl
         };
     }
+
+    private async Task RemoveTenantDocumentTaxAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var invoices = await _dbContext.Invoices
+            .Where(x => x.TenantId == tenantId)
+            .Include(x => x.Payments)
+            .ToListAsync(cancellationToken);
+
+        foreach (var invoice in invoices)
+        {
+            invoice.TaxRate = 0m;
+            invoice.TaxAmount = 0m;
+            invoice.GrandTotal = Round2(invoice.Subtotal);
+            invoice.AmountPaid = Round2(invoice.Payments.Sum(x => x.Amount));
+            invoice.Balance = Round2(invoice.GrandTotal - invoice.AmountPaid);
+
+            if (invoice.Balance <= 0m)
+            {
+                invoice.Balance = 0m;
+                invoice.PaymentStatus = PaymentStatus.Paid;
+                continue;
+            }
+
+            invoice.PaymentStatus = invoice.AmountPaid > 0m
+                ? PaymentStatus.Partial
+                : PaymentStatus.Unpaid;
+        }
+
+        var quotations = await _dbContext.Quotations
+            .Where(x => x.TenantId == tenantId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var quotation in quotations)
+        {
+            quotation.TaxRate = 0m;
+            quotation.TaxAmount = 0m;
+            quotation.GrandTotal = Round2(quotation.Subtotal);
+        }
+
+        var purchaseOrders = await _dbContext.PurchaseOrders
+            .Where(x => x.TenantId == tenantId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var purchaseOrder in purchaseOrders)
+        {
+            purchaseOrder.TaxRate = 0m;
+            purchaseOrder.TaxAmount = 0m;
+            purchaseOrder.GrandTotal = Round2(purchaseOrder.Subtotal);
+        }
+    }
+
+    private static decimal Round2(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
 }

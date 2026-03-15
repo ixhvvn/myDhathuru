@@ -3,7 +3,14 @@ public enum DocumentType
 {
     DeliveryNote = 1,
     Invoice = 2,
-    Statement = 3,
-    SalarySlip = 4,
-    AdminBillingInvoice = 5
+    Quotation = 3,
+    Statement = 4,
+    SalarySlip = 5,
+    AdminBillingInvoice = 6,
+    PurchaseOrder = 7,
+    ReceivedInvoice = 8,
+    PaymentVoucher = 9,
+    RentEntry = 10,
+    WarningForm = 11,
+    DisciplinaryForm = 12
 }

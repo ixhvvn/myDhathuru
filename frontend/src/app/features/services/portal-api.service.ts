@@ -7,10 +7,29 @@ import {
   DashboardAnalytics,
   DashboardSummary,
   DeliveryNote,
+  DeliveryNoteAttachment,
   DeliveryNoteListItem,
+  ExpenseCategory,
+  ExpenseCategoryLookup,
+  ExpenseEntryDetail,
+  ExpenseLedgerRow,
+  ExpenseSummary,
   Invoice,
   InvoiceListItem,
   InvoicePayment,
+  PaymentVoucher,
+  PaymentVoucherListItem,
+  PurchaseOrder,
+  PurchaseOrderListItem,
+  Quotation,
+  QuotationConversionResult,
+  QuotationListItem,
+  ReceivedInvoice,
+  ReceivedInvoiceAttachment,
+  ReceivedInvoiceListItem,
+  ReceivedInvoicePayment,
+  RentEntry,
+  RentEntryListItem,
   ReportExportRequest,
   PagedResult,
   PayrollEntry,
@@ -20,7 +39,15 @@ import {
   SalesByVesselReport,
   SalesSummaryReport,
   SalesTransactionsReport,
+  MiraReportExportRequest,
+  MiraReportPreview,
   Staff,
+  StaffConductDetail,
+  StaffConductListItem,
+  StaffConductStaffOption,
+  StaffConductSummary,
+  Supplier,
+  SupplierLookup,
   TenantLogoUpload,
   TenantSettings,
   Vessel
@@ -59,8 +86,60 @@ export class PortalApiService {
     return this.api.postFile('reports/export/pdf', payload);
   }
 
+  getMiraPreview(params: Record<string, unknown>): Observable<MiraReportPreview> {
+    return this.api.get<MiraReportPreview>('mira/preview', params);
+  }
+
+  exportMiraExcel(payload: MiraReportExportRequest): Observable<Blob> {
+    return this.api.postFile('mira/export/excel', payload);
+  }
+
+  exportMiraPdf(payload: MiraReportExportRequest): Observable<Blob> {
+    return this.api.postFile('mira/export/pdf', payload);
+  }
+
   getCustomers(params: Record<string, unknown>): Observable<PagedResult<Customer>> {
     return this.api.get<PagedResult<Customer>>('customers', params);
+  }
+
+  getSuppliers(params: Record<string, unknown>): Observable<PagedResult<Supplier>> {
+    return this.api.get<PagedResult<Supplier>>('suppliers', params);
+  }
+
+  getSupplierLookup(): Observable<SupplierLookup[]> {
+    return this.api.get<SupplierLookup[]>('suppliers/lookup');
+  }
+
+  createSupplier(payload: unknown): Observable<Supplier> {
+    return this.api.post<Supplier>('suppliers', payload);
+  }
+
+  updateSupplier(id: string, payload: unknown): Observable<Supplier> {
+    return this.api.put<Supplier>(`suppliers/${id}`, payload);
+  }
+
+  deleteSupplier(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`suppliers/${id}`);
+  }
+
+  getExpenseCategories(params: Record<string, unknown>): Observable<PagedResult<ExpenseCategory>> {
+    return this.api.get<PagedResult<ExpenseCategory>>('expense-categories', params);
+  }
+
+  getExpenseCategoryLookup(): Observable<ExpenseCategoryLookup[]> {
+    return this.api.get<ExpenseCategoryLookup[]>('expense-categories/lookup');
+  }
+
+  createExpenseCategory(payload: unknown): Observable<ExpenseCategory> {
+    return this.api.post<ExpenseCategory>('expense-categories', payload);
+  }
+
+  updateExpenseCategory(id: string, payload: unknown): Observable<ExpenseCategory> {
+    return this.api.put<ExpenseCategory>(`expense-categories/${id}`, payload);
+  }
+
+  deleteExpenseCategory(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`expense-categories/${id}`);
   }
 
   getCustomerById(id: string): Observable<Customer> {
@@ -119,6 +198,26 @@ export class PortalApiService {
     return this.api.put<DeliveryNote>(`delivery-notes/${id}`, payload);
   }
 
+  uploadDeliveryNoteVesselPaymentAttachment(id: string, file: File): Observable<DeliveryNoteAttachment> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.api.post<DeliveryNoteAttachment>(`delivery-notes/${id}/vessel-payment-attachment`, formData);
+  }
+
+  uploadDeliveryNotePoAttachment(id: string, file: File): Observable<DeliveryNoteAttachment> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.api.post<DeliveryNoteAttachment>(`delivery-notes/${id}/po-attachment`, formData);
+  }
+
+  viewDeliveryNotePoAttachment(id: string): Observable<Blob> {
+    return this.api.getFile(`delivery-notes/${id}/po-attachment`);
+  }
+
+  viewDeliveryNoteVesselPaymentAttachment(id: string): Observable<Blob> {
+    return this.api.getFile(`delivery-notes/${id}/vessel-payment-attachment`);
+  }
+
   deleteDeliveryNote(id: string): Observable<Record<string, never>> {
     return this.api.delete<Record<string, never>>(`delivery-notes/${id}`);
   }
@@ -151,6 +250,10 @@ export class PortalApiService {
     return this.api.put<Invoice>(`invoices/${id}`, payload);
   }
 
+  deleteInvoice(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`invoices/${id}`);
+  }
+
   receiveInvoicePayment(id: string, payload: unknown): Observable<InvoicePayment> {
     return this.api.post<InvoicePayment>(`invoices/${id}/receive-payment`, payload);
   }
@@ -165,6 +268,180 @@ export class PortalApiService {
 
   exportInvoice(id: string): Observable<Blob> {
     return this.api.getFile(`invoices/${id}/export`);
+  }
+
+  getReceivedInvoices(params: Record<string, unknown>): Observable<PagedResult<ReceivedInvoiceListItem>> {
+    return this.api.get<PagedResult<ReceivedInvoiceListItem>>('received-invoices', params);
+  }
+
+  getReceivedInvoiceById(id: string): Observable<ReceivedInvoice> {
+    return this.api.get<ReceivedInvoice>(`received-invoices/${id}`);
+  }
+
+  createReceivedInvoice(payload: unknown): Observable<ReceivedInvoice> {
+    return this.api.post<ReceivedInvoice>('received-invoices', payload);
+  }
+
+  updateReceivedInvoice(id: string, payload: unknown): Observable<ReceivedInvoice> {
+    return this.api.put<ReceivedInvoice>(`received-invoices/${id}`, payload);
+  }
+
+  deleteReceivedInvoice(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`received-invoices/${id}`);
+  }
+
+  recordReceivedInvoicePayment(id: string, payload: unknown): Observable<ReceivedInvoicePayment> {
+    return this.api.post<ReceivedInvoicePayment>(`received-invoices/${id}/payments`, payload);
+  }
+
+  uploadReceivedInvoiceAttachment(id: string, file: File): Observable<ReceivedInvoiceAttachment> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.api.post<ReceivedInvoiceAttachment>(`received-invoices/${id}/attachments`, formData);
+  }
+
+  viewReceivedInvoiceAttachment(id: string, attachmentId: string): Observable<Blob> {
+    return this.api.getFile(`received-invoices/${id}/attachments/${attachmentId}`);
+  }
+
+  getPaymentVouchers(params: Record<string, unknown>): Observable<PagedResult<PaymentVoucherListItem>> {
+    return this.api.get<PagedResult<PaymentVoucherListItem>>('payment-vouchers', params);
+  }
+
+  getPaymentVoucherById(id: string): Observable<PaymentVoucher> {
+    return this.api.get<PaymentVoucher>(`payment-vouchers/${id}`);
+  }
+
+  createPaymentVoucher(payload: unknown): Observable<PaymentVoucher> {
+    return this.api.post<PaymentVoucher>('payment-vouchers', payload);
+  }
+
+  updatePaymentVoucher(id: string, payload: unknown): Observable<PaymentVoucher> {
+    return this.api.put<PaymentVoucher>(`payment-vouchers/${id}`, payload);
+  }
+
+  approvePaymentVoucher(id: string, notes?: string): Observable<PaymentVoucher> {
+    return this.api.post<PaymentVoucher>(`payment-vouchers/${id}/approve`, { notes: notes ?? null });
+  }
+
+  postPaymentVoucher(id: string, notes?: string): Observable<PaymentVoucher> {
+    return this.api.post<PaymentVoucher>(`payment-vouchers/${id}/post`, { notes: notes ?? null });
+  }
+
+  cancelPaymentVoucher(id: string, notes?: string): Observable<PaymentVoucher> {
+    return this.api.post<PaymentVoucher>(`payment-vouchers/${id}/cancel`, { notes: notes ?? null });
+  }
+
+  deletePaymentVoucher(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`payment-vouchers/${id}`);
+  }
+
+  exportPaymentVoucher(id: string): Observable<Blob> {
+    return this.api.getFile(`payment-vouchers/${id}/export`);
+  }
+
+  getExpenseLedger(params: Record<string, unknown>): Observable<PagedResult<ExpenseLedgerRow>> {
+    return this.api.get<PagedResult<ExpenseLedgerRow>>('expenses/ledger', params);
+  }
+
+  getExpenseSummary(params: Record<string, unknown>): Observable<ExpenseSummary> {
+    return this.api.get<ExpenseSummary>('expenses/summary', params);
+  }
+
+  exportExpenseLedgerPdf(params: Record<string, unknown>): Observable<Blob> {
+    return this.api.getFile('expenses/export/pdf', params);
+  }
+
+  exportExpenseLedgerExcel(params: Record<string, unknown>): Observable<Blob> {
+    return this.api.getFile('expenses/export/excel', params);
+  }
+
+  getExpenseEntryById(id: string): Observable<ExpenseEntryDetail> {
+    return this.api.get<ExpenseEntryDetail>(`expenses/manual/${id}`);
+  }
+
+  createExpenseEntry(payload: unknown): Observable<ExpenseEntryDetail> {
+    return this.api.post<ExpenseEntryDetail>('expenses/manual', payload);
+  }
+
+  updateExpenseEntry(id: string, payload: unknown): Observable<ExpenseEntryDetail> {
+    return this.api.put<ExpenseEntryDetail>(`expenses/manual/${id}`, payload);
+  }
+
+  deleteExpenseEntry(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`expenses/manual/${id}`);
+  }
+
+  getRentEntries(params: Record<string, unknown>): Observable<PagedResult<RentEntryListItem>> {
+    return this.api.get<PagedResult<RentEntryListItem>>('rent', params);
+  }
+
+  getRentEntryById(id: string): Observable<RentEntry> {
+    return this.api.get<RentEntry>(`rent/${id}`);
+  }
+
+  createRentEntry(payload: unknown): Observable<RentEntry> {
+    return this.api.post<RentEntry>('rent', payload);
+  }
+
+  updateRentEntry(id: string, payload: unknown): Observable<RentEntry> {
+    return this.api.put<RentEntry>(`rent/${id}`, payload);
+  }
+
+  deleteRentEntry(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`rent/${id}`);
+  }
+
+  getPurchaseOrders(params: Record<string, unknown>): Observable<PagedResult<PurchaseOrderListItem>> {
+    return this.api.get<PagedResult<PurchaseOrderListItem>>('purchase-orders', params);
+  }
+
+  getPurchaseOrderById(id: string): Observable<PurchaseOrder> {
+    return this.api.get<PurchaseOrder>(`purchase-orders/${id}`);
+  }
+
+  createPurchaseOrder(payload: unknown): Observable<PurchaseOrder> {
+    return this.api.post<PurchaseOrder>('purchase-orders', payload);
+  }
+
+  updatePurchaseOrder(id: string, payload: unknown): Observable<PurchaseOrder> {
+    return this.api.put<PurchaseOrder>(`purchase-orders/${id}`, payload);
+  }
+
+  deletePurchaseOrder(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`purchase-orders/${id}`);
+  }
+
+  exportPurchaseOrder(id: string): Observable<Blob> {
+    return this.api.getFile(`purchase-orders/${id}/export`);
+  }
+
+  getQuotes(params: Record<string, unknown>): Observable<PagedResult<QuotationListItem>> {
+    return this.api.get<PagedResult<QuotationListItem>>('quotes', params);
+  }
+
+  getQuoteById(id: string): Observable<Quotation> {
+    return this.api.get<Quotation>(`quotes/${id}`);
+  }
+
+  createQuote(payload: unknown): Observable<Quotation> {
+    return this.api.post<Quotation>('quotes', payload);
+  }
+
+  updateQuote(id: string, payload: unknown): Observable<Quotation> {
+    return this.api.put<Quotation>(`quotes/${id}`, payload);
+  }
+
+  convertQuoteToSale(id: string): Observable<QuotationConversionResult> {
+    return this.api.post<QuotationConversionResult>(`quotes/${id}/convert-to-sale`, {});
+  }
+
+  deleteQuote(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`quotes/${id}`);
+  }
+
+  exportQuote(id: string): Observable<Blob> {
+    return this.api.getFile(`quotes/${id}/export`);
   }
 
   getStatement(customerId: string, year: number): Observable<AccountStatement> {
@@ -237,6 +514,46 @@ export class PortalApiService {
 
   exportPayrollPeriodExcel(periodId: string): Observable<Blob> {
     return this.api.getFile(`payroll/periods/${periodId}/export/excel`);
+  }
+
+  getStaffConductForms(params: Record<string, unknown>): Observable<PagedResult<StaffConductListItem>> {
+    return this.api.get<PagedResult<StaffConductListItem>>('staff-conduct', params);
+  }
+
+  getStaffConductSummary(params: Record<string, unknown>): Observable<StaffConductSummary> {
+    return this.api.get<StaffConductSummary>('staff-conduct/summary', params);
+  }
+
+  getStaffConductStaffOptions(): Observable<StaffConductStaffOption[]> {
+    return this.api.get<StaffConductStaffOption[]>('staff-conduct/staff-options');
+  }
+
+  getStaffConductFormById(id: string): Observable<StaffConductDetail> {
+    return this.api.get<StaffConductDetail>(`staff-conduct/${id}`);
+  }
+
+  createStaffConductForm(payload: unknown): Observable<StaffConductDetail> {
+    return this.api.post<StaffConductDetail>('staff-conduct', payload);
+  }
+
+  updateStaffConductForm(id: string, payload: unknown): Observable<StaffConductDetail> {
+    return this.api.put<StaffConductDetail>(`staff-conduct/${id}`, payload);
+  }
+
+  exportStaffConductFormPdf(id: string): Observable<Blob> {
+    return this.api.getFile(`staff-conduct/${id}/export/pdf`);
+  }
+
+  exportStaffConductFormExcel(id: string): Observable<Blob> {
+    return this.api.getFile(`staff-conduct/${id}/export/excel`);
+  }
+
+  exportStaffConductSummaryPdf(params: Record<string, unknown>): Observable<Blob> {
+    return this.api.getFile('staff-conduct/export/pdf', params);
+  }
+
+  exportStaffConductSummaryExcel(params: Record<string, unknown>): Observable<Blob> {
+    return this.api.getFile('staff-conduct/export/excel', params);
   }
 
   getSettings(): Observable<TenantSettings> {

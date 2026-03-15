@@ -10,9 +10,20 @@ public class TenantSettingsDto
     public string BusinessRegistrationNumber { get; set; } = string.Empty;
     public string InvoicePrefix { get; set; } = string.Empty;
     public string DeliveryNotePrefix { get; set; } = string.Empty;
+    public string QuotePrefix { get; set; } = string.Empty;
+    public string PurchaseOrderPrefix { get; set; } = string.Empty;
+    public string ReceivedInvoicePrefix { get; set; } = string.Empty;
+    public string PaymentVoucherPrefix { get; set; } = string.Empty;
+    public string RentEntryPrefix { get; set; } = string.Empty;
+    public string WarningFormPrefix { get; set; } = string.Empty;
+    public string StatementPrefix { get; set; } = string.Empty;
+    public string SalarySlipPrefix { get; set; } = string.Empty;
+    public bool IsTaxApplicable { get; set; } = true;
     public decimal DefaultTaxRate { get; set; }
     public int DefaultDueDays { get; set; }
     public string DefaultCurrency { get; set; } = "MVR";
+    public string TaxableActivityNumber { get; set; } = string.Empty;
+    public bool IsInputTaxClaimEnabled { get; set; } = true;
     public string BmlMvrAccountName { get; set; } = string.Empty;
     public string BmlMvrAccountNumber { get; set; } = string.Empty;
     public string BmlUsdAccountName { get; set; } = string.Empty;
@@ -36,9 +47,20 @@ public class UpdateTenantSettingsRequest
     public required string BusinessRegistrationNumber { get; set; }
     public required string InvoicePrefix { get; set; }
     public required string DeliveryNotePrefix { get; set; }
+    public required string QuotePrefix { get; set; }
+    public required string PurchaseOrderPrefix { get; set; }
+    public required string ReceivedInvoicePrefix { get; set; }
+    public required string PaymentVoucherPrefix { get; set; }
+    public required string RentEntryPrefix { get; set; }
+    public required string WarningFormPrefix { get; set; }
+    public required string StatementPrefix { get; set; }
+    public required string SalarySlipPrefix { get; set; }
+    public bool IsTaxApplicable { get; set; } = true;
     public decimal DefaultTaxRate { get; set; }
     public int DefaultDueDays { get; set; }
     public string DefaultCurrency { get; set; } = "MVR";
+    public string TaxableActivityNumber { get; set; } = string.Empty;
+    public bool IsInputTaxClaimEnabled { get; set; } = true;
     public string BmlMvrAccountName { get; set; } = string.Empty;
     public string BmlMvrAccountNumber { get; set; } = string.Empty;
     public string BmlUsdAccountName { get; set; } = string.Empty;

@@ -14,6 +14,11 @@ type NavItem = {
   iconPaths: string[];
 };
 
+type NavSection = {
+  label: string;
+  items: NavItem[];
+};
+
 @Component({
   selector: 'app-shell',
   standalone: true,
@@ -78,18 +83,21 @@ type NavItem = {
         </div>
 
         <nav>
-          <a
-            *ngFor="let item of navItems"
-            [routerLink]="item.path"
-            routerLinkActive="active"
-            [title]="isDesktopCollapsed() ? item.label : ''">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path *ngFor="let iconPath of item.iconPaths" [attr.d]="iconPath"></path>
-              </svg>
-            </span>
-            <span class="nav-text">{{ item.label }}</span>
-          </a>
+          <section class="nav-section" *ngFor="let section of navSections">
+            <p class="nav-section-title" *ngIf="!isDesktopCollapsed()">{{ section.label }}</p>
+            <a
+              *ngFor="let item of section.items"
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [title]="isDesktopCollapsed() ? item.label : ''">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path *ngFor="let iconPath of item.iconPaths" [attr.d]="iconPath"></path>
+                </svg>
+              </span>
+              <span class="nav-text">{{ item.label }}</span>
+            </a>
+          </section>
         </nav>
 
         <section class="support-card">
@@ -312,12 +320,24 @@ type NavItem = {
     }
     nav {
       display: grid;
-      gap: .26rem;
+      gap: .82rem;
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
       padding-right: .12rem;
       scrollbar-width: thin;
+    }
+    .nav-section {
+      display: grid;
+      gap: .24rem;
+    }
+    .nav-section-title {
+      margin: .2rem .48rem;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #7a8db3;
     }
     nav a {
       color: #4c5d7d;
@@ -473,6 +493,9 @@ type NavItem = {
     }
     .sidebar.sidebar-collapsed .nav-text {
       display: none;
+    }
+    .sidebar.sidebar-collapsed .nav-section {
+      gap: .18rem;
     }
     .sidebar.sidebar-collapsed .nav-icon {
       width: 34px;
@@ -880,46 +903,126 @@ export class AppShellComponent implements OnInit, OnDestroy {
     description: ['', [Validators.required, Validators.maxLength(3000)]]
   });
 
-  readonly navItems: NavItem[] = [
+  readonly navSections: NavSection[] = [
     {
-      path: '/app/dashboard',
       label: 'Dashboard',
-      iconPaths: ['M3 10.2L12 3l9 7.2V20a1 1 0 0 1-1 1h-5.8v-6.4H9.8V21H4a1 1 0 0 1-1-1z']
+      items: [
+        {
+          path: '/app/dashboard',
+          label: 'Dashboard',
+          iconPaths: ['M3 10.2L12 3l9 7.2V20a1 1 0 0 1-1 1h-5.8v-6.4H9.8V21H4a1 1 0 0 1-1-1z']
+        }
+      ]
     },
     {
-      path: '/app/delivery-notes',
-      label: 'Delivery Notes',
-      iconPaths: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M10 13h7', 'M10 17h7']
+      label: 'Sales & Receivables',
+      items: [
+        {
+          path: '/app/delivery-notes',
+          label: 'Delivery Notes',
+          iconPaths: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M10 13h7', 'M10 17h7']
+        },
+        {
+          path: '/app/customers',
+          label: 'Customers',
+          iconPaths: ['M16 21v-1.7a3.6 3.6 0 0 0-3.6-3.6H7.6A3.6 3.6 0 0 0 4 19.3V21', 'M10 12a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2', 'M18 8v5', 'M20.5 10.5H15.5']
+        },
+        {
+          path: '/app/quote',
+          label: 'Quotations',
+          iconPaths: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M9 13h6', 'M9 17h5']
+        },
+        {
+          path: '/app/sales-history',
+          label: 'Invoices Issued',
+          iconPaths: ['M4 20h16', 'M6 15l3-3 3 2 5-6', 'M16 8h4v4']
+        },
+        {
+          path: '/app/account-statements',
+          label: 'Customer Statements',
+          iconPaths: ['M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M8 8h8', 'M8 12h8', 'M8 16h5']
+        }
+      ]
     },
     {
-      path: '/app/sales-history',
-      label: 'Sales History',
-      iconPaths: ['M4 20h16', 'M6 15l3-3 3 2 5-6', 'M16 8h4v4']
+      label: 'Purchases & Expenses',
+      items: [
+        {
+          path: '/app/po',
+          label: 'Purchase Orders',
+          iconPaths: ['M6 3h9l5 5v13H6z', 'M15 3v5h5', 'M9 13h7', 'M9 17h6']
+        },
+        {
+          path: '/app/suppliers',
+          label: 'Suppliers',
+          iconPaths: ['M4 7h16v13H4z', 'M8 7V4h8v3', 'M8 12h8', 'M8 16h5']
+        },
+        {
+          path: '/app/received-invoices',
+          label: 'Received Invoices',
+          iconPaths: ['M7 3h8l5 5v13H7z', 'M15 3v5h5', 'M9 13h7', 'M9 17h7']
+        },
+        {
+          path: '/app/payment-vouchers',
+          label: 'Payment Vouchers',
+          iconPaths: ['M4 6h16v12H4z', 'M7 10h10', 'M7 14h7']
+        },
+        {
+          path: '/app/rent',
+          label: 'Rent',
+          iconPaths: ['M4 11l8-6 8 6', 'M6 10.5V20h12v-9.5', 'M10 20v-5h4v5']
+        },
+        {
+          path: '/app/mira',
+          label: 'MIRA',
+          iconPaths: ['M5 4h14v16H5z', 'M8 8h8', 'M8 12h8', 'M8 16h5', 'M15 4v4h4']
+        },
+        {
+          path: '/app/expense-ledger',
+          label: 'Expense Ledger',
+          iconPaths: ['M5 20h14', 'M7 20V8', 'M12 20V4', 'M17 20V12']
+        },
+        {
+          path: '/app/expense-categories',
+          label: 'Expense Categories',
+          iconPaths: ['M4 7h7v5H4z', 'M13 7h7v5h-7z', 'M4 14h7v5H4z', 'M13 14h7v5h-7z']
+        }
+      ]
     },
     {
-      path: '/app/account-statements',
-      label: 'Account Statements',
-      iconPaths: ['M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M8 8h8', 'M8 12h8', 'M8 16h5']
+      label: 'Payroll & HR',
+      items: [
+        {
+          path: '/app/payroll',
+          label: 'Payroll & Staff',
+          iconPaths: ['M3 7h18v12H3z', 'M3 11h18', 'M15 15h4']
+        },
+        {
+          path: '/app/staff-conduct',
+          label: 'Disciplinary & Warning',
+          iconPaths: ['M6 4h12v16H6z', 'M9 8h6', 'M9 12h6', 'M9 16h4', 'M5 5l2-2', 'M19 5l-2-2']
+        }
+      ]
     },
     {
-      path: '/app/customers',
-      label: 'Customers',
-      iconPaths: ['M16 21v-1.7a3.6 3.6 0 0 0-3.6-3.6H7.6A3.6 3.6 0 0 0 4 19.3V21', 'M10 12a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2', 'M18 8v5', 'M20.5 10.5H15.5']
-    },
-    {
-      path: '/app/payroll',
-      label: 'Payroll',
-      iconPaths: ['M3 7h18v12H3z', 'M3 11h18', 'M15 15h4']
-    },
-    {
-      path: '/app/reports',
       label: 'Reports',
-      iconPaths: ['M4 20h16', 'M7 20V12', 'M12 20V8', 'M17 20V5']
+      items: [
+        {
+          path: '/app/reports',
+          label: 'Reports',
+          iconPaths: ['M4 20h16', 'M7 20V12', 'M12 20V8', 'M17 20V5']
+        }
+      ]
     },
     {
-      path: '/app/settings',
       label: 'Settings',
-      iconPaths: ['M12 3v2', 'M12 19v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M3 12h2', 'M19 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4', 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7']
+      items: [
+        {
+          path: '/app/settings',
+          label: 'Settings',
+          iconPaths: ['M12 3v2', 'M12 19v2', 'M4.9 4.9l1.4 1.4', 'M17.7 17.7l1.4 1.4', 'M3 12h2', 'M19 12h2', 'M4.9 19.1l1.4-1.4', 'M17.7 6.3l1.4-1.4', 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7']
+        }
+      ]
     }
   ];
 

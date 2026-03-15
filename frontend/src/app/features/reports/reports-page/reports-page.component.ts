@@ -159,7 +159,7 @@ interface ReportPresetOption
                 <span>Total Customers</span>
                 <strong>{{ report.totalCustomers }}</strong>
               </article>
-              <article>
+              <article *ngIf="taxApplicable()">
                 <span>Total Tax</span>
                 <strong>MVR {{ report.totalTax.mvr | number: '1.2-2' }}</strong>
                 <strong>USD {{ report.totalTax.usd | number: '1.2-2' }}</strong>
@@ -533,6 +533,7 @@ export class ReportsPageComponent implements OnInit {
   readonly previewLoading = signal(false);
   readonly exportLoading = signal<'excel' | 'pdf' | null>(null);
   readonly hasGenerated = signal(false);
+  readonly taxApplicable = signal(true);
 
   readonly customers = signal<Customer[]>([]);
   readonly salesSummary = signal<SalesSummaryReport | null>(null);
@@ -593,6 +594,7 @@ export class ReportsPageComponent implements OnInit {
     const today = this.todayIso();
     this.customStartDate.set(today);
     this.customEndDate.set(today);
+    this.loadSettings();
     this.loadCustomers();
   }
 
@@ -784,6 +786,13 @@ export class ReportsPageComponent implements OnInit {
     this.api.getCustomers({ pageNumber: 1, pageSize: 500, sortDirection: 'asc' }).subscribe({
       next: (result) => this.customers.set(result.items),
       error: (error) => this.toast.error(this.readError(error, 'Failed to load customers for report filters.'))
+    });
+  }
+
+  private loadSettings(): void {
+    this.api.getSettings().subscribe({
+      next: (settings) => this.taxApplicable.set(settings.isTaxApplicable),
+      error: () => this.toast.error('Failed to load report settings.')
     });
   }
 

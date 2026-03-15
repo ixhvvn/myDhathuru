@@ -14,8 +14,25 @@ public class CreateDeliveryNoteRequestValidator : AbstractValidator<CreateDelive
             .Must(BeValidCurrency)
             .WithMessage("Currency must be MVR or USD.");
         RuleFor(x => x.PoNumber).MaximumLength(100);
+        RuleFor(x => x.VesselPaymentFee).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.VesselPaymentInvoiceNumber).MaximumLength(100);
         RuleFor(x => x.Items).NotEmpty();
         RuleForEach(x => x.Items).SetValidator(new DeliveryNoteItemInputDtoValidator());
+
+        When(
+            x => x.VesselPaymentFee > 0 || !string.IsNullOrWhiteSpace(x.VesselPaymentInvoiceNumber),
+            () =>
+            {
+                RuleFor(x => x.VesselId)
+                    .NotEmpty()
+                    .WithMessage("Courier is required when vessel payment is recorded.");
+                RuleFor(x => x.VesselPaymentFee)
+                    .GreaterThan(0)
+                    .WithMessage("Vessel payment fee must be greater than zero.");
+                RuleFor(x => x.VesselPaymentInvoiceNumber)
+                    .NotEmpty()
+                    .WithMessage("Vessel payment invoice number is required.");
+            });
     }
 
     private static bool BeValidCurrency(string? currency)

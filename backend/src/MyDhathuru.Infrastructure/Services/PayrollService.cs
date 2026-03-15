@@ -38,6 +38,9 @@ public class PayrollService : IPayrollService
             .Where(x => string.IsNullOrWhiteSpace(query.Search)
                 || x.StaffId.ToLower().Contains(query.Search.ToLower())
                 || x.StaffName.ToLower().Contains(query.Search.ToLower())
+                || (x.IdNumber != null && x.IdNumber.ToLower().Contains(query.Search.ToLower()))
+                || (x.PhoneNumber != null && x.PhoneNumber.ToLower().Contains(query.Search.ToLower()))
+                || (x.Email != null && x.Email.ToLower().Contains(query.Search.ToLower()))
                 || (x.Designation != null && x.Designation.ToLower().Contains(query.Search.ToLower()))
                 || (x.WorkSite != null && x.WorkSite.ToLower().Contains(query.Search.ToLower())));
 
@@ -61,6 +64,10 @@ public class PayrollService : IPayrollService
         {
             StaffId = staffId,
             StaffName = request.StaffName.Trim(),
+            IdNumber = NormalizeOptional(request.IdNumber),
+            PhoneNumber = NormalizeOptional(request.PhoneNumber),
+            Email = NormalizeOptional(request.Email),
+            HiredDate = request.HiredDate,
             Designation = request.Designation?.Trim(),
             WorkSite = request.WorkSite?.Trim(),
             BankName = NormalizeBankName(request.BankName),
@@ -93,6 +100,10 @@ public class PayrollService : IPayrollService
 
         staff.StaffId = newStaffId;
         staff.StaffName = request.StaffName.Trim();
+        staff.IdNumber = NormalizeOptional(request.IdNumber);
+        staff.PhoneNumber = NormalizeOptional(request.PhoneNumber);
+        staff.Email = NormalizeOptional(request.Email);
+        staff.HiredDate = request.HiredDate;
         staff.Designation = request.Designation?.Trim();
         staff.WorkSite = request.WorkSite?.Trim();
         staff.BankName = NormalizeBankName(request.BankName);
@@ -361,7 +372,7 @@ public class PayrollService : IPayrollService
             ?? await GenerateSalarySlipAsync(payrollEntryId, cancellationToken);
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
         return _pdfExportService.BuildSalarySlipPdf(salarySlip, settings.CompanyName, companyInfo, settings.LogoUrl);
     }
 
@@ -369,7 +380,7 @@ public class PayrollService : IPayrollService
     {
         var detail = await GetPeriodAsync(payrollPeriodId, cancellationToken);
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
 
         return _pdfExportService.BuildPayrollPeriodPdf(detail, settings.CompanyName, companyInfo);
     }
@@ -378,7 +389,7 @@ public class PayrollService : IPayrollService
     {
         var detail = await GetPeriodAsync(payrollPeriodId, cancellationToken);
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
 
         return BuildPayrollPeriodExcel(detail, settings.CompanyName, companyInfo);
     }
@@ -432,7 +443,7 @@ public class PayrollService : IPayrollService
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Payroll Detail");
-        const int TotalColumns = 22;
+        const int TotalColumns = 26;
 
         sheet.Cell(1, 1).Value = $"{companyName} - Payroll Detail";
         sheet.Range(1, 1, 1, TotalColumns).Merge().Style.Font.SetBold().Font.SetFontSize(16);
@@ -446,26 +457,30 @@ public class PayrollService : IPayrollService
         var headerRow = 6;
         sheet.Cell(headerRow, 1).Value = "Staff ID";
         sheet.Cell(headerRow, 2).Value = "Staff Name";
-        sheet.Cell(headerRow, 3).Value = "Designation";
-        sheet.Cell(headerRow, 4).Value = "Work Site";
-        sheet.Cell(headerRow, 5).Value = "Basic";
-        sheet.Cell(headerRow, 6).Value = "Service Allowance";
-        sheet.Cell(headerRow, 7).Value = "Other Allowance";
-        sheet.Cell(headerRow, 8).Value = "Phone Allowance";
-        sheet.Cell(headerRow, 9).Value = "Sub Total";
-        sheet.Cell(headerRow, 10).Value = "Attended";
-        sheet.Cell(headerRow, 11).Value = "Rate / Day";
-        sheet.Cell(headerRow, 12).Value = "Food Days";
-        sheet.Cell(headerRow, 13).Value = "Absent Deduction";
-        sheet.Cell(headerRow, 14).Value = "Absent Days";
-        sheet.Cell(headerRow, 15).Value = "Food A Rate";
-        sheet.Cell(headerRow, 16).Value = "Food Allowance";
-        sheet.Cell(headerRow, 17).Value = "OT Pay";
-        sheet.Cell(headerRow, 18).Value = "Pension";
-        sheet.Cell(headerRow, 19).Value = "Salary Advance";
-        sheet.Cell(headerRow, 20).Value = "Total Pay";
-        sheet.Cell(headerRow, 21).Value = "Account Number";
-        sheet.Cell(headerRow, 22).Value = "Total Salary";
+        sheet.Cell(headerRow, 3).Value = "ID Number";
+        sheet.Cell(headerRow, 4).Value = "Phone Number";
+        sheet.Cell(headerRow, 5).Value = "Mail";
+        sheet.Cell(headerRow, 6).Value = "Hired Date";
+        sheet.Cell(headerRow, 7).Value = "Designation";
+        sheet.Cell(headerRow, 8).Value = "Work Site";
+        sheet.Cell(headerRow, 9).Value = "Basic";
+        sheet.Cell(headerRow, 10).Value = "Service Allowance";
+        sheet.Cell(headerRow, 11).Value = "Other Allowance";
+        sheet.Cell(headerRow, 12).Value = "Phone Allowance";
+        sheet.Cell(headerRow, 13).Value = "Sub Total";
+        sheet.Cell(headerRow, 14).Value = "Attended";
+        sheet.Cell(headerRow, 15).Value = "Rate / Day";
+        sheet.Cell(headerRow, 16).Value = "Food Days";
+        sheet.Cell(headerRow, 17).Value = "Absent Deduction";
+        sheet.Cell(headerRow, 18).Value = "Absent Days";
+        sheet.Cell(headerRow, 19).Value = "Food A Rate";
+        sheet.Cell(headerRow, 20).Value = "Food Allowance";
+        sheet.Cell(headerRow, 21).Value = "OT Pay";
+        sheet.Cell(headerRow, 22).Value = "Pension";
+        sheet.Cell(headerRow, 23).Value = "Salary Advance";
+        sheet.Cell(headerRow, 24).Value = "Total Pay";
+        sheet.Cell(headerRow, 25).Value = "Account Number";
+        sheet.Cell(headerRow, 26).Value = "Total Salary";
 
         var headerRange = sheet.Range(headerRow, 1, headerRow, TotalColumns);
         headerRange.Style.Font.SetBold();
@@ -480,46 +495,57 @@ public class PayrollService : IPayrollService
         {
             sheet.Cell(row, 1).Value = entry.StaffCode;
             sheet.Cell(row, 2).Value = entry.StaffName;
-            sheet.Cell(row, 3).Value = entry.Designation ?? "-";
-            sheet.Cell(row, 4).Value = entry.WorkSite ?? "-";
-            sheet.Cell(row, 5).Value = entry.Basic;
-            sheet.Cell(row, 6).Value = entry.ServiceAllowance;
-            sheet.Cell(row, 7).Value = entry.OtherAllowance;
-            sheet.Cell(row, 8).Value = entry.PhoneAllowance;
-            sheet.Cell(row, 9).Value = entry.SubTotal;
-            sheet.Cell(row, 10).Value = entry.AttendedDays;
-            sheet.Cell(row, 11).Value = entry.RatePerDay;
-            sheet.Cell(row, 12).Value = entry.FoodAllowanceDays;
-            sheet.Cell(row, 13).Value = entry.AbsentDeduction;
-            sheet.Cell(row, 14).Value = entry.AbsentDays;
-            sheet.Cell(row, 15).Value = entry.FoodAllowanceRate;
-            sheet.Cell(row, 16).Value = entry.FoodAllowance;
-            sheet.Cell(row, 17).Value = entry.OvertimePay;
-            sheet.Cell(row, 18).Value = entry.PensionDeduction;
-            sheet.Cell(row, 19).Value = entry.SalaryAdvanceDeduction;
-            sheet.Cell(row, 20).Value = entry.TotalPay;
-            sheet.Cell(row, 21).Value = string.IsNullOrWhiteSpace(entry.AccountNumber) ? "-" : entry.AccountNumber;
-            sheet.Cell(row, 22).Value = entry.NetPayable;
+            sheet.Cell(row, 3).Value = string.IsNullOrWhiteSpace(entry.IdNumber) ? "-" : entry.IdNumber;
+            sheet.Cell(row, 4).Value = string.IsNullOrWhiteSpace(entry.PhoneNumber) ? "-" : entry.PhoneNumber;
+            sheet.Cell(row, 5).Value = string.IsNullOrWhiteSpace(entry.Email) ? "-" : entry.Email;
+            if (entry.HiredDate.HasValue)
+            {
+                sheet.Cell(row, 6).Value = entry.HiredDate.Value.ToDateTime(TimeOnly.MinValue);
+            }
+            else
+            {
+                sheet.Cell(row, 6).Value = "-";
+            }
+            sheet.Cell(row, 7).Value = entry.Designation ?? "-";
+            sheet.Cell(row, 8).Value = entry.WorkSite ?? "-";
+            sheet.Cell(row, 9).Value = entry.Basic;
+            sheet.Cell(row, 10).Value = entry.ServiceAllowance;
+            sheet.Cell(row, 11).Value = entry.OtherAllowance;
+            sheet.Cell(row, 12).Value = entry.PhoneAllowance;
+            sheet.Cell(row, 13).Value = entry.SubTotal;
+            sheet.Cell(row, 14).Value = entry.AttendedDays;
+            sheet.Cell(row, 15).Value = entry.RatePerDay;
+            sheet.Cell(row, 16).Value = entry.FoodAllowanceDays;
+            sheet.Cell(row, 17).Value = entry.AbsentDeduction;
+            sheet.Cell(row, 18).Value = entry.AbsentDays;
+            sheet.Cell(row, 19).Value = entry.FoodAllowanceRate;
+            sheet.Cell(row, 20).Value = entry.FoodAllowance;
+            sheet.Cell(row, 21).Value = entry.OvertimePay;
+            sheet.Cell(row, 22).Value = entry.PensionDeduction;
+            sheet.Cell(row, 23).Value = entry.SalaryAdvanceDeduction;
+            sheet.Cell(row, 24).Value = entry.TotalPay;
+            sheet.Cell(row, 25).Value = string.IsNullOrWhiteSpace(entry.AccountNumber) ? "-" : entry.AccountNumber;
+            sheet.Cell(row, 26).Value = entry.NetPayable;
             row++;
         }
 
         var totalRow = row;
         sheet.Cell(totalRow, 1).Value = "TOTAL";
-        sheet.Cell(totalRow, 5).Value = detail.Entries.Sum(x => x.Basic);
-        sheet.Cell(totalRow, 6).Value = detail.Entries.Sum(x => x.ServiceAllowance);
-        sheet.Cell(totalRow, 7).Value = detail.Entries.Sum(x => x.OtherAllowance);
-        sheet.Cell(totalRow, 8).Value = detail.Entries.Sum(x => x.PhoneAllowance);
-        sheet.Cell(totalRow, 9).Value = detail.Entries.Sum(x => x.SubTotal);
-        sheet.Cell(totalRow, 10).Value = detail.Entries.Sum(x => x.AttendedDays);
-        sheet.Cell(totalRow, 12).Value = detail.Entries.Sum(x => x.FoodAllowanceDays);
-        sheet.Cell(totalRow, 13).Value = detail.Entries.Sum(x => x.AbsentDeduction);
-        sheet.Cell(totalRow, 14).Value = detail.Entries.Sum(x => x.AbsentDays);
-        sheet.Cell(totalRow, 16).Value = detail.Entries.Sum(x => x.FoodAllowance);
-        sheet.Cell(totalRow, 17).Value = detail.Entries.Sum(x => x.OvertimePay);
-        sheet.Cell(totalRow, 18).Value = detail.Entries.Sum(x => x.PensionDeduction);
-        sheet.Cell(totalRow, 19).Value = detail.Entries.Sum(x => x.SalaryAdvanceDeduction);
-        sheet.Cell(totalRow, 20).Value = detail.Entries.Sum(x => x.TotalPay);
-        sheet.Cell(totalRow, 22).Value = detail.TotalNetPayable;
+        sheet.Cell(totalRow, 9).Value = detail.Entries.Sum(x => x.Basic);
+        sheet.Cell(totalRow, 10).Value = detail.Entries.Sum(x => x.ServiceAllowance);
+        sheet.Cell(totalRow, 11).Value = detail.Entries.Sum(x => x.OtherAllowance);
+        sheet.Cell(totalRow, 12).Value = detail.Entries.Sum(x => x.PhoneAllowance);
+        sheet.Cell(totalRow, 13).Value = detail.Entries.Sum(x => x.SubTotal);
+        sheet.Cell(totalRow, 14).Value = detail.Entries.Sum(x => x.AttendedDays);
+        sheet.Cell(totalRow, 16).Value = detail.Entries.Sum(x => x.FoodAllowanceDays);
+        sheet.Cell(totalRow, 17).Value = detail.Entries.Sum(x => x.AbsentDeduction);
+        sheet.Cell(totalRow, 18).Value = detail.Entries.Sum(x => x.AbsentDays);
+        sheet.Cell(totalRow, 20).Value = detail.Entries.Sum(x => x.FoodAllowance);
+        sheet.Cell(totalRow, 21).Value = detail.Entries.Sum(x => x.OvertimePay);
+        sheet.Cell(totalRow, 22).Value = detail.Entries.Sum(x => x.PensionDeduction);
+        sheet.Cell(totalRow, 23).Value = detail.Entries.Sum(x => x.SalaryAdvanceDeduction);
+        sheet.Cell(totalRow, 24).Value = detail.Entries.Sum(x => x.TotalPay);
+        sheet.Cell(totalRow, 26).Value = detail.TotalNetPayable;
 
         var totalRange = sheet.Range(totalRow, 1, totalRow, TotalColumns);
         totalRange.Style.Font.SetBold();
@@ -534,39 +560,44 @@ public class PayrollService : IPayrollService
             dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         }
 
-        sheet.Range(headerRow + 1, 5, totalRow, 9).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 10, totalRow, 10).Style.NumberFormat.Format = "#,##0";
-        sheet.Range(headerRow + 1, 11, totalRow, 11).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 12, totalRow, 12).Style.NumberFormat.Format = "#,##0";
-        sheet.Range(headerRow + 1, 13, totalRow, 13).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Range(headerRow + 1, 6, Math.Max(totalRow - 1, headerRow + 1), 6).Style.DateFormat.Format = "yyyy-mm-dd";
+        sheet.Range(headerRow + 1, 9, totalRow, 13).Style.NumberFormat.Format = "#,##0.00";
         sheet.Range(headerRow + 1, 14, totalRow, 14).Style.NumberFormat.Format = "#,##0";
-        sheet.Range(headerRow + 1, 15, totalRow, 20).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Range(headerRow + 1, 22, totalRow, 22).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Range(headerRow + 1, 15, totalRow, 15).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Range(headerRow + 1, 16, totalRow, 16).Style.NumberFormat.Format = "#,##0";
+        sheet.Range(headerRow + 1, 17, totalRow, 17).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Range(headerRow + 1, 18, totalRow, 18).Style.NumberFormat.Format = "#,##0";
+        sheet.Range(headerRow + 1, 19, totalRow, 24).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Range(headerRow + 1, 26, totalRow, 26).Style.NumberFormat.Format = "#,##0.00";
         sheet.SheetView.FreezeRows(headerRow);
         sheet.Range(headerRow, 1, Math.Max(totalRow - 1, headerRow), TotalColumns).SetAutoFilter();
 
         sheet.Column(1).Width = 14;
         sheet.Column(2).Width = 22;
         sheet.Column(3).Width = 16;
-        sheet.Column(4).Width = 14;
-        sheet.Column(5).Width = 12;
-        sheet.Column(6).Width = 15;
-        sheet.Column(7).Width = 15;
-        sheet.Column(8).Width = 15;
+        sheet.Column(4).Width = 16;
+        sheet.Column(5).Width = 26;
+        sheet.Column(6).Width = 14;
+        sheet.Column(7).Width = 16;
+        sheet.Column(8).Width = 14;
         sheet.Column(9).Width = 12;
-        sheet.Column(10).Width = 10;
-        sheet.Column(11).Width = 12;
-        sheet.Column(12).Width = 10;
-        sheet.Column(13).Width = 14;
-        sheet.Column(14).Width = 11;
-        sheet.Column(15).Width = 13;
-        sheet.Column(16).Width = 15;
-        sheet.Column(17).Width = 11;
-        sheet.Column(18).Width = 12;
-        sheet.Column(19).Width = 14;
-        sheet.Column(20).Width = 12;
-        sheet.Column(21).Width = 18;
-        sheet.Column(22).Width = 13;
+        sheet.Column(10).Width = 15;
+        sheet.Column(11).Width = 15;
+        sheet.Column(12).Width = 15;
+        sheet.Column(13).Width = 12;
+        sheet.Column(14).Width = 10;
+        sheet.Column(15).Width = 12;
+        sheet.Column(16).Width = 10;
+        sheet.Column(17).Width = 14;
+        sheet.Column(18).Width = 11;
+        sheet.Column(19).Width = 13;
+        sheet.Column(20).Width = 15;
+        sheet.Column(21).Width = 11;
+        sheet.Column(22).Width = 12;
+        sheet.Column(23).Width = 14;
+        sheet.Column(24).Width = 12;
+        sheet.Column(25).Width = 18;
+        sheet.Column(26).Width = 13;
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -580,6 +611,10 @@ public class PayrollService : IPayrollService
             Id = staff.Id,
             StaffId = staff.StaffId,
             StaffName = staff.StaffName,
+            IdNumber = staff.IdNumber,
+            PhoneNumber = staff.PhoneNumber,
+            Email = staff.Email,
+            HiredDate = staff.HiredDate,
             Designation = staff.Designation,
             WorkSite = staff.WorkSite,
             BankName = staff.BankName,
@@ -601,6 +636,10 @@ public class PayrollService : IPayrollService
             StaffId = entry.StaffId,
             StaffCode = entry.Staff.StaffId,
             StaffName = entry.Staff.StaffName,
+            IdNumber = entry.Staff.IdNumber,
+            PhoneNumber = entry.Staff.PhoneNumber,
+            Email = entry.Staff.Email,
+            HiredDate = entry.Staff.HiredDate,
             Designation = entry.Staff.Designation,
             WorkSite = entry.Staff.WorkSite,
             BankName = entry.Staff.BankName,
@@ -643,6 +682,10 @@ public class PayrollService : IPayrollService
             PeriodEnd = entry.PayrollPeriod.EndDate,
             StaffName = entry.Staff.StaffName,
             StaffCode = entry.Staff.StaffId,
+            IdNumber = entry.Staff.IdNumber,
+            PhoneNumber = entry.Staff.PhoneNumber,
+            Email = entry.Staff.Email,
+            HiredDate = entry.Staff.HiredDate,
             Designation = entry.Staff.Designation,
             WorkSite = entry.Staff.WorkSite,
             BankName = entry.Staff.BankName,

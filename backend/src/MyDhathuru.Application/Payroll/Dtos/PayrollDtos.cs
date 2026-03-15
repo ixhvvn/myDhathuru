@@ -12,6 +12,10 @@ public class StaffDto
     public Guid Id { get; set; }
     public string StaffId { get; set; } = string.Empty;
     public string StaffName { get; set; } = string.Empty;
+    public string? IdNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? HiredDate { get; set; }
     public string? Designation { get; set; }
     public string? WorkSite { get; set; }
     public string? BankName { get; set; }
@@ -28,6 +32,10 @@ public class CreateStaffRequest
 {
     public required string StaffId { get; set; }
     public required string StaffName { get; set; }
+    public string? IdNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? HiredDate { get; set; }
     public string? Designation { get; set; }
     public string? WorkSite { get; set; }
     public string? BankName { get; set; }
@@ -70,6 +78,10 @@ public class PayrollEntryDto
     public Guid StaffId { get; set; }
     public string StaffCode { get; set; } = string.Empty;
     public string StaffName { get; set; } = string.Empty;
+    public string? IdNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? HiredDate { get; set; }
     public string? Designation { get; set; }
     public string? WorkSite { get; set; }
     public string? BankName { get; set; }
@@ -121,6 +133,10 @@ public class SalarySlipDto
     public DateOnly PeriodEnd { get; set; }
     public string StaffName { get; set; } = string.Empty;
     public string StaffCode { get; set; } = string.Empty;
+    public string? IdNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? HiredDate { get; set; }
     public string? Designation { get; set; }
     public string? WorkSite { get; set; }
     public string? BankName { get; set; }

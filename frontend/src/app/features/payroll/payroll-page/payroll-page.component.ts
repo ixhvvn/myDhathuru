@@ -7,9 +7,10 @@ import { AppConfirmDialogComponent } from '../../../shared/components/app-confir
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
+import { AuthService } from '../../../core/services/auth.service';
 import { PagedResult, PayrollEntry, PayrollPeriod, PayrollPeriodDetail, Staff } from '../../../core/models/app.models';
 import { extractApiError } from '../../../core/utils/api-error.util';
-import { ACCOUNT_NUMBER_REGEX, NAME_REGEX } from '../../../core/validators/input-patterns';
+import { ACCOUNT_NUMBER_REGEX, NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns';
 import { PortalApiService } from '../../services/portal-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -33,7 +34,7 @@ import { ToastService } from '../../../core/services/toast.service';
       <app-card>
         <div class="card-head">
           <h3>Staff Master</h3>
-          <app-button size="sm" (clicked)="openStaffCreate()">Create Staff</app-button>
+          <app-button *ngIf="isAdmin()" size="sm" (clicked)="openStaffCreate()">Create Staff</app-button>
         </div>
 
         <div class="staff-meta" *ngIf="staffPage() as page">
@@ -48,7 +49,9 @@ import { ToastService } from '../../../core/services/toast.service';
           <thead>
             <tr>
               <th>Staff ID</th>
-              <th>Staff Name</th>
+              <th>Staff</th>
+              <th>ID / Hired</th>
+              <th>Contact</th>
               <th>Designation</th>
               <th>Work Site</th>
               <th>Bank</th>
@@ -59,14 +62,32 @@ import { ToastService } from '../../../core/services/toast.service';
           <tbody>
             <tr *ngFor="let staff of staffPage()?.items">
               <td>{{ staff.staffId }}</td>
-              <td>{{ staff.staffName }}</td>
+              <td>
+                <div class="meta-stack">
+                  <strong>{{ staff.staffName }}</strong>
+                </div>
+              </td>
+              <td>
+                <div class="meta-stack">
+                  <span>{{ staff.idNumber || '-' }}</span>
+                  <span>{{ staff.hiredDate ? (staff.hiredDate | date: 'yyyy-MM-dd') : '-' }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="meta-stack">
+                  <span>{{ staff.phoneNumber || '-' }}</span>
+                  <span>{{ staff.email || '-' }}</span>
+                </div>
+              </td>
               <td>{{ staff.designation || '-' }}</td>
               <td>{{ staff.workSite || '-' }}</td>
               <td>{{ staff.bankName || '-' }}</td>
               <td>{{ staff.accountName || '-' }} / {{ staff.accountNumber || '-' }}</td>
               <td class="row-actions">
-                <app-button size="sm" variant="secondary" (clicked)="editStaff(staff)">Edit</app-button>
-                <app-button size="sm" variant="danger" (clicked)="confirmDeleteStaff(staff)">Delete</app-button>
+                <div class="row-action-group">
+                  <app-button *ngIf="isAdmin()" size="sm" variant="secondary" (clicked)="editStaff(staff)">Edit</app-button>
+                  <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDeleteStaff(staff)">Delete</app-button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -148,7 +169,14 @@ import { ToastService } from '../../../core/services/toast.service';
         </thead>
         <tbody>
           <tr *ngFor="let entry of period.entries">
-            <td>{{ entry.staffCode }} - {{ entry.staffName }}</td>
+            <td>
+              <div class="meta-stack">
+                <strong>{{ entry.staffCode }} - {{ entry.staffName }}</strong>
+                <span>ID: {{ entry.idNumber || '-' }} | Hired: {{ entry.hiredDate ? (entry.hiredDate | date: 'yyyy-MM-dd') : '-' }}</span>
+                <span>Phone: {{ entry.phoneNumber || '-' }}</span>
+                <span>Mail: {{ entry.email || '-' }}</span>
+              </div>
+            </td>
             <td>{{ entry.attendedDays }}</td>
             <td>{{ entry.foodAllowanceDays }}</td>
             <td>{{ entry.overtimePay | appCurrency }}</td>
@@ -157,8 +185,10 @@ import { ToastService } from '../../../core/services/toast.service';
             <td>{{ entry.totalPay | appCurrency }}</td>
             <td>{{ entry.netPayable | appCurrency }}</td>
             <td class="row-actions">
-              <app-button size="sm" variant="secondary" (clicked)="editEntry(entry)">Edit</app-button>
-              <app-button size="sm" variant="secondary" (clicked)="exportSlip(entry)">PDF</app-button>
+              <div class="row-action-group">
+                <app-button size="sm" variant="secondary" (clicked)="editEntry(entry)">Edit</app-button>
+                <app-button size="sm" variant="secondary" (clicked)="exportSlip(entry)">PDF</app-button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -168,7 +198,7 @@ import { ToastService } from '../../../core/services/toast.service';
     <div class="drawer" *ngIf="staffFormOpen()">
       <app-card>
         <h3>{{ editingStaffId() ? 'Edit Staff' : 'Create Staff' }}</h3>
-        <form [formGroup]="staffForm" class="form-grid" (ngSubmit)="saveStaff()">
+        <form [formGroup]="staffForm" class="form-grid" (ngSubmit)="saveStaff()" novalidate>
           <div class="two-col">
             <label>
               Staff ID
@@ -180,6 +210,28 @@ import { ToastService } from '../../../core/services/toast.service';
               <input formControlName="staffName">
               <small class="field-error" *ngIf="staffForm.controls.staffName.touched && staffForm.controls.staffName.hasError('required')">Staff name is required.</small>
               <small class="field-error" *ngIf="staffForm.controls.staffName.touched && staffForm.controls.staffName.hasError('pattern')">Staff name must not contain numbers.</small>
+            </label>
+          </div>
+          <div class="two-col">
+            <label>
+              ID Number
+              <input formControlName="idNumber">
+            </label>
+            <label>
+              Hired Date
+              <input type="date" formControlName="hiredDate">
+            </label>
+          </div>
+          <div class="two-col">
+            <label>
+              Phone Number
+              <input formControlName="phoneNumber">
+              <small class="field-error" *ngIf="staffForm.controls.phoneNumber.touched && staffForm.controls.phoneNumber.hasError('pattern')">Phone number must be 7 to 15 digits and may start with +.</small>
+            </label>
+            <label>
+              Mail
+              <input type="email" formControlName="email">
+              <small class="field-error" *ngIf="staffForm.controls.email.touched && staffForm.controls.email.hasError('email')">Enter a valid mail address.</small>
             </label>
           </div>
           <div class="two-col">
@@ -241,7 +293,7 @@ import { ToastService } from '../../../core/services/toast.service';
           </div>
           <div class="actions">
             <app-button variant="secondary" (clicked)="staffFormOpen.set(false)">Cancel</app-button>
-            <app-button type="submit">Save</app-button>
+            <app-button type="submit" [disabled]="!isAdmin()">Save</app-button>
           </div>
         </form>
       </app-card>
@@ -250,7 +302,7 @@ import { ToastService } from '../../../core/services/toast.service';
     <div class="drawer" *ngIf="entryFormOpen()">
       <app-card>
         <h3>Edit Payroll Entry</h3>
-        <form [formGroup]="entryForm" class="form-grid" (ngSubmit)="saveEntry()">
+        <form [formGroup]="entryForm" class="form-grid" (ngSubmit)="saveEntry()" novalidate>
           <div class="two-col">
             <label>Attended Days <input type="number" min="0" max="28" formControlName="attendedDays"></label>
             <label>Food Days <input type="number" min="0" max="28" formControlName="foodAllowanceDays"></label>
@@ -331,6 +383,22 @@ import { ToastService } from '../../../core/services/toast.service';
       font-weight: 600;
       color: var(--text-muted);
     }
+    .meta-stack {
+      display: grid;
+      gap: .16rem;
+      min-width: 0;
+    }
+    .meta-stack strong {
+      color: #213968;
+      font-size: .82rem;
+      line-height: 1.35;
+    }
+    .meta-stack span {
+      color: var(--text-muted);
+      font-size: .74rem;
+      line-height: 1.35;
+      word-break: break-word;
+    }
     .period-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; align-items: end; }
     .period-picker { margin-top: .8rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
     .period-note { margin: .45rem 0 0; font-size: .78rem; color: var(--text-muted); }
@@ -344,12 +412,20 @@ import { ToastService } from '../../../core/services/toast.service';
     }
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .row-actions {
+      white-space: nowrap;
+      text-align: right;
+      vertical-align: middle;
+      width: 1%;
+    }
+    .row-action-group {
       display: inline-flex;
       align-items: center;
+      justify-content: flex-end;
       gap: .45rem;
       flex-wrap: nowrap;
+      width: 100%;
     }
-    .row-actions app-button {
+    .row-action-group app-button {
       flex: 0 0 auto;
     }
     .staff-pager {
@@ -481,10 +557,15 @@ export class PayrollPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(PortalApiService);
   private readonly toast = inject(ToastService);
+  readonly auth = inject(AuthService);
 
   readonly staffForm = this.fb.nonNullable.group({
     staffId: ['', Validators.required],
     staffName: ['', [Validators.required, Validators.pattern(NAME_REGEX)]],
+    idNumber: [''],
+    phoneNumber: ['', Validators.pattern(PHONE_REGEX)],
+    email: ['', Validators.email],
+    hiredDate: [''],
     designation: [''],
     workSite: [''],
     bankName: [''],
@@ -534,10 +615,14 @@ export class PayrollPageComponent implements OnInit {
     this.loadPeriods();
   }
 
+  isAdmin(): boolean {
+    return this.auth.user()?.role === 'Admin';
+  }
+
   openStaffCreate(): void {
     this.editingStaffId.set(null);
     this.staffForm.reset({
-      staffId: '', staffName: '', designation: '', workSite: '', bankName: '', accountName: '', accountNumber: '',
+      staffId: '', staffName: '', idNumber: '', phoneNumber: '', email: '', hiredDate: '', designation: '', workSite: '', bankName: '', accountName: '', accountNumber: '',
       basic: 0, serviceAllowance: 0, otherAllowance: 0, phoneAllowance: 0, foodRate: 0
     });
     this.staffFormOpen.set(true);
@@ -548,6 +633,10 @@ export class PayrollPageComponent implements OnInit {
     this.staffForm.reset({
       staffId: staff.staffId,
       staffName: staff.staffName,
+      idNumber: staff.idNumber || '',
+      phoneNumber: staff.phoneNumber || '',
+      email: staff.email || '',
+      hiredDate: staff.hiredDate || '',
       designation: staff.designation || '',
       workSite: staff.workSite || '',
       bankName: staff.bankName || '',
@@ -563,13 +652,32 @@ export class PayrollPageComponent implements OnInit {
   }
 
   saveStaff(): void {
+    if (!this.isAdmin()) {
+      this.toast.error('Only admin users can create or edit staff.');
+      return;
+    }
+
     if (this.staffForm.invalid || this.hasIncompleteBankDetails()) {
       this.staffForm.markAllAsTouched();
       this.toast.error('Please complete required staff fields.');
       return;
     }
 
-    const payload = this.staffForm.getRawValue();
+    const raw = this.staffForm.getRawValue();
+    const payload = {
+      ...raw,
+      staffId: raw.staffId.trim(),
+      staffName: raw.staffName.trim(),
+      idNumber: this.normalizeOptionalText(raw.idNumber),
+      phoneNumber: this.normalizeOptionalText(raw.phoneNumber),
+      email: this.normalizeOptionalText(raw.email),
+      hiredDate: raw.hiredDate ? raw.hiredDate : null,
+      designation: this.normalizeOptionalText(raw.designation),
+      workSite: this.normalizeOptionalText(raw.workSite),
+      bankName: this.normalizeOptionalText(raw.bankName),
+      accountName: this.normalizeOptionalText(raw.accountName),
+      accountNumber: this.normalizeOptionalText(raw.accountNumber)
+    };
     const request$ = this.editingStaffId()
       ? this.api.updateStaff(this.editingStaffId()!, payload)
       : this.api.createStaff(payload);
@@ -871,6 +979,11 @@ export class PayrollPageComponent implements OnInit {
     }
 
     return !(hasBank && hasAccountName && hasAccountNumber);
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string | null {
+    const normalized = value?.trim() ?? '';
+    return normalized ? normalized : null;
   }
 }
 

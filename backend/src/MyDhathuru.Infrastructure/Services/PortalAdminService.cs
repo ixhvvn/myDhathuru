@@ -307,6 +307,7 @@ public class PortalAdminService : IPortalAdminService
         _dbContext.Tenants.Add(tenant);
         _dbContext.Users.Add(user);
         _dbContext.TenantSettings.Add(CreateDefaultTenantSettings(tenant, user));
+        _dbContext.ExpenseCategories.AddRange(ExpenseCategoryService.BuildDefaultCategories(tenant.Id));
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -893,11 +894,20 @@ public class PortalAdminService : IPortalAdminService
             BusinessRegistrationNumber = tenant.BusinessRegistrationNumber,
             InvoicePrefix = "SL",
             DeliveryNotePrefix = "DN",
+            QuotePrefix = "QT",
+            PurchaseOrderPrefix = "PO",
+            ReceivedInvoicePrefix = "RI",
+            PaymentVoucherPrefix = "PV",
+            RentEntryPrefix = "RENT",
+            WarningFormPrefix = "WF",
             StatementPrefix = "SL",
             SalarySlipPrefix = "SAL",
+            IsTaxApplicable = true,
             DefaultTaxRate = 0.08m,
             DefaultDueDays = 7,
             DefaultCurrency = "MVR",
+            TaxableActivityNumber = string.Empty,
+            IsInputTaxClaimEnabled = true,
             BmlMvrAccountName = string.Empty,
             BmlMvrAccountNumber = string.Empty,
             BmlUsdAccountName = string.Empty,

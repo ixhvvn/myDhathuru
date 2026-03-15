@@ -45,6 +45,8 @@ public class InvoiceListItemDto
 {
     public Guid Id { get; set; }
     public string InvoiceNo { get; set; } = string.Empty;
+    public Guid? QuotationId { get; set; }
+    public string? QuotationNo { get; set; }
     public string Customer { get; set; } = string.Empty;
     public Guid? CourierId { get; set; }
     public string? CourierName { get; set; }
@@ -59,6 +61,8 @@ public class InvoiceDetailDto
 {
     public Guid Id { get; set; }
     public string InvoiceNo { get; set; } = string.Empty;
+    public Guid? QuotationId { get; set; }
+    public string? QuotationNo { get; set; }
     public string? PoNumber { get; set; }
     public Guid CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;

@@ -29,12 +29,25 @@ public class UpdateTenantSettingsRequestValidator : AbstractValidator<UpdateTena
         RuleFor(x => x.BusinessRegistrationNumber).NotEmpty().MaximumLength(100);
         RuleFor(x => x.InvoicePrefix).NotEmpty().MaximumLength(20);
         RuleFor(x => x.DeliveryNotePrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.QuotePrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.PurchaseOrderPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.ReceivedInvoicePrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.PaymentVoucherPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.RentEntryPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.WarningFormPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.StatementPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.SalarySlipPrefix).NotEmpty().MaximumLength(20);
         RuleFor(x => x.DefaultTaxRate).GreaterThanOrEqualTo(0).LessThanOrEqualTo(1);
+        RuleFor(x => x.DefaultTaxRate)
+            .GreaterThan(0)
+            .When(x => x.IsTaxApplicable)
+            .WithMessage("Default tax rate must be greater than 0 when tax is applicable.");
         RuleFor(x => x.DefaultDueDays).InclusiveBetween(0, 120);
         RuleFor(x => x.DefaultCurrency)
             .NotEmpty()
             .Must(BeValidCurrency)
             .WithMessage("Default currency must be MVR or USD.");
+        RuleFor(x => x.TaxableActivityNumber).MaximumLength(50);
         RuleFor(x => x.BmlMvrAccountName).MaximumLength(200);
         RuleFor(x => x.BmlMvrAccountNumber).MaximumLength(100);
         RuleFor(x => x.BmlUsdAccountName).MaximumLength(200);

@@ -6,6 +6,8 @@ public class Invoice : TenantEntity
     public required string InvoiceNo { get; set; }
     public Guid CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
+    public Guid? QuotationId { get; set; }
+    public Quotation? Quotation { get; set; }
     public Guid? DeliveryNoteId { get; set; }
     public DeliveryNote? DeliveryNote { get; set; }
     public Guid? CourierVesselId { get; set; }

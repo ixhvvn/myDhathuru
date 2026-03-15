@@ -3,6 +3,7 @@ using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Statements.Dtos;
 using MyDhathuru.Domain.Entities;
+using MyDhathuru.Infrastructure.Extensions;
 using MyDhathuru.Infrastructure.Persistence;
 
 namespace MyDhathuru.Infrastructure.Services;
@@ -250,7 +251,7 @@ public class StatementService : IStatementService
     {
         var statement = await GetStatementAsync(customerId, year, cancellationToken);
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
         return _pdfExportService.BuildStatementPdf(statement, settings.CompanyName, companyInfo, settings.LogoUrl);
     }
 

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { finalize, firstValueFrom } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppConfirmDialogComponent } from '../../../shared/components/app-confirm-dialog/app-confirm-dialog.component';
@@ -10,7 +10,7 @@ import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
 import { AppSearchBarComponent } from '../../../shared/components/app-search-bar/app-search-bar.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
-import { Customer, DeliveryNote, DeliveryNoteListItem, PagedResult, Vessel } from '../../../core/models/app.models';
+import { Customer, DeliveryNote, DeliveryNoteAttachment, DeliveryNoteListItem, PagedResult, Vessel } from '../../../core/models/app.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PortalApiService } from '../../services/portal-api.service';
@@ -91,14 +91,28 @@ import { PortalApiService } from '../../services/portal-api.service';
             <td>{{ note.vesselPayment > 0 ? 'Yes' : 'No' }}</td>
             <td class="actions">
               <app-button size="sm" variant="secondary" (clicked)="viewDetail(note)">View</app-button>
+              <app-button
+                *ngIf="note.hasPoAttachment"
+                size="sm"
+                variant="secondary"
+                (clicked)="viewPoAttachment(note.id, note.poAttachmentFileName)">
+                View PO
+              </app-button>
+              <app-button
+                *ngIf="note.hasVesselPaymentInvoiceAttachment"
+                size="sm"
+                variant="secondary"
+                (clicked)="viewVesselPaymentAttachment(note.id, note.vesselPaymentInvoiceAttachmentFileName)">
+                View Invoice
+              </app-button>
               <app-button size="sm" variant="secondary" (clicked)="edit(note)">Edit</app-button>
+              <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(note)">Delete</app-button>
               <app-button
                 size="sm"
                 variant="secondary"
                 [disabled]="!!note.invoiceNo || note.cashPayment > 0"
                 (clicked)="createInvoice(note)">Create Invoice</app-button>
               <app-button size="sm" variant="secondary" (clicked)="export(note)">PDF</app-button>
-              <app-button size="sm" variant="danger" (clicked)="confirmDelete(note)">Delete</app-button>
             </td>
           </tr>
         </tbody>
@@ -134,11 +148,47 @@ import { PortalApiService } from '../../services/portal-api.service';
                 <option *ngFor="let customer of customers()" [value]="customer.id">{{ customer.name }}</option>
               </select>
             </label>
-            <label>PO Number (Optional) <input type="text" formControlName="poNumber"></label>
+            <label>PO Number (Optional) <input type="text" formControlName="poNumber" (input)="onPoNumberChange()"></label>
           </div>
 
-          <div class="two-col">
-            <label>Vessel Payment
+          <div class="attachment-field" *ngIf="hasPoNumberValue()">
+            <span class="attachment-label">Attach PO</span>
+            <input
+              #poAttachmentInput
+              class="file-input"
+              type="file"
+              accept=".pdf,image/png,image/jpeg,image/webp,image/gif"
+              (change)="onPoAttachmentPicked($event)">
+            <button
+              type="button"
+              class="attachment-dropzone"
+              [class.dragging]="poAttachmentDragActive()"
+              [class.uploading]="attachmentUploading()"
+              (click)="openPoAttachmentPicker()"
+              (dragover)="onPoAttachmentDragOver($event)"
+              (dragleave)="onPoAttachmentDragLeave($event)"
+              (drop)="onPoAttachmentDrop($event)">
+              <ng-container *ngIf="pendingPoAttachmentLabel() as pendingLabel; else existingPoAttachmentState">
+                <span>{{ pendingLabel }}</span>
+                <small>This file will be uploaded when you save the delivery note.</small>
+                <button type="button" class="attachment-remove" (click)="clearPendingPoAttachment($event)">Remove selection</button>
+              </ng-container>
+              <ng-template #existingPoAttachmentState>
+                <ng-container *ngIf="currentPoAttachment() as attachment; else emptyPoAttachmentState">
+                  <span>{{ attachment.fileName }}</span>
+                  <small>{{ formatAttachmentSize(attachment.sizeBytes) }} | Existing uploaded PO</small>
+                  <button type="button" class="attachment-view" (click)="viewCurrentPoAttachment($event)">View uploaded PO</button>
+                </ng-container>
+              </ng-template>
+              <ng-template #emptyPoAttachmentState>
+                <span>{{ attachmentUploading() ? 'Uploading PO...' : 'Drag and drop PO here' }}</span>
+                <small>or click to browse (PDF, PNG, JPG, WEBP, GIF up to 10MB)</small>
+              </ng-template>
+            </button>
+          </div>
+
+        <div class="two-col">
+          <label>Vessel Payment
               <select formControlName="hasVesselPayment" (change)="onVesselPaymentChange($event)">
                 <option value="No">No</option>
                 <option value="Yes">Yes</option>
@@ -154,6 +204,23 @@ import { PortalApiService } from '../../services/portal-api.service';
           <small class="field-error" *ngIf="form.controls.hasVesselPayment.value === 'Yes' && form.controls.vesselId.invalid && form.controls.vesselId.touched">
             Please select a courier when vessel payment is Yes.
           </small>
+          <div class="payment-callout" *ngIf="form.controls.hasVesselPayment.value === 'Yes'">
+            <div>
+              <strong>Vessel payment details</strong>
+              <span *ngIf="hasVesselPaymentDetails(); else missingVesselPaymentDetails">
+                Fee: {{ form.controls.vesselPaymentFee.value | appCurrency: form.controls.currency.value }} | Invoice No: {{ form.controls.vesselPaymentInvoiceNumber.value }}
+              </span>
+              <ng-template #missingVesselPaymentDetails>
+                <span>Fee and vessel payment invoice number are required.</span>
+              </ng-template>
+              <span *ngIf="selectedAttachmentLabel() as attachmentLabel">
+                Attachment: {{ attachmentLabel }}
+              </span>
+            </div>
+            <app-button size="sm" variant="secondary" (clicked)="openVesselPaymentDialog()">
+              {{ hasVesselPaymentDetails() ? 'Edit Details' : 'Add Details' }}
+            </app-button>
+          </div>
 
           <label>Notes <textarea rows="2" formControlName="notes"></textarea></label>
 
@@ -197,15 +264,85 @@ import { PortalApiService } from '../../services/portal-api.service';
       </app-card>
     </div>
 
+    <div class="drawer nested-drawer" *ngIf="vesselPaymentDialogOpen()">
+      <app-card class="vessel-payment-card">
+        <h3>Vessel Payment Details</h3>
+        <div [formGroup]="form" class="form-grid">
+          <label>Vessel Payment Fee
+            <input type="number" formControlName="vesselPaymentFee" step="0.01" placeholder="0.00">
+          </label>
+          <small class="field-error" *ngIf="form.controls.vesselPaymentFee.touched && form.controls.vesselPaymentFee.invalid">
+            Enter a vessel payment fee greater than 0.
+          </small>
+
+          <label>Vessel Payment Invoice Number
+            <input type="text" formControlName="vesselPaymentInvoiceNumber" placeholder="Enter invoice number">
+          </label>
+          <small class="field-error" *ngIf="form.controls.vesselPaymentInvoiceNumber.touched && form.controls.vesselPaymentInvoiceNumber.invalid">
+            Enter the vessel payment invoice number.
+          </small>
+
+          <div class="attachment-field">
+            <span class="attachment-label">Attach Invoice</span>
+            <input
+              #vesselPaymentAttachmentInput
+              class="file-input"
+              type="file"
+              accept=".pdf,image/png,image/jpeg,image/webp,image/gif"
+              (change)="onVesselPaymentAttachmentPicked($event)">
+            <button
+              type="button"
+              class="attachment-dropzone"
+              [class.dragging]="attachmentDragActive()"
+              [class.uploading]="attachmentUploading()"
+              (click)="openVesselPaymentAttachmentPicker()"
+              (dragover)="onAttachmentDragOver($event)"
+              (dragleave)="onAttachmentDragLeave($event)"
+              (drop)="onAttachmentDrop($event)">
+              <ng-container *ngIf="pendingAttachmentLabel() as pendingLabel; else existingAttachmentState">
+                <span>{{ pendingLabel }}</span>
+                <small>This file will be uploaded when you save the delivery note.</small>
+                <button type="button" class="attachment-remove" (click)="clearPendingVesselPaymentAttachment($event)">Remove selection</button>
+              </ng-container>
+              <ng-template #existingAttachmentState>
+                <ng-container *ngIf="currentAttachment() as attachment; else emptyAttachmentState">
+                  <span>{{ attachment.fileName }}</span>
+                  <small>{{ formatAttachmentSize(attachment.sizeBytes) }} | Existing uploaded invoice</small>
+                  <button type="button" class="attachment-view" (click)="viewCurrentAttachment($event)">View uploaded invoice</button>
+                </ng-container>
+              </ng-template>
+              <ng-template #emptyAttachmentState>
+                <span>{{ attachmentUploading() ? 'Uploading invoice...' : 'Drag and drop invoice here' }}</span>
+                <small>or click to browse (PDF, PNG, JPG, WEBP, GIF up to 10MB)</small>
+              </ng-template>
+            </button>
+          </div>
+
+          <div class="form-actions">
+            <app-button variant="secondary" (clicked)="closeVesselPaymentDialog()">Close</app-button>
+            <app-button (clicked)="saveVesselPaymentDialog()">Save Details</app-button>
+          </div>
+        </div>
+      </app-card>
+    </div>
+
     <div class="drawer" *ngIf="selectedNote()">
       <app-card>
         <h3>Delivery Note Details</h3>
         <p><strong>DN No:</strong> {{ selectedNote()?.deliveryNoteNo }}</p>
         <p><strong>PO No:</strong> {{ selectedNote()?.poNumber || '-' }}</p>
+        <p *ngIf="selectedNote()?.hasPoAttachment">
+          <strong>Attached PO:</strong> {{ selectedNote()?.poAttachmentFileName }}
+        </p>
         <p><strong>Date:</strong> {{ selectedNote()?.date }}</p>
         <p><strong>Currency:</strong> {{ selectedNote()?.currency }}</p>
         <p><strong>Customer:</strong> {{ selectedNote()?.customerName }}</p>
         <p><strong>Courier:</strong> {{ selectedNote()?.vesselName || '-' }}</p>
+        <p><strong>Vessel Payment Fee:</strong> {{ (selectedNote()?.vesselPaymentFee || 0) | appCurrency: (selectedNote()?.currency || 'MVR') }}</p>
+        <p><strong>Vessel Payment Invoice No:</strong> {{ selectedNote()?.vesselPaymentInvoiceNumber || '-' }}</p>
+        <p *ngIf="selectedNote()?.hasVesselPaymentInvoiceAttachment">
+          <strong>Attached Invoice:</strong> {{ selectedNote()?.vesselPaymentInvoiceAttachmentFileName }}
+        </p>
         <p><strong>Total:</strong> {{ selectedNote()?.totalAmount || 0 | appCurrency: (selectedNote()?.currency || 'MVR') }}</p>
         <div class="detail-items">
           <div *ngFor="let item of selectedNote()?.items">
@@ -213,6 +350,18 @@ import { PortalApiService } from '../../services/portal-api.service';
           </div>
         </div>
         <div class="form-actions">
+          <app-button
+            *ngIf="selectedNote()?.hasPoAttachment"
+            variant="secondary"
+            (clicked)="viewPoAttachment(selectedNote()!.id, selectedNote()?.poAttachmentFileName)">
+            View Uploaded PO
+          </app-button>
+          <app-button
+            *ngIf="selectedNote()?.hasVesselPaymentInvoiceAttachment"
+            variant="secondary"
+            (clicked)="viewVesselPaymentAttachment(selectedNote()!.id, selectedNote()?.vesselPaymentInvoiceAttachmentFileName)">
+            View Uploaded Invoice
+          </app-button>
           <app-button variant="secondary" (clicked)="selectedNote.set(null)">Close</app-button>
         </div>
       </app-card>
@@ -222,7 +371,7 @@ import { PortalApiService } from '../../services/portal-api.service';
       [open]="deleteDialogOpen()"
       title="Delete delivery note"
       message="This action is blocked if invoice already exists for this note."
-      (cancel)="deleteDialogOpen.set(false)"
+      (cancel)="closeDeleteDialog()"
       (confirm)="deleteNote()"></app-confirm-dialog>
 
     <div class="drawer" *ngIf="clearAllDialogOpen()">
@@ -309,6 +458,31 @@ import { PortalApiService } from '../../services/portal-api.service';
       padding: .52rem .6rem;
       background: rgba(255,255,255,.92);
     }
+    .payment-callout {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      padding: .75rem .85rem;
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(245,249,255,.95), rgba(255,255,255,.92));
+    }
+    .payment-callout div {
+      display: grid;
+      gap: .18rem;
+      min-width: 0;
+    }
+    .payment-callout strong {
+      color: #283b63;
+      font-size: .84rem;
+    }
+    .payment-callout span {
+      color: var(--text-muted);
+      font-size: .79rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
     .item-section { display: flex; justify-content: space-between; align-items: center; margin-top: .4rem; }
     .item-section h4 { margin: 0; }
     .items-grid { display: grid; gap: .6rem; }
@@ -331,8 +505,85 @@ import { PortalApiService } from '../../services/portal-api.service';
       color: #c7353f;
       font-size: .78rem;
     }
+    .attachment-field {
+      display: grid;
+      gap: .3rem;
+    }
+    .attachment-label {
+      color: var(--text-muted);
+      font-size: .82rem;
+      font-family: var(--font-heading);
+      font-weight: 600;
+    }
+    .file-input {
+      display: none;
+    }
+    .attachment-dropzone {
+      border: 1px dashed #b6c8ee;
+      border-radius: 13px;
+      background: linear-gradient(150deg, rgba(245, 248, 255, .95), rgba(235, 242, 255, .9));
+      min-height: 128px;
+      padding: .78rem;
+      display: grid;
+      place-items: center;
+      gap: .38rem;
+      text-align: center;
+      color: #4f6490;
+      cursor: pointer;
+      transition: border-color .2s ease, background .2s ease, transform .2s ease;
+    }
+    .attachment-dropzone:hover {
+      border-color: #90a6e7;
+      transform: translateY(-1px);
+    }
+    .attachment-dropzone.dragging {
+      border-color: #6f84f5;
+      background: linear-gradient(150deg, rgba(228, 236, 255, .96), rgba(214, 228, 255, .9));
+    }
+    .attachment-dropzone.uploading {
+      cursor: progress;
+      opacity: .78;
+    }
+    .attachment-dropzone span {
+      font-size: .85rem;
+      font-family: var(--font-heading);
+      font-weight: 600;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .attachment-dropzone small {
+      color: #667aa4;
+      font-size: .74rem;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .attachment-remove,
+    .attachment-view {
+      margin-top: .15rem;
+      border: 1px solid #cad7f6;
+      border-radius: 9px;
+      background: #fff;
+      color: #4f6392;
+      padding: .28rem .55rem;
+      font-size: .76rem;
+      font-family: var(--font-heading);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .attachment-remove:hover,
+    .attachment-view:hover {
+      border-color: #9ab0ec;
+      background: #f5f8ff;
+    }
     .form-actions { display: flex; justify-content: flex-end; gap: .5rem; }
     .detail-items { margin: .5rem 0; display: grid; gap: .3rem; }
+    .nested-drawer {
+      z-index: 1300;
+      background: rgba(43, 54, 87, .42);
+    }
+    .vessel-payment-card {
+      width: min(460px, 100%);
+    }
     .clear-card {
       width: min(520px, 100%);
     }
@@ -360,6 +611,10 @@ import { PortalApiService } from '../../services/portal-api.service';
     @media (max-width: 700px) {
       .filters {
         grid-template-columns: 1fr;
+      }
+      .payment-callout {
+        flex-direction: column;
+        align-items: stretch;
       }
       .two-col {
         grid-template-columns: 1fr;
@@ -413,6 +668,14 @@ export class DeliveryNotesPageComponent implements OnInit {
   readonly formOpen = signal(false);
   readonly editId = signal<string | null>(null);
   readonly selectedNote = signal<DeliveryNote | null>(null);
+  readonly vesselPaymentDialogOpen = signal(false);
+  readonly poAttachmentDragActive = signal(false);
+  readonly attachmentDragActive = signal(false);
+  readonly attachmentUploading = signal(false);
+  readonly currentPoAttachment = signal<DeliveryNoteAttachment | null>(null);
+  readonly currentAttachment = signal<DeliveryNoteAttachment | null>(null);
+  readonly pendingPoAttachment = signal<File | null>(null);
+  readonly pendingVesselPaymentAttachment = signal<File | null>(null);
 
   readonly deleteDialogOpen = signal(false);
   readonly deleteTarget = signal<DeliveryNoteListItem | null>(null);
@@ -422,6 +685,12 @@ export class DeliveryNotesPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
 
+  @ViewChild('poAttachmentInput')
+  private poAttachmentInput?: ElementRef<HTMLInputElement>;
+
+  @ViewChild('vesselPaymentAttachmentInput')
+  private vesselPaymentAttachmentInput?: ElementRef<HTMLInputElement>;
+
   readonly form = this.fb.nonNullable.group({
     date: [this.today(), Validators.required],
     poNumber: [''],
@@ -429,6 +698,8 @@ export class DeliveryNotesPageComponent implements OnInit {
     customerId: ['', Validators.required],
     hasVesselPayment: ['No', Validators.required],
     vesselId: [''],
+    vesselPaymentFee: [0],
+    vesselPaymentInvoiceNumber: [''],
     notes: [''],
     items: this.fb.array([this.createItemForm()])
   });
@@ -488,7 +759,18 @@ export class DeliveryNotesPageComponent implements OnInit {
 
   openCreate(): void {
     this.editId.set(null);
-    this.form.reset({ date: this.today(), poNumber: '', currency: 'MVR', customerId: '', hasVesselPayment: 'No', vesselId: '', notes: '' });
+    this.clearAllAttachmentState();
+    this.form.reset({
+      date: this.today(),
+      poNumber: '',
+      currency: 'MVR',
+      customerId: '',
+      hasVesselPayment: 'No',
+      vesselId: '',
+      vesselPaymentFee: 0,
+      vesselPaymentInvoiceNumber: '',
+      notes: ''
+    });
     this.syncVesselValidation('No');
     this.form.setControl('items', this.fb.array([this.createItemForm()]));
     this.formOpen.set(true);
@@ -498,7 +780,8 @@ export class DeliveryNotesPageComponent implements OnInit {
     this.api.getDeliveryNoteById(note.id).subscribe({
       next: (detail) => {
         this.editId.set(note.id);
-        const hasVesselPayment = detail.items.some((item) => (item.vesselPayment || 0) > 0) ? 'Yes' : 'No';
+        const vesselPaymentFee = Number(detail.vesselPaymentFee || detail.items.reduce((sum, item) => sum + Number(item.vesselPayment || 0), 0));
+        const hasVesselPayment = vesselPaymentFee > 0 ? 'Yes' : 'No';
         this.form.reset({
           date: detail.date,
           poNumber: detail.poNumber || '',
@@ -506,8 +789,14 @@ export class DeliveryNotesPageComponent implements OnInit {
           customerId: detail.customerId,
           hasVesselPayment,
           vesselId: detail.vesselId || '',
+          vesselPaymentFee,
+          vesselPaymentInvoiceNumber: detail.vesselPaymentInvoiceNumber || '',
           notes: detail.notes || ''
         });
+        this.currentPoAttachment.set(this.mapPoAttachment(detail));
+        this.pendingPoAttachment.set(null);
+        this.currentAttachment.set(this.mapAttachment(detail));
+        this.pendingVesselPaymentAttachment.set(null);
         this.syncVesselValidation(hasVesselPayment);
         this.form.setControl('items', this.fb.array(detail.items.map((item) => this.createItemForm(item))));
         this.formOpen.set(true);
@@ -525,6 +814,8 @@ export class DeliveryNotesPageComponent implements OnInit {
 
   closeForm(): void {
     this.formOpen.set(false);
+    this.vesselPaymentDialogOpen.set(false);
+    this.clearAllAttachmentState();
   }
 
   addItem(): void {
@@ -541,9 +832,26 @@ export class DeliveryNotesPageComponent implements OnInit {
   onVesselPaymentChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value === 'Yes' ? 'Yes' : 'No';
     this.syncVesselValidation(value);
+
+    if (value === 'Yes') {
+      this.openVesselPaymentDialog();
+    }
+  }
+
+  onPoNumberChange(): void {
+    if (!this.hasPoNumberValue()) {
+      this.clearPendingPoAttachment();
+      this.poAttachmentDragActive.set(false);
+    }
   }
 
   save(): void {
+    if (this.form.controls.hasVesselPayment.value === 'Yes' && !this.hasVesselPaymentDetails()) {
+      this.form.controls.vesselPaymentFee.markAsTouched();
+      this.form.controls.vesselPaymentInvoiceNumber.markAsTouched();
+      this.openVesselPaymentDialog();
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.toast.error('Please fill all required delivery note fields.');
@@ -551,12 +859,19 @@ export class DeliveryNotesPageComponent implements OnInit {
     }
 
     const raw = this.form.getRawValue();
+    const poNumber = raw.poNumber?.trim() || null;
+    if (!poNumber) {
+      this.clearPendingPoAttachment();
+    }
+
     const payload = {
       date: raw.date,
-      poNumber: raw.poNumber || null,
+      poNumber,
       currency: raw.currency,
       customerId: raw.customerId,
       vesselId: raw.vesselId || null,
+      vesselPaymentFee: Number(raw.vesselPaymentFee || 0),
+      vesselPaymentInvoiceNumber: raw.vesselPaymentInvoiceNumber?.trim() || null,
       notes: raw.notes || null,
       items: raw.items.map((item) => ({
         details: item.details,
@@ -570,12 +885,17 @@ export class DeliveryNotesPageComponent implements OnInit {
     const request$ = this.editId()
       ? this.api.updateDeliveryNote(this.editId()!, payload)
       : this.api.createDeliveryNote(payload);
+    const isEditing = !!this.editId();
 
     request$.subscribe({
-      next: () => {
-        this.toast.success(`Delivery note ${this.editId() ? 'updated' : 'created'} successfully.`);
-        this.formOpen.set(false);
-        this.reload();
+      next: (detail) => {
+        if (this.pendingVesselPaymentAttachment() || this.pendingPoAttachment()) {
+          this.editId.set(detail.id);
+          void this.uploadPendingAttachments(detail, isEditing);
+          return;
+        }
+
+        this.completeSave(detail, `Delivery note ${isEditing ? 'updated' : 'created'} successfully.`);
       },
       error: (error) => this.toast.error(this.readError(error, 'Unable to save delivery note.'))
     });
@@ -608,6 +928,148 @@ export class DeliveryNotesPageComponent implements OnInit {
     this.deleteDialogOpen.set(true);
   }
 
+  openVesselPaymentDialog(): void {
+    this.vesselPaymentDialogOpen.set(true);
+  }
+
+  closeVesselPaymentDialog(): void {
+    this.vesselPaymentDialogOpen.set(false);
+  }
+
+  saveVesselPaymentDialog(): void {
+    this.form.controls.vesselPaymentFee.markAsTouched();
+    this.form.controls.vesselPaymentInvoiceNumber.markAsTouched();
+
+    if (this.form.controls.vesselPaymentFee.invalid || this.form.controls.vesselPaymentInvoiceNumber.invalid) {
+      return;
+    }
+
+    this.closeVesselPaymentDialog();
+  }
+
+  openPoAttachmentPicker(): void {
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    this.poAttachmentInput?.nativeElement.click();
+  }
+
+  onPoAttachmentPicked(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.item(0);
+    if (!file) {
+      return;
+    }
+
+    this.setPendingPoAttachment(file);
+  }
+
+  onPoAttachmentDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    this.poAttachmentDragActive.set(true);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  onPoAttachmentDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.poAttachmentDragActive.set(false);
+  }
+
+  onPoAttachmentDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.poAttachmentDragActive.set(false);
+
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    const file = event.dataTransfer?.files?.item(0);
+    if (!file) {
+      this.toast.error('Drop a PDF or image PO file.');
+      return;
+    }
+
+    this.setPendingPoAttachment(file);
+  }
+
+  clearPendingPoAttachment(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.pendingPoAttachment.set(null);
+    this.resetPoAttachmentInput();
+  }
+
+  openVesselPaymentAttachmentPicker(): void {
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    this.vesselPaymentAttachmentInput?.nativeElement.click();
+  }
+
+  onVesselPaymentAttachmentPicked(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.item(0);
+    if (!file) {
+      return;
+    }
+
+    this.setPendingVesselPaymentAttachment(file);
+  }
+
+  onAttachmentDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    this.attachmentDragActive.set(true);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  onAttachmentDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.attachmentDragActive.set(false);
+  }
+
+  onAttachmentDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.attachmentDragActive.set(false);
+
+    if (this.attachmentUploading()) {
+      return;
+    }
+
+    const file = event.dataTransfer?.files?.item(0);
+    if (!file) {
+      this.toast.error('Drop a PDF or image invoice file.');
+      return;
+    }
+
+    this.setPendingVesselPaymentAttachment(file);
+  }
+
+  clearPendingVesselPaymentAttachment(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.pendingVesselPaymentAttachment.set(null);
+    this.resetAttachmentInput();
+  }
+
+  closeDeleteDialog(): void {
+    this.deleteDialogOpen.set(false);
+    this.deleteTarget.set(null);
+  }
+
   deleteNote(): void {
     const target = this.deleteTarget();
     if (!target) {
@@ -617,7 +1079,7 @@ export class DeliveryNotesPageComponent implements OnInit {
     this.api.deleteDeliveryNote(target.id).subscribe({
       next: () => {
         this.toast.success('Delivery note deleted.');
-        this.deleteDialogOpen.set(false);
+        this.closeDeleteDialog();
         this.reload();
       },
       error: (error) => this.toast.error(this.readError(error, 'Unable to delete delivery note.'))
@@ -707,12 +1169,25 @@ export class DeliveryNotesPageComponent implements OnInit {
 
   private syncVesselValidation(value: 'Yes' | 'No'): void {
     const vesselControl = this.form.controls.vesselId;
+    const vesselPaymentFeeControl = this.form.controls.vesselPaymentFee;
+    const vesselPaymentInvoiceNumberControl = this.form.controls.vesselPaymentInvoiceNumber;
     if (value === 'Yes') {
       vesselControl.addValidators(Validators.required);
+      vesselPaymentFeeControl.setValidators([Validators.required, Validators.min(0.01)]);
+      vesselPaymentInvoiceNumberControl.setValidators([Validators.required, Validators.maxLength(100)]);
     } else {
       vesselControl.clearValidators();
+      vesselPaymentFeeControl.clearValidators();
+      vesselPaymentInvoiceNumberControl.clearValidators();
+      vesselPaymentFeeControl.setValue(0);
+      vesselPaymentInvoiceNumberControl.setValue('');
+      this.vesselPaymentDialogOpen.set(false);
+      this.clearPendingVesselPaymentAttachment();
+      this.attachmentDragActive.set(false);
     }
     vesselControl.updateValueAndValidity();
+    vesselPaymentFeeControl.updateValueAndValidity();
+    vesselPaymentInvoiceNumberControl.updateValueAndValidity();
   }
 
   private today(): string {
@@ -724,6 +1199,76 @@ export class DeliveryNotesPageComponent implements OnInit {
     return selected?.label ?? 'selected date range';
   }
 
+  hasVesselPaymentDetails(): boolean {
+    return Number(this.form.controls.vesselPaymentFee.value || 0) > 0
+      && !!this.form.controls.vesselPaymentInvoiceNumber.value?.trim();
+  }
+
+  hasPoNumberValue(): boolean {
+    return !!this.form.controls.poNumber.value?.trim();
+  }
+
+  pendingPoAttachmentLabel(): string | null {
+    const file = this.pendingPoAttachment();
+    if (!file) {
+      return null;
+    }
+
+    return `${file.name} (${this.formatAttachmentSize(file.size)})`;
+  }
+
+  pendingAttachmentLabel(): string | null {
+    const file = this.pendingVesselPaymentAttachment();
+    if (!file) {
+      return null;
+    }
+
+    return `${file.name} (${this.formatAttachmentSize(file.size)})`;
+  }
+
+  selectedAttachmentLabel(): string | null {
+    return this.pendingAttachmentLabel()
+      ?? (this.currentAttachment() ? `${this.currentAttachment()!.fileName} (${this.formatAttachmentSize(this.currentAttachment()!.sizeBytes)})` : null);
+  }
+
+  viewCurrentPoAttachment(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const noteId = this.editId() || this.selectedNote()?.id;
+    if (!noteId) {
+      return;
+    }
+
+    this.viewPoAttachment(noteId, this.currentPoAttachment()?.fileName);
+  }
+
+  viewCurrentAttachment(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const noteId = this.editId() || this.selectedNote()?.id;
+    if (!noteId) {
+      return;
+    }
+
+    this.viewVesselPaymentAttachment(noteId, this.currentAttachment()?.fileName);
+  }
+
+  viewPoAttachment(noteId: string, fileName?: string | null): void {
+    this.api.viewDeliveryNotePoAttachment(noteId).subscribe({
+      next: (file) => this.openInNewTab(file, fileName ?? 'purchase-order'),
+      error: (error) => this.toast.error(this.readError(error, 'Failed to load PO attachment.'))
+    });
+  }
+
+  viewVesselPaymentAttachment(noteId: string, fileName?: string | null): void {
+    this.api.viewDeliveryNoteVesselPaymentAttachment(noteId).subscribe({
+      next: (file) => this.openInNewTab(file, fileName ?? 'vessel-payment-invoice'),
+      error: (error) => this.toast.error(this.readError(error, 'Failed to load vessel payment invoice attachment.'))
+    });
+  }
+
   private download(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -731,6 +1276,189 @@ export class DeliveryNotesPageComponent implements OnInit {
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  private async uploadPendingAttachments(detail: DeliveryNote, isEditing: boolean): Promise<void> {
+    this.attachmentUploading.set(true);
+
+    try {
+      let poAttachment = this.mapPoAttachment(detail);
+      let vesselAttachment = this.mapAttachment(detail);
+      const uploadedLabels: string[] = [];
+
+      const pendingPoAttachment = this.pendingPoAttachment();
+      if (pendingPoAttachment) {
+        poAttachment = await firstValueFrom(this.api.uploadDeliveryNotePoAttachment(detail.id, pendingPoAttachment));
+        this.currentPoAttachment.set(poAttachment);
+        this.pendingPoAttachment.set(null);
+        this.resetPoAttachmentInput();
+        uploadedLabels.push('PO attachment');
+      }
+
+      const pendingVesselAttachment = this.pendingVesselPaymentAttachment();
+      if (pendingVesselAttachment) {
+        vesselAttachment = await firstValueFrom(this.api.uploadDeliveryNoteVesselPaymentAttachment(detail.id, pendingVesselAttachment));
+        this.currentAttachment.set(vesselAttachment);
+        this.pendingVesselPaymentAttachment.set(null);
+        this.resetAttachmentInput();
+        uploadedLabels.push('invoice attachment');
+      }
+
+      const attachmentSummary = uploadedLabels.length === 2
+        ? 'attachments uploaded successfully.'
+        : `${uploadedLabels[0]} uploaded successfully.`;
+
+      this.completeSave(detail, `Delivery note ${isEditing ? 'updated' : 'created'} and ${attachmentSummary}`, vesselAttachment, poAttachment);
+    } catch (error) {
+      this.reload();
+      this.toast.error(this.readError(error, 'Delivery note saved, but attachment upload failed. You can retry by saving again.'));
+    } finally {
+      this.attachmentUploading.set(false);
+    }
+  }
+
+  private completeSave(
+    detail: DeliveryNote,
+    message: string,
+    attachment?: DeliveryNoteAttachment | null,
+    poAttachment?: DeliveryNoteAttachment | null): void
+  {
+    this.currentPoAttachment.set(poAttachment ?? this.mapPoAttachment(detail));
+    this.currentAttachment.set(attachment ?? this.mapAttachment(detail));
+    this.pendingPoAttachment.set(null);
+    this.pendingVesselPaymentAttachment.set(null);
+    this.resetPoAttachmentInput();
+    this.resetAttachmentInput();
+    this.toast.success(message);
+    this.vesselPaymentDialogOpen.set(false);
+    this.formOpen.set(false);
+    this.reload();
+  }
+
+  private mapPoAttachment(detail: DeliveryNote): DeliveryNoteAttachment | null {
+    if (!detail.hasPoAttachment
+      || !detail.poAttachmentFileName
+      || !detail.poAttachmentSizeBytes) {
+      return null;
+    }
+
+    return {
+      fileName: detail.poAttachmentFileName,
+      contentType: detail.poAttachmentContentType || 'application/octet-stream',
+      sizeBytes: detail.poAttachmentSizeBytes
+    };
+  }
+
+  private mapAttachment(detail: DeliveryNote): DeliveryNoteAttachment | null {
+    if (!detail.hasVesselPaymentInvoiceAttachment
+      || !detail.vesselPaymentInvoiceAttachmentFileName
+      || !detail.vesselPaymentInvoiceAttachmentSizeBytes) {
+      return null;
+    }
+
+    return {
+      fileName: detail.vesselPaymentInvoiceAttachmentFileName,
+      contentType: detail.vesselPaymentInvoiceAttachmentContentType || 'application/octet-stream',
+      sizeBytes: detail.vesselPaymentInvoiceAttachmentSizeBytes
+    };
+  }
+
+  private setPendingPoAttachment(file: File): void {
+    const error = this.validateAttachmentFile(file, 'PO');
+    if (error) {
+      this.toast.error(error);
+      this.resetPoAttachmentInput();
+      return;
+    }
+
+    this.pendingPoAttachment.set(file);
+  }
+
+  private setPendingVesselPaymentAttachment(file: File): void {
+    const error = this.validateAttachmentFile(file, 'invoice');
+    if (error) {
+      this.toast.error(error);
+      this.resetAttachmentInput();
+      return;
+    }
+
+    this.pendingVesselPaymentAttachment.set(file);
+  }
+
+  private validateAttachmentFile(file: File, label: string): string | null {
+    const maxSizeBytes = 10 * 1024 * 1024;
+    const fileName = file.name.toLowerCase();
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif'];
+    const extension = allowedExtensions.find((candidate) => fileName.endsWith(candidate));
+
+    if (!extension) {
+      return `Supported ${label} formats are PDF, PNG, JPG, WEBP, and GIF.`;
+    }
+
+    if (file.size === 0) {
+      return `Selected ${label} file is empty.`;
+    }
+
+    if (file.size > maxSizeBytes) {
+      return `${label} attachment must be 10 MB or smaller.`;
+    }
+
+    return null;
+  }
+
+  private clearAllAttachmentState(): void {
+    this.clearPoAttachmentState();
+    this.clearAttachmentState();
+  }
+
+  private clearPoAttachmentState(): void {
+    this.currentPoAttachment.set(null);
+    this.pendingPoAttachment.set(null);
+    this.poAttachmentDragActive.set(false);
+    this.resetPoAttachmentInput();
+  }
+
+  private clearAttachmentState(): void {
+    this.currentAttachment.set(null);
+    this.pendingVesselPaymentAttachment.set(null);
+    this.attachmentDragActive.set(false);
+    this.resetAttachmentInput();
+  }
+
+  private resetPoAttachmentInput(): void {
+    if (this.poAttachmentInput) {
+      this.poAttachmentInput.nativeElement.value = '';
+    }
+  }
+
+  private resetAttachmentInput(): void {
+    if (this.vesselPaymentAttachmentInput) {
+      this.vesselPaymentAttachmentInput.nativeElement.value = '';
+    }
+  }
+
+  private openInNewTab(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank', 'noopener');
+    if (!newWindow) {
+      this.download(blob, fileName);
+      return;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  formatAttachmentSize(sizeBytes: number | null | undefined): string {
+    const size = Number(sizeBytes || 0);
+    if (size <= 0) {
+      return '0 KB';
+    }
+
+    if (size >= 1024 * 1024) {
+      return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    return `${Math.max(size / 1024, 0.01).toFixed(2)} KB`;
   }
 
   private readError(error: unknown, fallback: string): string {

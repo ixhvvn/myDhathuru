@@ -37,19 +37,34 @@ public class ApplicationDbContext : DbContext
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<TenantSettings> TenantSettings => Set<TenantSettings>();
     public DbSet<DocumentSequence> DocumentSequences => Set<DocumentSequence>();
+    public DbSet<BusinessAuditLog> BusinessAuditLogs => Set<BusinessAuditLog>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerContact> CustomerContacts => Set<CustomerContact>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
     public DbSet<Vessel> Vessels => Set<Vessel>();
     public DbSet<DeliveryNote> DeliveryNotes => Set<DeliveryNote>();
     public DbSet<DeliveryNoteItem> DeliveryNoteItems => Set<DeliveryNoteItem>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
+    public DbSet<ReceivedInvoice> ReceivedInvoices => Set<ReceivedInvoice>();
+    public DbSet<ReceivedInvoiceItem> ReceivedInvoiceItems => Set<ReceivedInvoiceItem>();
+    public DbSet<ReceivedInvoicePayment> ReceivedInvoicePayments => Set<ReceivedInvoicePayment>();
+    public DbSet<ReceivedInvoiceAttachment> ReceivedInvoiceAttachments => Set<ReceivedInvoiceAttachment>();
+    public DbSet<PaymentVoucher> PaymentVouchers => Set<PaymentVoucher>();
+    public DbSet<ExpenseEntry> ExpenseEntries => Set<ExpenseEntry>();
+    public DbSet<RentEntry> RentEntries => Set<RentEntry>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<QuotationItem> QuotationItems => Set<QuotationItem>();
     public DbSet<CustomerOpeningBalance> CustomerOpeningBalances => Set<CustomerOpeningBalance>();
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<PayrollPeriod> PayrollPeriods => Set<PayrollPeriod>();
     public DbSet<PayrollEntry> PayrollEntries => Set<PayrollEntry>();
     public DbSet<SalarySlip> SalarySlips => Set<SalarySlip>();
+    public DbSet<StaffConductForm> StaffConductForms => Set<StaffConductForm>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -222,8 +237,17 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.BusinessRegistrationNumber).HasMaxLength(100);
             entity.Property(x => x.InvoicePrefix).HasMaxLength(20);
             entity.Property(x => x.DeliveryNotePrefix).HasMaxLength(20);
+            entity.Property(x => x.QuotePrefix).HasMaxLength(20);
+            entity.Property(x => x.PurchaseOrderPrefix).HasMaxLength(20);
+            entity.Property(x => x.ReceivedInvoicePrefix).HasMaxLength(20);
+            entity.Property(x => x.PaymentVoucherPrefix).HasMaxLength(20);
+            entity.Property(x => x.RentEntryPrefix).HasMaxLength(20);
+            entity.Property(x => x.WarningFormPrefix).HasMaxLength(20);
             entity.Property(x => x.StatementPrefix).HasMaxLength(20);
             entity.Property(x => x.SalarySlipPrefix).HasMaxLength(20);
+            entity.Property(x => x.IsTaxApplicable).HasDefaultValue(true);
+            entity.Property(x => x.TaxableActivityNumber).HasMaxLength(50);
+            entity.Property(x => x.IsInputTaxClaimEnabled).HasDefaultValue(true);
             entity.Property(x => x.BmlMvrAccountName).HasMaxLength(200);
             entity.Property(x => x.BmlMvrAccountNumber).HasMaxLength(100);
             entity.Property(x => x.BmlUsdAccountName).HasMaxLength(200);
@@ -242,6 +266,18 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.DocumentType, x.Year }).IsUnique();
         });
 
+        modelBuilder.Entity<BusinessAuditLog>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.PerformedAt });
+            entity.HasIndex(x => new { x.TenantId, x.ActionType });
+            entity.HasIndex(x => new { x.TenantId, x.TargetType });
+            entity.Property(x => x.ActionType).HasConversion<string>().HasMaxLength(50);
+            entity.Property(x => x.TargetType).HasMaxLength(120);
+            entity.Property(x => x.TargetId).HasMaxLength(120);
+            entity.Property(x => x.TargetName).HasMaxLength(250);
+            entity.Property(x => x.DetailsJson).HasMaxLength(4000);
+        });
+
         modelBuilder.Entity<Customer>(entity =>
         {
             entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
@@ -249,6 +285,27 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.TinNumber).HasMaxLength(100);
             entity.Property(x => x.Phone).HasMaxLength(50);
             entity.Property(x => x.Email).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.TinNumber).HasMaxLength(100);
+            entity.Property(x => x.ContactNumber).HasMaxLength(50);
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.Address).HasMaxLength(400);
+            entity.Property(x => x.Notes).HasMaxLength(600);
+        });
+
+        modelBuilder.Entity<ExpenseCategory>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(150);
+            entity.Property(x => x.Code).HasMaxLength(50);
+            entity.Property(x => x.Description).HasMaxLength(400);
+            entity.Property(x => x.BptCategoryCode).HasConversion<string>().HasMaxLength(60);
         });
 
         modelBuilder.Entity<CustomerContact>(entity =>
@@ -276,7 +333,13 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.Date });
             entity.Property(x => x.DeliveryNoteNo).HasMaxLength(50);
             entity.Property(x => x.PoNumber).HasMaxLength(100);
+            entity.Property(x => x.PoAttachmentFileName).HasMaxLength(260);
+            entity.Property(x => x.PoAttachmentContentType).HasMaxLength(150);
             entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.VesselPaymentFee).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.VesselPaymentInvoiceNumber).HasMaxLength(100);
+            entity.Property(x => x.VesselPaymentInvoiceAttachmentFileName).HasMaxLength(260);
+            entity.Property(x => x.VesselPaymentInvoiceAttachmentContentType).HasMaxLength(150);
             entity.Property(x => x.Notes).HasMaxLength(500);
             entity.HasOne(x => x.Invoice)
                 .WithOne(x => x.DeliveryNote)
@@ -299,6 +362,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.InvoiceNo }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.DateIssued });
             entity.HasIndex(x => x.CourierVesselId);
+            entity.HasIndex(x => x.QuotationId).IsUnique();
             entity.Property(x => x.InvoiceNo).HasMaxLength(50);
             entity.Property(x => x.PoNumber).HasMaxLength(100);
             entity.Property(x => x.Currency).HasMaxLength(3);
@@ -312,6 +376,10 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.CourierVessel)
                 .WithMany()
                 .HasForeignKey(x => x.CourierVesselId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Quotation)
+                .WithOne(x => x.ConvertedInvoice)
+                .HasForeignKey<Invoice>(x => x.QuotationId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -332,6 +400,206 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Notes).HasMaxLength(300);
         });
 
+        modelBuilder.Entity<ReceivedInvoice>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.InvoiceNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.InvoiceDate });
+            entity.HasIndex(x => new { x.TenantId, x.DueDate });
+            entity.HasIndex(x => new { x.TenantId, x.SupplierId });
+            entity.HasIndex(x => new { x.TenantId, x.ExpenseCategoryId });
+            entity.HasIndex(x => new { x.TenantId, x.PaymentStatus });
+            entity.Property(x => x.InvoiceNumber).HasMaxLength(60);
+            entity.Property(x => x.SupplierName).HasMaxLength(200);
+            entity.Property(x => x.SupplierTin).HasMaxLength(100);
+            entity.Property(x => x.SupplierContactNumber).HasMaxLength(50);
+            entity.Property(x => x.SupplierEmail).HasMaxLength(200);
+            entity.Property(x => x.Outlet).HasMaxLength(120);
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.GstRate).HasColumnType("numeric(10,4)");
+            entity.Property(x => x.GstAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.TotalAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.BalanceDue).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.ReceiptReference).HasMaxLength(150);
+            entity.Property(x => x.SettlementReference).HasMaxLength(150);
+            entity.Property(x => x.BankName).HasMaxLength(120);
+            entity.Property(x => x.BankAccountDetails).HasMaxLength(180);
+            entity.Property(x => x.MiraTaxableActivityNumber).HasMaxLength(50);
+            entity.Property(x => x.RevenueCapitalClassification).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.HasOne(x => x.Supplier)
+                .WithMany(x => x.ReceivedInvoices)
+                .HasForeignKey(x => x.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ExpenseCategory)
+                .WithMany(x => x.ReceivedInvoices)
+                .HasForeignKey(x => x.ExpenseCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ReceivedInvoiceItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.ReceivedInvoiceId, x.CreatedAt });
+            entity.Property(x => x.Description).HasMaxLength(400);
+            entity.Property(x => x.Uom).HasMaxLength(30);
+            entity.Property(x => x.Qty).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Rate).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.LineTotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.GstRate).HasColumnType("numeric(10,4)");
+            entity.Property(x => x.GstAmount).HasColumnType("numeric(18,2)");
+        });
+
+        modelBuilder.Entity<ReceivedInvoicePayment>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.ReceivedInvoiceId, x.PaymentDate });
+            entity.Property(x => x.Amount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Method).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Reference).HasMaxLength(150);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasOne(x => x.PaymentVoucher)
+                .WithMany(x => x.ReceivedInvoicePayments)
+                .HasForeignKey(x => x.PaymentVoucherId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ReceivedInvoiceAttachment>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.ReceivedInvoiceId, x.CreatedAt });
+            entity.Property(x => x.FileName).HasMaxLength(260);
+            entity.Property(x => x.ContentType).HasMaxLength(150);
+        });
+
+        modelBuilder.Entity<PaymentVoucher>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.VoucherNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Date });
+            entity.HasIndex(x => new { x.TenantId, x.Status });
+            entity.Property(x => x.VoucherNumber).HasMaxLength(60);
+            entity.Property(x => x.PayTo).HasMaxLength(200);
+            entity.Property(x => x.Details).HasMaxLength(600);
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.AccountNumber).HasMaxLength(120);
+            entity.Property(x => x.ChequeNumber).HasMaxLength(120);
+            entity.Property(x => x.Bank).HasMaxLength(120);
+            entity.Property(x => x.Amount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.AmountInWords).HasMaxLength(300);
+            entity.Property(x => x.ApprovedBy).HasMaxLength(150);
+            entity.Property(x => x.ReceivedBy).HasMaxLength(150);
+            entity.Property(x => x.Notes).HasMaxLength(800);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasOne(x => x.LinkedReceivedInvoice)
+                .WithMany()
+                .HasForeignKey(x => x.LinkedReceivedInvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.LinkedExpenseEntry)
+                .WithMany()
+                .HasForeignKey(x => x.LinkedExpenseEntryId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ExpenseEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.TransactionDate });
+            entity.HasIndex(x => new { x.TenantId, x.ExpenseCategoryId });
+            entity.Property(x => x.SourceType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.DocumentNumber).HasMaxLength(80);
+            entity.Property(x => x.PayeeName).HasMaxLength(200);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.NetAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.GrossAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.ClaimableTaxAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.PendingAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.ExpenseCategory)
+                .WithMany(x => x.ExpenseEntries)
+                .HasForeignKey(x => x.ExpenseCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Supplier)
+                .WithMany()
+                .HasForeignKey(x => x.SupplierId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RentEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.RentNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Date });
+            entity.HasIndex(x => new { x.TenantId, x.ExpenseCategoryId });
+            entity.Property(x => x.RentNumber).HasMaxLength(60);
+            entity.Property(x => x.PropertyName).HasMaxLength(200);
+            entity.Property(x => x.PayTo).HasMaxLength(200);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Amount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(800);
+            entity.HasOne(x => x.ExpenseCategory)
+                .WithMany(x => x.RentEntries)
+                .HasForeignKey(x => x.ExpenseCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.PurchaseOrderNo }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.DateIssued });
+            entity.HasIndex(x => x.CourierVesselId);
+            entity.Property(x => x.PurchaseOrderNo).HasMaxLength(50);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.TaxRate).HasColumnType("numeric(8,4)");
+            entity.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
+            entity.HasOne(x => x.CourierVessel)
+                .WithMany()
+                .HasForeignKey(x => x.CourierVesselId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<PurchaseOrderItem>(entity =>
+        {
+            entity.Property(x => x.Description).HasMaxLength(400);
+            entity.Property(x => x.Qty).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Rate).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Total).HasColumnType("numeric(18,2)");
+        });
+
+        modelBuilder.Entity<Quotation>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.QuotationNo }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.DateIssued });
+            entity.HasIndex(x => x.CourierVesselId);
+            entity.Property(x => x.QuotationNo).HasMaxLength(50);
+            entity.Property(x => x.PoNumber).HasMaxLength(100);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.TaxRate).HasColumnType("numeric(8,4)");
+            entity.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
+            entity.HasOne(x => x.CourierVessel)
+                .WithMany()
+                .HasForeignKey(x => x.CourierVesselId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<QuotationItem>(entity =>
+        {
+            entity.Property(x => x.Description).HasMaxLength(400);
+            entity.Property(x => x.Qty).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Rate).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.Total).HasColumnType("numeric(18,2)");
+        });
+
         modelBuilder.Entity<CustomerOpeningBalance>(entity =>
         {
             entity.HasIndex(x => new { x.TenantId, x.CustomerId, x.Year }).IsUnique();
@@ -345,6 +613,9 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.StaffId }).IsUnique();
             entity.Property(x => x.StaffId).HasMaxLength(40);
             entity.Property(x => x.StaffName).HasMaxLength(200);
+            entity.Property(x => x.IdNumber).HasMaxLength(100);
+            entity.Property(x => x.PhoneNumber).HasMaxLength(50);
+            entity.Property(x => x.Email).HasMaxLength(200);
             entity.Property(x => x.Designation).HasMaxLength(120);
             entity.Property(x => x.WorkSite).HasMaxLength(120);
             entity.Property(x => x.BankName).HasMaxLength(10);
@@ -389,6 +660,35 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.SlipNo }).IsUnique();
             entity.HasIndex(x => x.PayrollEntryId).IsUnique();
             entity.Property(x => x.SlipNo).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<StaffConductForm>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.FormNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.StaffId, x.IssueDate });
+            entity.HasIndex(x => new { x.TenantId, x.FormType, x.IssueDate });
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.IssueDate });
+            entity.Property(x => x.FormNumber).HasMaxLength(50);
+            entity.Property(x => x.FormType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Subject).HasMaxLength(200);
+            entity.Property(x => x.IncidentDetails).HasMaxLength(2000);
+            entity.Property(x => x.ActionTaken).HasMaxLength(1000);
+            entity.Property(x => x.RequiredImprovement).HasMaxLength(1000);
+            entity.Property(x => x.Severity).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.IssuedBy).HasMaxLength(150);
+            entity.Property(x => x.WitnessedBy).HasMaxLength(150);
+            entity.Property(x => x.EmployeeRemarks).HasMaxLength(1000);
+            entity.Property(x => x.ResolutionNotes).HasMaxLength(1000);
+            entity.Property(x => x.StaffCodeSnapshot).HasMaxLength(40);
+            entity.Property(x => x.StaffNameSnapshot).HasMaxLength(200);
+            entity.Property(x => x.DesignationSnapshot).HasMaxLength(120);
+            entity.Property(x => x.WorkSiteSnapshot).HasMaxLength(120);
+            entity.Property(x => x.IdNumberSnapshot).HasMaxLength(100);
+            entity.HasOne(x => x.Staff)
+                .WithMany(x => x.ConductForms)
+                .HasForeignKey(x => x.StaffId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         ApplyTenantFilters(modelBuilder);

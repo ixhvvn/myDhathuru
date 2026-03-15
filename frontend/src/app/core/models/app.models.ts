@@ -209,6 +209,157 @@ export interface ReportExportRequest {
   customerId?: string;
 }
 
+export enum MiraReportType {
+  InputTaxStatement = 1,
+  OutputTaxStatement = 2,
+  BptIncomeStatement = 3,
+  BptNotes = 4
+}
+
+export enum MiraPeriodMode {
+  Quarter = 1,
+  Year = 2,
+  CustomRange = 3
+}
+
+export interface MiraReportQuery {
+  reportType: MiraReportType;
+  periodMode: MiraPeriodMode;
+  year: number;
+  quarter?: number;
+  customStartDate?: string;
+  customEndDate?: string;
+}
+
+export interface MiraReportExportRequest extends MiraReportQuery {
+}
+
+export interface MiraReportMeta {
+  title: string;
+  periodLabel: string;
+  rangeStart: string;
+  rangeEnd: string;
+  generatedAtUtc: string;
+  taxableActivityNumber: string;
+  companyName: string;
+  companyTinNumber: string;
+  hasUsdTransactions: boolean;
+  unconvertedUsdRevenue: number;
+  unconvertedUsdExpenses: number;
+}
+
+export interface MiraInputTaxRow {
+  supplierTin: string;
+  supplierName: string;
+  supplierInvoiceNumber: string;
+  invoiceDate: string;
+  currency: string;
+  invoiceTotalExcludingGst: number;
+  gstChargedAt6: number;
+  gstChargedAt8: number;
+  gstChargedAt12: number;
+  gstChargedAt16: number;
+  gstChargedAt17: number;
+  totalGst: number;
+  taxableActivityNumber: string;
+}
+
+export interface MiraInputTaxStatement {
+  totalInvoices: number;
+  totalInvoiceBase: number;
+  totalGst6: number;
+  totalGst8: number;
+  totalGst12: number;
+  totalGst16: number;
+  totalGst17: number;
+  totalClaimableGst: number;
+  rows: MiraInputTaxRow[];
+}
+
+export interface MiraOutputTaxRow {
+  customerTin: string;
+  customerName: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  currency: string;
+  taxableSupplies: number;
+  zeroRatedSupplies: number;
+  exemptSupplies: number;
+  outOfScopeSupplies: number;
+  gstRate: number;
+  gstAmount: number;
+  taxableActivityNumber: string;
+}
+
+export interface MiraOutputTaxStatement {
+  totalInvoices: number;
+  totalTaxableSupplies: number;
+  totalZeroRatedSupplies: number;
+  totalExemptSupplies: number;
+  totalOutOfScopeSupplies: number;
+  totalTaxAmount: number;
+  rows: MiraOutputTaxRow[];
+}
+
+export interface BptIncomeLine {
+  label: string;
+  amount: number;
+}
+
+export interface BptIncomeStatement {
+  grossSales: number;
+  salesReturnsAndAllowances: number;
+  netSales: number;
+  costOfGoodsSold: number;
+  grossProfit: number;
+  operatingExpenses: BptIncomeLine[];
+  totalOperatingExpenses: number;
+  netOperatingIncome: number;
+  otherIncome: BptIncomeLine[];
+  totalOtherIncome: number;
+  netIncome: number;
+}
+
+export interface BptSalaryNoteRow {
+  staffCode: string;
+  staffName: string;
+  averageBasicPerPeriod: number;
+  averageAllowancePerPeriod: number;
+  periodCount: number;
+  totalForPeriodRange: number;
+}
+
+export interface BptExpenseNoteRow {
+  date: string;
+  documentNumber: string;
+  payeeName: string;
+  detail: string;
+  amount: number;
+}
+
+export interface BptExpenseNoteSection {
+  title: string;
+  categoryCode: number | string;
+  totalAmount: number;
+  rows: BptExpenseNoteRow[];
+}
+
+export interface BptNotes {
+  salaryRows: BptSalaryNoteRow[];
+  totalSalary: number;
+  sections: BptExpenseNoteSection[];
+}
+
+export interface MiraReportPreview {
+  reportType: MiraReportType | string;
+  meta: MiraReportMeta;
+  assumptions: string[];
+  inputTaxStatement?: MiraInputTaxStatement;
+  outputTaxStatement?: MiraOutputTaxStatement;
+  bptIncomeStatement?: BptIncomeStatement;
+  bptNotes?: BptNotes;
+}
+
 export interface BugReportRequest {
   subject: string;
   description: string;
@@ -251,12 +402,22 @@ export interface DeliveryNote {
   id: string;
   deliveryNoteNo: string;
   poNumber?: string;
+  hasPoAttachment: boolean;
+  poAttachmentFileName?: string;
+  poAttachmentContentType?: string;
+  poAttachmentSizeBytes?: number;
   date: string;
   currency: string;
   customerId: string;
   customerName: string;
   vesselId?: string;
   vesselName?: string;
+  vesselPaymentFee: number;
+  vesselPaymentInvoiceNumber?: string;
+  hasVesselPaymentInvoiceAttachment: boolean;
+  vesselPaymentInvoiceAttachmentFileName?: string;
+  vesselPaymentInvoiceAttachmentContentType?: string;
+  vesselPaymentInvoiceAttachmentSizeBytes?: number;
   notes?: string;
   invoiceNo?: string;
   invoiceId?: string;
@@ -268,6 +429,8 @@ export interface DeliveryNoteListItem {
   id: string;
   deliveryNoteNo: string;
   poNumber?: string;
+  hasPoAttachment: boolean;
+  poAttachmentFileName?: string;
   date: string;
   currency: string;
   details: string;
@@ -279,10 +442,23 @@ export interface DeliveryNoteListItem {
   invoiceNo?: string;
   cashPayment: number;
   vesselPayment: number;
+  vesselPaymentInvoiceNumber?: string;
+  hasVesselPaymentInvoiceAttachment: boolean;
+  vesselPaymentInvoiceAttachmentFileName?: string;
+}
+
+export interface DeliveryNoteAttachment {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 export type PaymentStatus = 'Unpaid' | 'Partial' | 'Paid';
-export type PaymentMethod = 'Cash' | 'Card' | 'Transfer';
+export type PaymentMethod = 'Cash' | 'Card' | 'Transfer' | 'Cheque';
+export type ApprovalStatus = 'Draft' | 'Approved' | 'Rejected';
+export type ReceivedInvoiceStatus = 'Unpaid' | 'Partial' | 'Paid' | 'Overdue';
+export type PaymentVoucherStatus = 'Draft' | 'Approved' | 'Posted' | 'Cancelled';
+export type ExpenseSourceType = 'ReceivedInvoice' | 'Rent' | 'Payroll' | 'Manual';
 
 export interface InvoiceItem {
   id?: string;
@@ -305,6 +481,8 @@ export interface InvoicePayment {
 export interface Invoice {
   id: string;
   invoiceNo: string;
+  quotationId?: string;
+  quotationNo?: string;
   poNumber?: string;
   customerId: string;
   customerName: string;
@@ -329,6 +507,8 @@ export interface Invoice {
 export interface InvoiceListItem {
   id: string;
   invoiceNo: string;
+  quotationId?: string;
+  quotationNo?: string;
   customer: string;
   courierId?: string;
   courierName?: string;
@@ -337,6 +517,334 @@ export interface InvoiceListItem {
   dateIssued: string;
   dateDue: string;
   paymentStatus: PaymentStatus;
+}
+
+export interface QuotationItem {
+  id?: string;
+  description: string;
+  qty: number;
+  rate: number;
+  total?: number;
+}
+
+export interface Quotation {
+  id: string;
+  quotationNo: string;
+  convertedInvoiceId?: string;
+  convertedInvoiceNo?: string;
+  poNumber?: string;
+  customerId: string;
+  customerName: string;
+  customerTinNumber?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  courierId?: string;
+  courierName?: string;
+  dateIssued: string;
+  validUntil: string;
+  currency: string;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  grandTotal: number;
+  notes?: string;
+  items: QuotationItem[];
+}
+
+export interface QuotationListItem {
+  id: string;
+  quotationNo: string;
+  convertedInvoiceId?: string;
+  convertedInvoiceNo?: string;
+  customer: string;
+  courierId?: string;
+  courierName?: string;
+  currency: string;
+  amount: number;
+  dateIssued: string;
+  validUntil: string;
+}
+
+export interface QuotationConversionResult {
+  invoiceId: string;
+  invoiceNo: string;
+  alreadyConverted: boolean;
+}
+
+export interface PurchaseOrderItem {
+  id?: string;
+  description: string;
+  qty: number;
+  rate: number;
+  total?: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  purchaseOrderNo: string;
+  customerId: string;
+  customerName: string;
+  customerTinNumber?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  courierId?: string;
+  courierName?: string;
+  dateIssued: string;
+  requiredDate: string;
+  currency: string;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  grandTotal: number;
+  notes?: string;
+  items: PurchaseOrderItem[];
+}
+
+export interface PurchaseOrderListItem {
+  id: string;
+  purchaseOrderNo: string;
+  customer: string;
+  courierId?: string;
+  courierName?: string;
+  currency: string;
+  amount: number;
+  dateIssued: string;
+  requiredDate: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  tinNumber?: string;
+  contactNumber?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  isActive: boolean;
+  receivedInvoiceCount: number;
+  outstandingAmount: number;
+}
+
+export interface SupplierLookup {
+  id: string;
+  name: string;
+}
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  bptCategoryCode: string;
+  isActive: boolean;
+  isSystem: boolean;
+  sortOrder: number;
+  usageCount: number;
+}
+
+export interface ExpenseCategoryLookup {
+  id: string;
+  name: string;
+  code: string;
+  bptCategoryCode: string;
+}
+
+export interface ReceivedInvoiceItem {
+  id?: string;
+  description: string;
+  uom?: string;
+  qty: number;
+  rate: number;
+  discountAmount: number;
+  lineTotal?: number;
+  gstRate: number;
+  gstAmount?: number;
+}
+
+export interface ReceivedInvoicePayment {
+  id: string;
+  paymentDate: string;
+  amount: number;
+  method: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  paymentVoucherId?: string;
+  paymentVoucherNumber?: string;
+}
+
+export interface ReceivedInvoiceAttachment {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
+export interface ReceivedInvoiceListItem {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName: string;
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  totalAmount: number;
+  balanceDue: number;
+  paymentStatus: ReceivedInvoiceStatus;
+  approvalStatus: ApprovalStatus;
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  isTaxClaimable: boolean;
+  isOverdue: boolean;
+  attachmentCount: number;
+}
+
+export interface ReceivedInvoice {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName: string;
+  supplierTin?: string;
+  supplierContactNumber?: string;
+  supplierEmail?: string;
+  invoiceDate: string;
+  dueDate: string;
+  outlet?: string;
+  description?: string;
+  notes?: string;
+  currency: string;
+  subtotal: number;
+  discountAmount: number;
+  gstRate: number;
+  gstAmount: number;
+  totalAmount: number;
+  balanceDue: number;
+  paymentStatus: ReceivedInvoiceStatus;
+  paymentMethod?: PaymentMethod;
+  receiptReference?: string;
+  settlementReference?: string;
+  bankName?: string;
+  bankAccountDetails?: string;
+  miraTaxableActivityNumber?: string;
+  revenueCapitalClassification: 'Revenue' | 'Capital';
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  isTaxClaimable: boolean;
+  approvalStatus: ApprovalStatus;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  items: ReceivedInvoiceItem[];
+  payments: ReceivedInvoicePayment[];
+  attachments: ReceivedInvoiceAttachment[];
+}
+
+export interface PaymentVoucherListItem {
+  id: string;
+  voucherNumber: string;
+  date: string;
+  payTo: string;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  status: PaymentVoucherStatus;
+  bank?: string;
+  linkedReceivedInvoiceNumber?: string;
+}
+
+export interface PaymentVoucher {
+  id: string;
+  voucherNumber: string;
+  date: string;
+  payTo: string;
+  details: string;
+  paymentMethod: PaymentMethod;
+  accountNumber?: string;
+  chequeNumber?: string;
+  bank?: string;
+  amount: number;
+  amountInWords: string;
+  approvedBy?: string;
+  receivedBy?: string;
+  linkedReceivedInvoiceId?: string;
+  linkedReceivedInvoiceNumber?: string;
+  linkedExpenseEntryId?: string;
+  linkedExpenseDocumentNumber?: string;
+  notes?: string;
+  status: PaymentVoucherStatus;
+  approvedAt?: string;
+  postedAt?: string;
+}
+
+export interface ExpenseLedgerRow {
+  sourceType: ExpenseSourceType;
+  sourceId: string;
+  documentNumber: string;
+  transactionDate: string;
+  expenseCategoryId?: string;
+  expenseCategoryName: string;
+  bptCategoryCode: string;
+  supplierId?: string;
+  supplierName?: string;
+  payeeName: string;
+  currency: string;
+  netAmount: number;
+  taxAmount: number;
+  grossAmount: number;
+  claimableTaxAmount: number;
+  pendingAmount: number;
+  description?: string;
+  notes?: string;
+}
+
+export interface ExpenseEntryDetail {
+  id: string;
+  documentNumber: string;
+  transactionDate: string;
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  supplierId?: string;
+  supplierName?: string;
+  payeeName: string;
+  currency: string;
+  netAmount: number;
+  taxAmount: number;
+  grossAmount: number;
+  claimableTaxAmount: number;
+  pendingAmount: number;
+  description?: string;
+  notes?: string;
+}
+
+export interface ExpenseSummaryBucket {
+  label: string;
+  netAmount: number;
+  taxAmount: number;
+  grossAmount: number;
+}
+
+export interface ExpenseSummary {
+  totalNetAmount: number;
+  totalTaxAmount: number;
+  totalGrossAmount: number;
+  totalPendingAmount: number;
+  byCategory: ExpenseSummaryBucket[];
+  byMonth: ExpenseSummaryBucket[];
+}
+
+export interface RentEntryListItem {
+  id: string;
+  rentNumber: string;
+  date: string;
+  propertyName: string;
+  payTo: string;
+  currency: string;
+  amount: number;
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  approvalStatus: ApprovalStatus;
+}
+
+export interface RentEntry extends RentEntryListItem {
+  notes?: string;
 }
 
 export interface StatementRow {
@@ -372,6 +880,10 @@ export interface Staff {
   id: string;
   staffId: string;
   staffName: string;
+  idNumber?: string;
+  phoneNumber?: string;
+  email?: string;
+  hiredDate?: string;
   designation?: string;
   workSite?: string;
   bankName?: 'BML' | 'MIB';
@@ -389,6 +901,10 @@ export interface PayrollEntry {
   staffId: string;
   staffCode: string;
   staffName: string;
+  idNumber?: string;
+  phoneNumber?: string;
+  email?: string;
+  hiredDate?: string;
   designation?: string;
   workSite?: string;
   bankName?: 'BML' | 'MIB';
@@ -438,6 +954,10 @@ export interface SalarySlip {
   periodEnd: string;
   staffName: string;
   staffCode: string;
+  idNumber?: string;
+  phoneNumber?: string;
+  email?: string;
+  hiredDate?: string;
   designation?: string;
   workSite?: string;
   bankName?: 'BML' | 'MIB';
@@ -462,6 +982,58 @@ export interface SalarySlip {
   totalPayable: number;
 }
 
+export type StaffConductFormType = 'Warning' | 'Disciplinary';
+export type StaffConductSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
+export type StaffConductStatus = 'Open' | 'Acknowledged' | 'Resolved';
+
+export interface StaffConductSummary {
+  totalForms: number;
+  warningCount: number;
+  disciplinaryCount: number;
+  openCount: number;
+  acknowledgedCount: number;
+  resolvedCount: number;
+}
+
+export interface StaffConductStaffOption {
+  id: string;
+  staffId: string;
+  staffName: string;
+  designation?: string;
+  workSite?: string;
+}
+
+export interface StaffConductListItem {
+  id: string;
+  formNumber: string;
+  formType: StaffConductFormType;
+  issueDate: string;
+  incidentDate: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  designation?: string;
+  workSite?: string;
+  subject: string;
+  severity: StaffConductSeverity;
+  status: StaffConductStatus;
+  issuedBy: string;
+  isAcknowledgedByStaff: boolean;
+  followUpDate?: string;
+  resolvedDate?: string;
+}
+
+export interface StaffConductDetail extends StaffConductListItem {
+  idNumber?: string;
+  incidentDetails: string;
+  actionTaken: string;
+  requiredImprovement?: string;
+  witnessedBy?: string;
+  acknowledgedDate?: string;
+  employeeRemarks?: string;
+  resolutionNotes?: string;
+}
+
 export interface TenantSettings {
   username: string;
   companyName: string;
@@ -471,9 +1043,20 @@ export interface TenantSettings {
   businessRegistrationNumber: string;
   invoicePrefix: string;
   deliveryNotePrefix: string;
+  quotePrefix: string;
+  purchaseOrderPrefix: string;
+  receivedInvoicePrefix: string;
+  paymentVoucherPrefix: string;
+  rentEntryPrefix: string;
+  warningFormPrefix: string;
+  statementPrefix: string;
+  salarySlipPrefix: string;
+  isTaxApplicable: boolean;
   defaultTaxRate: number;
   defaultDueDays: number;
   defaultCurrency: string;
+  taxableActivityNumber: string;
+  isInputTaxClaimEnabled: boolean;
   bmlMvrAccountName: string;
   bmlMvrAccountNumber: string;
   bmlUsdAccountName: string;

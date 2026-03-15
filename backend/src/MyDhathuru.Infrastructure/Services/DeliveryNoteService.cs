@@ -75,6 +75,8 @@ public class DeliveryNoteService : IDeliveryNoteService
                 Id = x.Id,
                 DeliveryNoteNo = x.DeliveryNoteNo,
                 PoNumber = x.PoNumber,
+                HasPoAttachment = x.PoAttachmentContent != null && x.PoAttachmentSizeBytes > 0,
+                PoAttachmentFileName = x.PoAttachmentFileName,
                 Date = x.Date,
                 Currency = x.Currency,
                 Details = x.Items.OrderBy(i => i.CreatedAt).Select(i => i.Details).FirstOrDefault() ?? string.Empty,
@@ -85,7 +87,10 @@ public class DeliveryNoteService : IDeliveryNoteService
                 Total = x.Items.Sum(i => i.Total),
                 InvoiceNo = x.Invoice != null ? x.Invoice.InvoiceNo : null,
                 CashPayment = x.Items.Sum(i => i.CashPayment),
-                VesselPayment = x.Items.Sum(i => i.VesselPayment)
+                VesselPayment = x.VesselPaymentFee > 0 ? x.VesselPaymentFee : x.Items.Sum(i => i.VesselPayment),
+                VesselPaymentInvoiceNumber = x.VesselPaymentInvoiceNumber,
+                HasVesselPaymentInvoiceAttachment = x.VesselPaymentInvoiceAttachmentContent != null && x.VesselPaymentInvoiceAttachmentSizeBytes > 0,
+                VesselPaymentInvoiceAttachmentFileName = x.VesselPaymentInvoiceAttachmentFileName
             })
             .ToPagedResultAsync(query, cancellationToken);
     }
@@ -129,6 +134,8 @@ public class DeliveryNoteService : IDeliveryNoteService
             Currency = NormalizeCurrency(request.Currency, settings.DefaultCurrency),
             CustomerId = customer.Id,
             VesselId = request.VesselId,
+            VesselPaymentFee = Math.Round(request.VesselPaymentFee, 2, MidpointRounding.AwayFromZero),
+            VesselPaymentInvoiceNumber = request.VesselPaymentInvoiceNumber?.Trim(),
             Notes = request.Notes?.Trim()
         };
 
@@ -183,7 +190,19 @@ public class DeliveryNoteService : IDeliveryNoteService
         note.Currency = NormalizeCurrency(request.Currency, note.Currency);
         note.CustomerId = request.CustomerId;
         note.VesselId = request.VesselId;
+        note.VesselPaymentFee = Math.Round(request.VesselPaymentFee, 2, MidpointRounding.AwayFromZero);
+        note.VesselPaymentInvoiceNumber = request.VesselPaymentInvoiceNumber?.Trim();
         note.Notes = request.Notes?.Trim();
+
+        if (!HasPoReference(note))
+        {
+            ClearPoAttachment(note);
+        }
+
+        if (!HasVesselPaymentDetails(note))
+        {
+            ClearVesselPaymentAttachment(note);
+        }
 
         foreach (var item in note.Items.ToList())
         {
@@ -273,7 +292,7 @@ public class DeliveryNoteService : IDeliveryNoteService
             DateIssued = issuedDate,
             DateDue = dueDate,
             Currency = NormalizeCurrency(note.Currency, settings.DefaultCurrency),
-            TaxRate = request.TaxRate ?? settings.DefaultTaxRate,
+            TaxRate = settings.IsTaxApplicable ? request.TaxRate ?? settings.DefaultTaxRate : 0m,
             Notes = request.Notes?.Trim()
         };
 
@@ -303,23 +322,157 @@ public class DeliveryNoteService : IDeliveryNoteService
         };
     }
 
+    public async Task<DeliveryNoteAttachmentDto> UploadVesselPaymentInvoiceAttachmentAsync(
+        Guid id,
+        string fileName,
+        string contentType,
+        byte[] content,
+        CancellationToken cancellationToken = default)
+    {
+        var note = await _dbContext.DeliveryNotes.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Delivery note not found.");
+
+        if (!HasVesselPaymentDetails(note))
+        {
+            throw new AppException("Record vessel payment details before uploading the invoice attachment.");
+        }
+
+        note.VesselPaymentInvoiceAttachmentFileName = fileName.Trim();
+        note.VesselPaymentInvoiceAttachmentContentType = contentType.Trim();
+        note.VesselPaymentInvoiceAttachmentSizeBytes = content.LongLength;
+        note.VesselPaymentInvoiceAttachmentContent = content;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new DeliveryNoteAttachmentDto
+        {
+            FileName = note.VesselPaymentInvoiceAttachmentFileName,
+            ContentType = note.VesselPaymentInvoiceAttachmentContentType,
+            SizeBytes = note.VesselPaymentInvoiceAttachmentSizeBytes ?? content.LongLength
+        };
+    }
+
+    public async Task<DeliveryNoteAttachmentDto> UploadPoAttachmentAsync(
+        Guid id,
+        string fileName,
+        string contentType,
+        byte[] content,
+        CancellationToken cancellationToken = default)
+    {
+        var note = await _dbContext.DeliveryNotes.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Delivery note not found.");
+
+        if (!HasPoReference(note))
+        {
+            throw new AppException("Enter a PO number before uploading the PO attachment.");
+        }
+
+        note.PoAttachmentFileName = fileName.Trim();
+        note.PoAttachmentContentType = contentType.Trim();
+        note.PoAttachmentSizeBytes = content.LongLength;
+        note.PoAttachmentContent = content;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new DeliveryNoteAttachmentDto
+        {
+            FileName = note.PoAttachmentFileName,
+            ContentType = note.PoAttachmentContentType,
+            SizeBytes = note.PoAttachmentSizeBytes ?? content.LongLength
+        };
+    }
+
+    public async Task<DeliveryNoteAttachmentFileDto> GetPoAttachmentAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var note = await _dbContext.DeliveryNotes
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new
+            {
+                x.PoAttachmentFileName,
+                x.PoAttachmentContentType,
+                x.PoAttachmentSizeBytes,
+                x.PoAttachmentContent
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Delivery note not found.");
+
+        if (note.PoAttachmentContent is null
+            || note.PoAttachmentContent.Length == 0
+            || string.IsNullOrWhiteSpace(note.PoAttachmentFileName))
+        {
+            throw new NotFoundException("PO attachment not found.");
+        }
+
+        return new DeliveryNoteAttachmentFileDto
+        {
+            FileName = note.PoAttachmentFileName,
+            ContentType = string.IsNullOrWhiteSpace(note.PoAttachmentContentType)
+                ? "application/octet-stream"
+                : note.PoAttachmentContentType,
+            SizeBytes = note.PoAttachmentSizeBytes ?? note.PoAttachmentContent.LongLength,
+            Content = note.PoAttachmentContent
+        };
+    }
+
+    public async Task<DeliveryNoteAttachmentFileDto> GetVesselPaymentInvoiceAttachmentAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var note = await _dbContext.DeliveryNotes
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new
+            {
+                x.VesselPaymentInvoiceAttachmentFileName,
+                x.VesselPaymentInvoiceAttachmentContentType,
+                x.VesselPaymentInvoiceAttachmentSizeBytes,
+                x.VesselPaymentInvoiceAttachmentContent
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Delivery note not found.");
+
+        if (note.VesselPaymentInvoiceAttachmentContent is null
+            || note.VesselPaymentInvoiceAttachmentContent.Length == 0
+            || string.IsNullOrWhiteSpace(note.VesselPaymentInvoiceAttachmentFileName))
+        {
+            throw new NotFoundException("Vessel payment invoice attachment not found.");
+        }
+
+        return new DeliveryNoteAttachmentFileDto
+        {
+            FileName = note.VesselPaymentInvoiceAttachmentFileName,
+            ContentType = string.IsNullOrWhiteSpace(note.VesselPaymentInvoiceAttachmentContentType)
+                ? "application/octet-stream"
+                : note.VesselPaymentInvoiceAttachmentContentType,
+            SizeBytes = note.VesselPaymentInvoiceAttachmentSizeBytes ?? note.VesselPaymentInvoiceAttachmentContent.LongLength,
+            Content = note.VesselPaymentInvoiceAttachmentContent
+        };
+    }
+
     public async Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var note = await GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Delivery note not found.");
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
         return _pdfExportService.BuildDeliveryNotePdf(note, settings.CompanyName, companyInfo, settings.LogoUrl);
     }
 
     private static DeliveryNoteDetailDto MapDeliveryNote(DeliveryNote note)
     {
+        var vesselPaymentTotal = note.VesselPaymentFee > 0
+            ? note.VesselPaymentFee
+            : note.Items.Sum(x => x.VesselPayment);
+
         return new DeliveryNoteDetailDto
         {
             Id = note.Id,
             DeliveryNoteNo = note.DeliveryNoteNo,
             PoNumber = note.PoNumber,
+            HasPoAttachment = note.PoAttachmentContent is { Length: > 0 },
+            PoAttachmentFileName = note.PoAttachmentFileName,
+            PoAttachmentContentType = note.PoAttachmentContentType,
+            PoAttachmentSizeBytes = note.PoAttachmentSizeBytes,
             Date = note.Date,
             Currency = note.Currency,
             CustomerId = note.CustomerId,
@@ -329,6 +482,12 @@ public class DeliveryNoteService : IDeliveryNoteService
             Notes = note.Notes,
             InvoiceId = note.InvoiceId,
             InvoiceNo = note.Invoice?.InvoiceNo,
+            VesselPaymentFee = vesselPaymentTotal,
+            VesselPaymentInvoiceNumber = note.VesselPaymentInvoiceNumber,
+            HasVesselPaymentInvoiceAttachment = note.VesselPaymentInvoiceAttachmentContent is { Length: > 0 },
+            VesselPaymentInvoiceAttachmentFileName = note.VesselPaymentInvoiceAttachmentFileName,
+            VesselPaymentInvoiceAttachmentContentType = note.VesselPaymentInvoiceAttachmentContentType,
+            VesselPaymentInvoiceAttachmentSizeBytes = note.VesselPaymentInvoiceAttachmentSizeBytes,
             TotalAmount = note.Items.Sum(x => x.Total),
             Items = note.Items.OrderBy(x => x.CreatedAt).Select(x => new DeliveryNoteItemDto
             {
@@ -395,5 +554,31 @@ public class DeliveryNoteService : IDeliveryNoteService
         }
 
         return parsed.ToString().ToUpperInvariant();
+    }
+
+    private static bool HasVesselPaymentDetails(DeliveryNote note)
+    {
+        return note.VesselPaymentFee > 0m || !string.IsNullOrWhiteSpace(note.VesselPaymentInvoiceNumber);
+    }
+
+    private static bool HasPoReference(DeliveryNote note)
+    {
+        return !string.IsNullOrWhiteSpace(note.PoNumber);
+    }
+
+    private static void ClearPoAttachment(DeliveryNote note)
+    {
+        note.PoAttachmentFileName = null;
+        note.PoAttachmentContentType = null;
+        note.PoAttachmentSizeBytes = null;
+        note.PoAttachmentContent = null;
+    }
+
+    private static void ClearVesselPaymentAttachment(DeliveryNote note)
+    {
+        note.VesselPaymentInvoiceAttachmentFileName = null;
+        note.VesselPaymentInvoiceAttachmentContentType = null;
+        note.VesselPaymentInvoiceAttachmentSizeBytes = null;
+        note.VesselPaymentInvoiceAttachmentContent = null;
     }
 }

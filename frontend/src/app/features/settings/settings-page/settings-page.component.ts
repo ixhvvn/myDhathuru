@@ -5,6 +5,7 @@ import { finalize } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
+import { AuthService } from '../../../core/services/auth.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
 import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns';
 import { PortalApiService } from '../../services/portal-api.service';
@@ -20,7 +21,8 @@ import { ToastService } from '../../../core/services/toast.service';
     <div class="grid">
       <app-card>
         <h3>Business Settings</h3>
-        <form [formGroup]="settingsForm" class="form-grid" (ngSubmit)="saveSettings()">
+        <p class="access-note" *ngIf="!isAdmin()">Only admin users can update business settings.</p>
+        <form [formGroup]="settingsForm" class="form-grid" (ngSubmit)="saveSettings()" novalidate>
           <label>
             Username
             <input formControlName="username" placeholder="Display name in sidebar profile">
@@ -79,23 +81,58 @@ import { ToastService } from '../../../core/services/toast.service';
           </div>
           <label>
             Logo URL
-            <input formControlName="logoUrl" type="url" placeholder="/logo-name.svg">
+            <input formControlName="logoUrl" type="text" placeholder="/logo-name.svg">
           </label>
 
-          <div class="two-col">
+          <div class="prefix-grid">
             <label>Invoice Prefix <input formControlName="invoicePrefix"></label>
             <label>Delivery Note Prefix <input formControlName="deliveryNotePrefix"></label>
+            <label>Quote Prefix <input formControlName="quotePrefix"></label>
+            <label>PO Prefix <input formControlName="purchaseOrderPrefix"></label>
+            <label>Received Invoice Prefix <input formControlName="receivedInvoicePrefix"></label>
+            <label>Payment Voucher Prefix <input formControlName="paymentVoucherPrefix"></label>
+            <label>Rent Prefix <input formControlName="rentEntryPrefix"></label>
+            <label>Warning Form Prefix <input formControlName="warningFormPrefix"></label>
+            <label>Statement Prefix <input formControlName="statementPrefix"></label>
+            <label>Salary Slip Prefix <input formControlName="salarySlipPrefix"></label>
           </div>
           <div class="two-col">
-            <label>Default Tax Rate <input type="number" step="0.01" formControlName="defaultTaxRate"></label>
+            <label>
+              Tax Applicable
+              <select formControlName="isTaxApplicable">
+                <option [ngValue]="true">Yes</option>
+                <option [ngValue]="false">No</option>
+              </select>
+            </label>
             <label>Default Due Days <input type="number" formControlName="defaultDueDays"></label>
           </div>
-          <label>Default Currency
-            <select formControlName="defaultCurrency">
-              <option value="MVR">MVR</option>
-              <option value="USD">USD</option>
-            </select>
-          </label>
+          <div class="two-col">
+            <ng-container *ngIf="settingsForm.controls.isTaxApplicable.value; else taxDisabledState">
+              <label>Default Tax Rate <input type="number" step="0.01" formControlName="defaultTaxRate"></label>
+            </ng-container>
+            <ng-template #taxDisabledState>
+              <div class="setting-callout">
+                <strong>Tax is disabled</strong>
+                <span>Invoices, reports, exports, and stored invoice tax values will stay tax-free.</span>
+              </div>
+            </ng-template>
+            <label>Default Currency
+              <select formControlName="defaultCurrency">
+                <option value="MVR">MVR</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+          </div>
+          <div class="two-col">
+            <label>Taxable Activity Number <input formControlName="taxableActivityNumber"></label>
+            <label class="checkbox-inline">
+              <span>Input Tax Claim Enabled</span>
+              <select formControlName="isInputTaxClaimEnabled">
+                <option [ngValue]="true">Yes</option>
+                <option [ngValue]="false">No</option>
+              </select>
+            </label>
+          </div>
 
           <div class="bank-section">
             <h4>BML Accounts</h4>
@@ -134,14 +171,14 @@ import { ToastService } from '../../../core/services/toast.service';
           </div>
 
           <div class="actions">
-            <app-button type="submit">Save Settings</app-button>
+            <app-button type="submit" [disabled]="!isAdmin()">Save Settings</app-button>
           </div>
         </form>
       </app-card>
 
       <app-card>
         <h3>Change Password</h3>
-        <form [formGroup]="passwordForm" class="form-grid" (ngSubmit)="changePassword()">
+        <form [formGroup]="passwordForm" class="form-grid" (ngSubmit)="changePassword()" novalidate>
           <label>Current Password <input type="password" formControlName="currentPassword"></label>
           <label>New Password <input type="password" formControlName="newPassword"></label>
           <label>Confirm Password <input type="password" formControlName="confirmPassword"></label>
@@ -156,7 +193,13 @@ import { ToastService } from '../../../core/services/toast.service';
     .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: .9rem; }
     .form-grid { display: grid; gap: .78rem; }
     .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+    .three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+    .prefix-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
     label { display: grid; gap: .2rem; font-size: .82rem; color: var(--text-muted); align-content: start; }
+    .checkbox-inline {
+      display: grid;
+      gap: .2rem;
+    }
     .field-label {
       color: var(--text-muted);
       font-size: .82rem;
@@ -233,6 +276,35 @@ import { ToastService } from '../../../core/services/toast.service';
       background: #fff5fa;
     }
     .field-error { margin-top: .08rem; display: block; font-size: .75rem; line-height: 1.25; color: #bf2f46; }
+    .access-note {
+      margin: 0 0 .8rem;
+      padding: .6rem .7rem;
+      border-radius: 12px;
+      border: 1px solid rgba(214, 169, 82, .35);
+      background: rgba(255, 247, 226, .78);
+      color: #775112;
+      font-size: .8rem;
+      line-height: 1.4;
+    }
+    .setting-callout {
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      padding: .68rem .74rem;
+      background: rgba(246, 250, 255, .7);
+      display: grid;
+      gap: .2rem;
+      align-content: start;
+    }
+    .setting-callout strong {
+      color: var(--text-main);
+      font-size: .84rem;
+      font-family: var(--font-heading);
+    }
+    .setting-callout span {
+      color: var(--text-muted);
+      font-size: .77rem;
+      line-height: 1.4;
+    }
     input,
     select {
       border: 1px solid var(--border-soft);
@@ -263,6 +335,12 @@ import { ToastService } from '../../../core/services/toast.service';
       .two-col {
         grid-template-columns: 1fr;
       }
+      .three-col {
+        grid-template-columns: 1fr;
+      }
+      .prefix-grid {
+        grid-template-columns: 1fr;
+      }
       .actions {
         justify-content: stretch;
       }
@@ -280,6 +358,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(PortalApiService);
   private readonly toast = inject(ToastService);
+  readonly auth = inject(AuthService);
 
   readonly logoUploading = signal(false);
   readonly logoDragActive = signal(false);
@@ -296,9 +375,20 @@ export class SettingsPageComponent implements OnInit {
     businessRegistrationNumber: ['', Validators.required],
     invoicePrefix: ['', Validators.required],
     deliveryNotePrefix: ['', Validators.required],
+    quotePrefix: ['', Validators.required],
+    purchaseOrderPrefix: ['', Validators.required],
+    receivedInvoicePrefix: ['', Validators.required],
+    paymentVoucherPrefix: ['', Validators.required],
+    rentEntryPrefix: ['', Validators.required],
+    warningFormPrefix: ['', Validators.required],
+    statementPrefix: ['', Validators.required],
+    salarySlipPrefix: ['', Validators.required],
+    isTaxApplicable: [true, Validators.required],
     defaultTaxRate: [0.08, Validators.required],
     defaultDueDays: [7, Validators.required],
     defaultCurrency: ['MVR', Validators.required],
+    taxableActivityNumber: [''],
+    isInputTaxClaimEnabled: [true, Validators.required],
     bmlMvrAccountName: [''],
     bmlMvrAccountNumber: [''],
     bmlUsdAccountName: [''],
@@ -319,19 +409,33 @@ export class SettingsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.settingsForm.controls.isTaxApplicable.valueChanges.subscribe((isTaxApplicable) => {
+      this.syncTaxConfiguration(isTaxApplicable);
+    });
+
     this.api.getSettings().subscribe({
       next: (settings) => {
         this.settingsForm.reset({
           ...settings,
           logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl)
         });
+        this.syncTaxConfiguration(settings.isTaxApplicable);
         this.persistUsername(settings.username ?? '');
       },
       error: () => this.toast.error('Failed to load settings.')
     });
   }
 
+  isAdmin(): boolean {
+    return this.auth.user()?.role === 'Admin';
+  }
+
   saveSettings(): void {
+    if (!this.isAdmin()) {
+      this.toast.error('Only admin users can update settings.');
+      return;
+    }
+
     if (this.settingsForm.invalid) {
       this.settingsForm.markAllAsTouched();
       this.toast.error('Please complete required settings fields.');
@@ -348,7 +452,9 @@ export class SettingsPageComponent implements OnInit {
     const payload = {
       ...this.settingsForm.getRawValue(),
       logoUrl,
-      defaultTaxRate: Number(this.settingsForm.controls.defaultTaxRate.value),
+      defaultTaxRate: this.settingsForm.controls.isTaxApplicable.value
+        ? Number(this.settingsForm.controls.defaultTaxRate.value)
+        : 0,
       defaultDueDays: Number(this.settingsForm.controls.defaultDueDays.value)
     };
 
@@ -358,6 +464,7 @@ export class SettingsPageComponent implements OnInit {
           ...settings,
           logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl)
         });
+        this.syncTaxConfiguration(settings.isTaxApplicable);
         this.persistUsername(settings.username ?? '');
         this.toast.success('Settings updated successfully.');
       },
@@ -580,6 +687,19 @@ export class SettingsPageComponent implements OnInit {
     return SettingsPageComponent.isPersistableLogoUrl(value)
       ? value
       : SettingsPageComponent.defaultInvoiceLogoUrl;
+  }
+
+  private syncTaxConfiguration(isTaxApplicable: boolean): void {
+    if (isTaxApplicable) {
+      if (Number(this.settingsForm.controls.defaultTaxRate.value) <= 0) {
+        this.settingsForm.controls.defaultTaxRate.setValue(0.08, { emitEvent: false });
+      }
+      return;
+    }
+
+    if (Number(this.settingsForm.controls.defaultTaxRate.value) !== 0) {
+      this.settingsForm.controls.defaultTaxRate.setValue(0, { emitEvent: false });
+    }
   }
 
   private static isPreviewLogoUrl(raw: string): boolean {

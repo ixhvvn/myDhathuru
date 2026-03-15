@@ -54,6 +54,14 @@ public class InvoicesController : BaseApiController
         return OkResponse(result, "Invoice updated.");
     }
 
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _invoiceService.DeleteAsync(id, cancellationToken);
+        return SuccessMessage("Invoice deleted.");
+    }
+
     [HttpPost("{id:guid}/receive-payment")]
     public async Task<ActionResult<ApiResponse<InvoicePaymentDto>>> ReceivePayment(Guid id, [FromBody] ReceiveInvoicePaymentRequest request, CancellationToken cancellationToken)
     {

@@ -54,6 +54,7 @@ public class InvoiceService : IInvoiceService
                 && (query.PaymentStatus == null || x.PaymentStatus == query.PaymentStatus)
                 && (string.IsNullOrWhiteSpace(query.Search)
                     || x.InvoiceNo.ToLower().Contains(query.Search.ToLower())
+                    || (x.Quotation != null && x.Quotation.QuotationNo.ToLower().Contains(query.Search.ToLower()))
                     || x.Customer.Name.ToLower().Contains(query.Search.ToLower())));
 
         if (createdAtRange.HasValue)
@@ -70,6 +71,8 @@ public class InvoiceService : IInvoiceService
             {
                 Id = x.Id,
                 InvoiceNo = x.InvoiceNo,
+                QuotationId = x.QuotationId,
+                QuotationNo = x.Quotation != null ? x.Quotation.QuotationNo : null,
                 Customer = x.Customer.Name,
                 CourierId = x.CourierVesselId,
                 CourierName = x.CourierVessel != null ? x.CourierVessel.Name : null,
@@ -87,6 +90,7 @@ public class InvoiceService : IInvoiceService
         var invoice = await _dbContext.Invoices
             .AsNoTracking()
             .Include(x => x.Customer)
+            .Include(x => x.Quotation)
             .Include(x => x.DeliveryNote)
             .Include(x => x.CourierVessel)
             .Include(x => x.Items)
@@ -164,7 +168,7 @@ public class InvoiceService : IInvoiceService
             DateIssued = dateIssued,
             DateDue = dueDate,
             Currency = invoiceCurrency,
-            TaxRate = request.TaxRate ?? settings.DefaultTaxRate,
+            TaxRate = ResolveTaxRate(request.TaxRate, settings),
             Notes = request.Notes?.Trim()
         };
 
@@ -277,7 +281,7 @@ public class InvoiceService : IInvoiceService
 
         invoice.CourierVesselId = courierVesselId;
         invoice.Currency = requestedCurrency;
-        invoice.TaxRate = request.TaxRate ?? settings.DefaultTaxRate;
+        invoice.TaxRate = ResolveTaxRate(request.TaxRate, settings);
         invoice.Notes = request.Notes?.Trim();
 
         foreach (var item in invoice.Items.ToList())
@@ -300,6 +304,45 @@ public class InvoiceService : IInvoiceService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return (await GetByIdAsync(invoice.Id, cancellationToken))!;
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _dbContext.Invoices
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new
+            {
+                x.Id,
+                x.DeliveryNoteId
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Invoice not found.");
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        if (invoice.DeliveryNoteId.HasValue)
+        {
+            await _dbContext.DeliveryNotes
+                .Where(x => x.Id == invoice.DeliveryNoteId.Value)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(x => x.InvoiceId, x => (Guid?)null),
+                    cancellationToken);
+        }
+
+        await _dbContext.InvoicePayments
+            .Where(x => x.InvoiceId == invoice.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.InvoiceItems
+            .Where(x => x.InvoiceId == invoice.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.Invoices
+            .Where(x => x.Id == invoice.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<InvoicePaymentDto> ReceivePaymentAsync(Guid invoiceId, ReceiveInvoicePaymentRequest request, CancellationToken cancellationToken = default)
@@ -436,7 +479,7 @@ public class InvoiceService : IInvoiceService
             ?? throw new NotFoundException("Invoice not found.");
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"{settings.BusinessRegistrationNumber}, Tin No:{settings.TinNumber} - Mobile:{settings.CompanyPhone}, Email:{settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
         var bankDetails = new InvoiceBankDetailsDto
         {
             BmlMvrAccountName = settings.BmlMvrAccountName,
@@ -450,7 +493,7 @@ public class InvoiceService : IInvoiceService
             InvoiceOwnerName = settings.InvoiceOwnerName,
             InvoiceOwnerIdCard = settings.InvoiceOwnerIdCard
         };
-        return _pdfExportService.BuildInvoicePdf(invoice, settings.CompanyName, companyInfo, bankDetails, settings.LogoUrl);
+        return _pdfExportService.BuildInvoicePdf(invoice, settings.CompanyName, companyInfo, bankDetails, settings.LogoUrl, settings.IsTaxApplicable);
     }
 
     private static void RecalculateInvoice(Invoice invoice)
@@ -469,12 +512,24 @@ public class InvoiceService : IInvoiceService
         };
     }
 
+    private static decimal ResolveTaxRate(decimal? requestedTaxRate, TenantSettings settings)
+    {
+        if (!settings.IsTaxApplicable)
+        {
+            return 0m;
+        }
+
+        return requestedTaxRate ?? settings.DefaultTaxRate;
+    }
+
     private static InvoiceDetailDto MapInvoice(Invoice invoice)
     {
         return new InvoiceDetailDto
         {
             Id = invoice.Id,
             InvoiceNo = invoice.InvoiceNo,
+            QuotationId = invoice.QuotationId,
+            QuotationNo = invoice.Quotation?.QuotationNo,
             PoNumber = invoice.PoNumber,
             CustomerId = invoice.CustomerId,
             CustomerName = invoice.Customer.Name,

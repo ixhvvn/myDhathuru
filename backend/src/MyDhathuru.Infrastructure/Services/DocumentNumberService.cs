@@ -30,6 +30,13 @@ public class DocumentNumberService : IDocumentNumberService
         {
             DocumentType.DeliveryNote => settings.DeliveryNotePrefix,
             DocumentType.Invoice => settings.InvoicePrefix,
+            DocumentType.Quotation => settings.QuotePrefix,
+            DocumentType.PurchaseOrder => settings.PurchaseOrderPrefix,
+            DocumentType.ReceivedInvoice => settings.ReceivedInvoicePrefix,
+            DocumentType.PaymentVoucher => settings.PaymentVoucherPrefix,
+            DocumentType.RentEntry => settings.RentEntryPrefix,
+            DocumentType.WarningForm => settings.WarningFormPrefix,
+            DocumentType.DisciplinaryForm => "DF",
             DocumentType.Statement => settings.StatementPrefix,
             DocumentType.SalarySlip => settings.SalarySlipPrefix,
             _ => "DOC"

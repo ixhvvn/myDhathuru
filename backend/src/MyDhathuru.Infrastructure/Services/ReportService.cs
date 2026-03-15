@@ -4,6 +4,7 @@ using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Reports.Dtos;
 using MyDhathuru.Domain.Entities;
+using MyDhathuru.Infrastructure.Extensions;
 using MyDhathuru.Infrastructure.Persistence;
 
 namespace MyDhathuru.Infrastructure.Services;
@@ -269,8 +270,9 @@ public class ReportService : IReportService
         ReportFilterQuery query,
         CancellationToken cancellationToken)
     {
+        var settings = await GetTenantSettingsAsync(cancellationToken);
         var report = await GetSalesSummaryAsync(query, cancellationToken);
-        var bytes = BuildSalesSummaryExcel(report);
+        var bytes = BuildSalesSummaryExcel(report, settings.IsTaxApplicable);
 
         return new ReportExportResultDto
         {
@@ -317,8 +319,9 @@ public class ReportService : IReportService
         string? logoUrl,
         CancellationToken cancellationToken)
     {
+        var settings = await GetTenantSettingsAsync(cancellationToken);
         var report = await GetSalesSummaryAsync(query, cancellationToken);
-        var bytes = _pdfExportService.BuildSalesSummaryReportPdf(report, companyName, companyInfo, logoUrl);
+        var bytes = _pdfExportService.BuildSalesSummaryReportPdf(report, companyName, companyInfo, logoUrl, settings.IsTaxApplicable);
 
         return new ReportExportResultDto
         {
@@ -517,7 +520,7 @@ public class ReportService : IReportService
         return date.AddDays(-offset);
     }
 
-    private static byte[] BuildSalesSummaryExcel(SalesSummaryReportDto report)
+    private static byte[] BuildSalesSummaryExcel(SalesSummaryReportDto report, bool isTaxApplicable)
     {
         using var workbook = CreateReportWorkbook();
         var sheet = workbook.Worksheets.Add("Sales Summary");
@@ -525,9 +528,15 @@ public class ReportService : IReportService
         var row = WriteWorkbookHeader(
             sheet,
             "Sales Summary Report",
-            "Daily billing performance, receipt capture, pending balances, and tax visibility.",
+            isTaxApplicable
+                ? "Daily billing performance, receipt capture, pending balances, and tax visibility."
+                : "Daily billing performance, receipt capture, and pending balances without tax.",
             report.Meta,
             8);
+
+        var finalSummaryTile = isTaxApplicable
+            ? new ExcelSummaryTile("Tax Total", $"{report.TotalTax.Mvr:N2} MVR / {report.TotalTax.Usd:N2} USD", "Reported tax across both currencies.", "#FFF8EE")
+            : new ExcelSummaryTile("Coverage Days", report.Rows.Count.ToString("N0"), "Daily rows represented in the selected range.", "#FFF8EE");
 
         row = WriteSummaryTiles(
             sheet,
@@ -541,7 +550,7 @@ public class ReportService : IReportService
                 new ExcelSummaryTile("Received (MVR)", report.TotalReceived.Mvr.ToString("N2"), "Collections captured in MVR.", "#F3FBF7"),
                 new ExcelSummaryTile("Pending (MVR)", report.TotalPending.Mvr.ToString("N2"), "Open MVR receivables.", "#FFF4F7"),
                 new ExcelSummaryTile("Received (USD)", report.TotalReceived.Usd.ToString("N2"), "Collections captured in USD.", "#EEF9FF"),
-                new ExcelSummaryTile("Tax Total", $"{report.TotalTax.Mvr:N2} MVR / {report.TotalTax.Usd:N2} USD", "Reported tax across both currencies.", "#FFF8EE")
+                finalSummaryTile
             ]);
 
         row = WriteSectionHeading(sheet, row, 1, 8, "Daily sales breakdown");
@@ -1061,8 +1070,7 @@ public class ReportService : IReportService
 
     private static string BuildCompanyInfo(TenantSettings settings)
     {
-        return
-            $"{settings.BusinessRegistrationNumber}, TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        return settings.BuildCompanyInfo(includeBusinessRegistration: true);
     }
 
     private static string BuildFileName(ReportType reportType, string extension)

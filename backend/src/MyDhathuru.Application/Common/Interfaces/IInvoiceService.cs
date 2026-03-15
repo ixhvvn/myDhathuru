@@ -9,6 +9,7 @@ public interface IInvoiceService
     Task<InvoiceDetailDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<InvoiceDetailDto> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken = default);
     Task<InvoiceDetailDto> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<InvoicePaymentDto> ReceivePaymentAsync(Guid invoiceId, ReceiveInvoicePaymentRequest request, CancellationToken cancellationToken = default);
     Task ClearAllAsync(string password, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<InvoicePaymentDto>> GetPaymentHistoryAsync(Guid invoiceId, CancellationToken cancellationToken = default);

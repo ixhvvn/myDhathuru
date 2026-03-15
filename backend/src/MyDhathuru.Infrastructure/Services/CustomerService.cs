@@ -57,7 +57,7 @@ public class CustomerService : ICustomerService
             .ToListAsync(cancellationToken);
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = $"TIN: {settings.TinNumber}, Phone: {settings.CompanyPhone}, Email: {settings.CompanyEmail}";
+        var companyInfo = settings.BuildCompanyInfo();
         return _pdfExportService.BuildCustomersPdf(customers, settings.CompanyName, companyInfo, settings.LogoUrl, query);
     }
 

@@ -15,6 +15,17 @@ public class CreateStaffRequestValidator : AbstractValidator<CreateStaffRequest>
             .MaximumLength(200)
             .Matches(ValidationPatterns.Name)
             .WithMessage("Staff name must not contain numbers.");
+        RuleFor(x => x.IdNumber).MaximumLength(100);
+        RuleFor(x => x.PhoneNumber)
+            .MaximumLength(50)
+            .Matches(ValidationPatterns.Phone)
+            .When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber))
+            .WithMessage("Phone number must be 7 to 15 digits and may start with +.");
+        RuleFor(x => x.Email)
+            .MaximumLength(200)
+            .EmailAddress()
+            .When(x => !string.IsNullOrWhiteSpace(x.Email))
+            .WithMessage("Mail must be a valid email address.");
         RuleFor(x => x.Designation).MaximumLength(120);
         RuleFor(x => x.WorkSite).MaximumLength(120);
         RuleFor(x => x.BankName)
