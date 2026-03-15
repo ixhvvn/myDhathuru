@@ -1,0 +1,1043 @@
+<section class="bpt-page">
+  <app-page-header
+    title="BPT"
+    subtitle="Generate Business Profit Tax statements from classified invoices, sales returns, other income, payroll, rent, received invoices, and approved adjustments stored in the database.">
+    <app-button
+      variant="secondary"
+      [loading]="exportLoading() === 'excel'"
+      [disabled]="!report() || reportLoading() || exportLoading() !== null"
+      (clicked)="exportStatement('excel')">Export Excel</app-button>
+    <app-button
+      variant="secondary"
+      [loading]="exportLoading() === 'pdf'"
+      [disabled]="!report() || reportLoading() || exportLoading() !== null"
+      (clicked)="exportStatement('pdf')">Export PDF</app-button>
+    <app-button
+      [loading]="reportLoading()"
+      [disabled]="exportLoading() !== null"
+      (clicked)="generateReport()">Generate Statement</app-button>
+  </app-page-header>
+
+  <app-card class="filters-card">
+    <div class="filters-grid">
+      <label>
+        Period
+        <select [value]="selectedPeriodMode()" (change)="onPeriodModeChange($event)">
+          <option *ngFor="let option of periodModes" [value]="option.value">{{ option.label }}</option>
+        </select>
+      </label>
+
+      <label>
+        Year
+        <select [value]="selectedYear()" (change)="onYearChange($event)">
+          <option *ngFor="let year of yearOptions" [value]="year">{{ year }}</option>
+        </select>
+      </label>
+
+      <label *ngIf="selectedPeriodMode() === bptPeriodMode.Quarter">
+        Quarter
+        <select [value]="selectedQuarter()" (change)="onQuarterChange($event)">
+          <option *ngFor="let option of quarterOptions" [value]="option.value">{{ option.label }}</option>
+        </select>
+      </label>
+
+      <label *ngIf="selectedPeriodMode() === bptPeriodMode.CustomRange">
+        Start Date
+        <input type="date" [value]="customStartDate()" (input)="onCustomStartInput($event)">
+      </label>
+
+      <label *ngIf="selectedPeriodMode() === bptPeriodMode.CustomRange">
+        End Date
+        <input type="date" [value]="customEndDate()" (input)="onCustomEndInput($event)">
+      </label>
+    </div>
+
+    <div class="filters-foot">
+      <div class="helper-stack">
+        <p class="helper-text">
+          The statement is built from live tenant-scoped transactions. Use the management tabs below to maintain exchange rates, explicit BPT mappings, sales returns, other income, and period adjustments.
+        </p>
+        <p class="range-pill">
+          Current range:
+          <strong>{{ selectedRangeLabel() }}</strong>
+        </p>
+      </div>
+
+      <div class="generated-meta" *ngIf="report() as current">
+        <span>{{ current.meta.periodLabel }}</span>
+        <strong>{{ current.meta.companyName }}</strong>
+        <small>Generated {{ current.meta.generatedAtUtc | date: 'medium' : '+0500' }} MVT</small>
+      </div>
+    </div>
+
+    <p class="validation-error" *ngIf="validationError()">
+      {{ validationError() }}
+    </p>
+  </app-card>
+
+  <div class="workspace-tabs" role="tablist" aria-label="BPT workspace sections">
+    <button type="button" [class.active]="activeTab() === 'summary'" (click)="setActiveTab('summary')">
+      Statement
+    </button>
+    <button type="button" [class.active]="activeTab() === 'transactions'" (click)="setActiveTab('transactions')">
+      Transactions
+      <small>{{ report()?.transactions?.length ?? 0 }}</small>
+    </button>
+    <button type="button" [class.active]="activeTab() === 'mappings'" (click)="setActiveTab('mappings')">
+      Mappings
+      <small>{{ mappings().length }}</small>
+    </button>
+    <button type="button" [class.active]="activeTab() === 'exchangeRates'" (click)="setActiveTab('exchangeRates')">
+      FX Rates
+      <small>{{ exchangeRates().length }}</small>
+    </button>
+    <button type="button" [class.active]="activeTab() === 'salesAdjustments'" (click)="setActiveTab('salesAdjustments')">
+      Sales Returns
+      <small>{{ salesAdjustments().length }}</small>
+    </button>
+    <button type="button" [class.active]="activeTab() === 'otherIncome'" (click)="setActiveTab('otherIncome')">
+      Other Income
+      <small>{{ otherIncomeEntries().length }}</small>
+    </button>
+    <button type="button" [class.active]="activeTab() === 'adjustments'" (click)="setActiveTab('adjustments')">
+      Adjustments
+      <small>{{ adjustments().length }}</small>
+    </button>
+  </div>
+
+  <app-card class="workspace-card">
+    <ng-container [ngSwitch]="activeTab()">
+      <ng-container *ngSwitchCase="'summary'">
+        <div class="workspace-head">
+          <div>
+            <h3>BPT Statement Summary</h3>
+            <p *ngIf="report(); else noSummaryMeta">
+              Review the income statement, operating expense breakdown, salary note support, and filing notes for the selected period.
+            </p>
+            <ng-template #noSummaryMeta>
+              <p>Generate the statement to preview compliance-ready BPT totals from stored classifications.</p>
+            </ng-template>
+          </div>
+          <span class="meta-chip" *ngIf="report() as current">
+            Activity No. {{ current.meta.taxableActivityNumber || '-' }}
+          </span>
+        </div>
+
+        <ng-container *ngIf="report() as current; else emptyReportTpl">
+          <div class="metric-grid">
+            <article>
+              <span>Gross Sales</span>
+              <strong>MVR {{ current.statement.grossSales | number: '1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Net Sales</span>
+              <strong>MVR {{ current.statement.netSales | number: '1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Gross Profit</span>
+              <strong>MVR {{ current.statement.grossProfit | number: '1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Operating Expenses</span>
+              <strong>MVR {{ current.statement.totalOperatingExpenses | number: '1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Other Income</span>
+              <strong>MVR {{ current.statement.totalOtherIncome | number: '1.2-2' }}</strong>
+            </article>
+            <article class="metric-good">
+              <span>Net Income</span>
+              <strong>MVR {{ current.statement.netIncome | number: '1.2-2' }}</strong>
+            </article>
+          </div>
+
+          <div class="statement-grid">
+            <article class="statement-panel">
+              <h4>Income Statement</h4>
+              <button type="button" class="statement-line actionable" (click)="drillToGroup('Revenue')">
+                <span>Gross sales</span>
+                <strong>MVR {{ current.statement.grossSales | number: '1.2-2' }}</strong>
+              </button>
+              <button type="button" class="statement-line actionable" (click)="drillToGroup('SalesReturnAllowance')">
+                <span>Sales returns and allowances</span>
+                <strong>MVR {{ current.statement.salesReturnsAndAllowances | number: '1.2-2' }}</strong>
+              </button>
+              <div class="statement-line strong">
+                <span>Net sales</span>
+                <strong>MVR {{ current.statement.netSales | number: '1.2-2' }}</strong>
+              </div>
+              <button type="button" class="statement-line actionable" (click)="drillToGroup('CostOfGoodsSold')">
+                <span>Cost of goods sold</span>
+                <strong>MVR {{ current.statement.costOfGoodsSold | number: '1.2-2' }}</strong>
+              </button>
+              <div class="statement-line strong">
+                <span>Gross profit</span>
+                <strong>MVR {{ current.statement.grossProfit | number: '1.2-2' }}</strong>
+              </div>
+              <button type="button" class="statement-line actionable" (click)="drillToGroup('OperatingExpense')">
+                <span>Total operating expenses</span>
+                <strong>MVR {{ current.statement.totalOperatingExpenses | number: '1.2-2' }}</strong>
+              </button>
+              <div class="statement-line strong">
+                <span>Net operating income</span>
+                <strong>MVR {{ current.statement.netOperatingIncome | number: '1.2-2' }}</strong>
+              </div>
+              <button type="button" class="statement-line actionable" (click)="drillToGroup('OtherIncome')">
+                <span>Total other income</span>
+                <strong>MVR {{ current.statement.totalOtherIncome | number: '1.2-2' }}</strong>
+              </button>
+              <div class="statement-line strong">
+                <span>Net income</span>
+                <strong>MVR {{ current.statement.netIncome | number: '1.2-2' }}</strong>
+              </div>
+            </article>
+
+            <article class="statement-panel">
+              <div class="panel-head">
+                <div>
+                  <h4>Cost of Goods Sold</h4>
+                  <p>Explicitly mapped categories only</p>
+                </div>
+                <strong>MVR {{ current.statement.costOfGoodsSold | number: '1.2-2' }}</strong>
+              </div>
+              <button
+                type="button"
+                class="breakdown-line"
+                *ngFor="let line of current.statement.costOfGoodsSoldLines"
+                (click)="drillToCategory(line.label)">
+                <span>{{ line.label }}</span>
+                <strong>MVR {{ line.amount | number: '1.2-2' }}</strong>
+              </button>
+              <div class="empty-line" *ngIf="current.statement.costOfGoodsSoldLines.length === 0">
+                No categories are currently mapped into cost of goods sold for this period.
+              </div>
+            </article>
+
+            <article class="statement-panel">
+              <div class="panel-head">
+                <div>
+                  <h4>Operating Expense Breakdown</h4>
+                  <p>Click a line to trace supporting transactions</p>
+                </div>
+                <strong>MVR {{ current.statement.totalOperatingExpenses | number: '1.2-2' }}</strong>
+              </div>
+              <button
+                type="button"
+                class="breakdown-line"
+                *ngFor="let line of current.statement.operatingExpenses"
+                (click)="drillToCategory(line.label)">
+                <span>{{ line.label }}</span>
+                <strong>MVR {{ line.amount | number: '1.2-2' }}</strong>
+              </button>
+              <div class="empty-line" *ngIf="current.statement.operatingExpenses.length === 0">
+                No operating expenses were classified for this period.
+              </div>
+            </article>
+
+            <article class="statement-panel">
+              <div class="panel-head">
+                <div>
+                  <h4>Other Income Breakdown</h4>
+                  <p>Stored other income and approved income adjustments</p>
+                </div>
+                <strong>MVR {{ current.statement.totalOtherIncome | number: '1.2-2' }}</strong>
+              </div>
+              <button
+                type="button"
+                class="breakdown-line"
+                *ngFor="let line of current.statement.otherIncome"
+                (click)="drillToCategory(line.label)">
+                <span>{{ line.label }}</span>
+                <strong>MVR {{ line.amount | number: '1.2-2' }}</strong>
+              </button>
+              <div class="empty-line" *ngIf="current.statement.otherIncome.length === 0">
+                No other income rows were classified for this period.
+              </div>
+            </article>
+          </div>
+
+          <div class="detail-grid">
+            <article class="notes-panel">
+              <div class="panel-head">
+                <div>
+                  <h4>Important Filing Notes</h4>
+                  <p>Only shown when the statement still needs attention</p>
+                </div>
+              </div>
+              <div class="note-stack" *ngIf="current.importantNotes.length > 0; else noImportantNotesTpl">
+                <article *ngFor="let item of current.importantNotes">{{ item }}</article>
+              </div>
+              <ng-template #noImportantNotesTpl>
+                <div class="empty-line">No extra filing notes were generated for this period.</div>
+              </ng-template>
+            </article>
+
+            <article class="notes-panel">
+              <div class="panel-head">
+                <div>
+                  <h4>Source Coverage</h4>
+                  <p>Traceable totals by source module</p>
+                </div>
+              </div>
+              <div class="source-line" *ngFor="let item of sourceBreakdown()">
+                <span>{{ item.label }}</span>
+                <small>{{ item.count }} rows</small>
+                <strong>MVR {{ item.amount | number: '1.2-2' }}</strong>
+              </div>
+              <div class="empty-line" *ngIf="sourceBreakdown().length === 0">
+                No supporting transactions were found.
+              </div>
+            </article>
+          </div>
+
+          <div class="salary-card">
+            <div class="workspace-head compact">
+              <div>
+                <h4>Salary Support Note</h4>
+                <p>Payroll-linked salary support for the selected filing period.</p>
+              </div>
+              <span class="meta-chip">
+                Total Salary MVR {{ current.notes.totalSalary | number: '1.2-2' }}
+              </span>
+            </div>
+
+            <app-data-table
+              [hasData]="current.notes.salaryRows.length > 0"
+              emptyTitle="No salary note data"
+              emptyDescription="No payroll salary rows were available for the selected period.">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Staff Name</th>
+                  <th>Avg Basic / Period</th>
+                  <th>Avg Allowance / Period</th>
+                  <th>Periods</th>
+                  <th>Total Salary</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of current.notes.salaryRows">
+                  <td>{{ row.staffCode }}</td>
+                  <td>{{ row.staffName }}</td>
+                  <td>{{ row.averageBasicPerPeriod | number: '1.2-2' }}</td>
+                  <td>{{ row.averageAllowancePerPeriod | number: '1.2-2' }}</td>
+                  <td>{{ row.periodCount }}</td>
+                  <td>{{ row.totalForPeriodRange | number: '1.2-2' }}</td>
+                </tr>
+              </tbody>
+            </app-data-table>
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'transactions'">
+        <div class="workspace-head">
+          <div>
+            <h3>Trace Transactions</h3>
+            <p>Filter the source rows behind every BPT total by classification group, category, source module, or free text.</p>
+          </div>
+          <div class="head-actions">
+            <span class="meta-chip" *ngIf="report()">
+              {{ filteredTransactions().length }} rows
+            </span>
+            <app-button variant="secondary" size="sm" [disabled]="!hasActiveTransactionFilters()" (clicked)="clearTransactionFilters()">Clear Filters</app-button>
+          </div>
+        </div>
+
+        <ng-container *ngIf="report() as current; else emptyReportTpl">
+          <div class="filters-grid transactions-grid">
+            <label>
+              Search
+              <input
+                type="text"
+                [value]="transactionSearch()"
+                (input)="transactionSearch.set(asInputValue($event))"
+                placeholder="Search document, counterparty, description, or notes">
+            </label>
+
+            <label>
+              Classification Group
+              <select [value]="transactionGroupFilter()" (change)="transactionGroupFilter.set(asSelectValue($event))">
+                <option value="">All groups</option>
+                <option *ngFor="let option of classificationGroupOptions" [value]="option.value">{{ option.label }}</option>
+              </select>
+            </label>
+
+            <label>
+              Source Module
+              <select [value]="transactionSourceFilter()" (change)="transactionSourceFilter.set(asSelectValue($event))">
+                <option value="">All sources</option>
+                <option *ngFor="let option of sourceModuleOptions()" [value]="option.value">{{ option.label }}</option>
+              </select>
+            </label>
+
+            <label>
+              BPT Category
+              <select [value]="transactionCategoryFilter()" (change)="transactionCategoryFilter.set(asSelectValue($event))">
+                <option value="">All categories</option>
+                <option *ngFor="let option of transactionCategoryOptions()" [value]="option">{{ option }}</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="summary-strip">
+            <article>
+              <span>Filtered MVR Total</span>
+              <strong>{{ filteredTransactionAmountMvr() | number: '1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Range</span>
+              <strong>{{ current.meta.rangeStart }} to {{ current.meta.rangeEnd }}</strong>
+            </article>
+            <article>
+              <span>Company TIN</span>
+              <strong>{{ current.meta.companyTinNumber || '-' }}</strong>
+            </article>
+          </div>
+
+          <app-data-table
+            [hasData]="filteredTransactions().length > 0"
+            emptyTitle="No supporting transactions"
+            emptyDescription="No transactions matched the current trace filters.">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Module</th>
+                <th>Document</th>
+                <th>Counterparty</th>
+                <th>Description</th>
+                <th>Currency</th>
+                <th>Rate</th>
+                <th>Original</th>
+                <th>MVR</th>
+                <th>Group</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Adjustment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of filteredTransactions()">
+                <td>{{ row.transactionDate }}</td>
+                <td>{{ sourceModuleLabel(row.sourceModule) }}</td>
+                <td>{{ row.sourceDocumentNumber }}</td>
+                <td>{{ row.counterpartyName || '-' }}</td>
+                <td class="wrap-cell">{{ row.description || row.notes || '-' }}</td>
+                <td>{{ row.currency }}</td>
+                <td>{{ row.exchangeRate | number: '1.2-6' }}</td>
+                <td>{{ row.amountOriginal | number: '1.2-2' }}</td>
+                <td>{{ row.amountMvr | number: '1.2-2' }}</td>
+                <td>{{ classificationGroupLabel(row.classificationGroup) }}</td>
+                <td>{{ row.bptCategoryName }}</td>
+                <td>{{ row.sourceStatus }}</td>
+                <td>{{ row.isAdjustment ? 'Yes' : 'No' }}</td>
+              </tr>
+            </tbody>
+          </app-data-table>
+        </ng-container>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'mappings'">
+        <div class="workspace-head">
+          <div>
+            <h3>Expense Category Mapping</h3>
+            <p>Explicitly map expense categories to operating expense, cost of goods sold, or excluded BPT categories.</p>
+          </div>
+          <span class="meta-chip">{{ mappedCogsCount() }} COGS mappings</span>
+        </div>
+
+        <app-data-table
+          [hasData]="mappings().length > 0"
+          emptyTitle="No expense mappings"
+          emptyDescription="Expense categories will appear here once they exist for the tenant.">
+          <thead>
+            <tr>
+              <th>Expense Category</th>
+              <th>Code</th>
+              <th>BPT Category</th>
+              <th>Classification Group</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of mappings()">
+              <td>{{ row.expenseCategoryName }}</td>
+              <td>{{ row.expenseCategoryCode }}</td>
+              <td>{{ row.bptCategoryName || 'Not mapped' }}</td>
+              <td>{{ classificationGroupLabel(row.classificationGroup) }}</td>
+              <td>{{ row.isActive ? 'Active' : 'Inactive' }}</td>
+              <td class="wrap-cell">{{ row.notes || '-' }}</td>
+              <td class="row-actions">
+                <app-button size="sm" variant="secondary" (clicked)="openMappingEditor(row)">Edit Mapping</app-button>
+              </td>
+            </tr>
+          </tbody>
+        </app-data-table>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'exchangeRates'">
+        <div class="workspace-head">
+          <div>
+            <h3>Exchange Rates</h3>
+            <p>Store filing-ready conversion rates so foreign currency transactions are reported in MVR instead of being excluded.</p>
+          </div>
+          <app-button size="sm" (clicked)="openExchangeRateCreate()">New Rate</app-button>
+        </div>
+
+        <div class="summary-strip compact">
+          <article>
+            <span>Total Rates</span>
+            <strong>{{ exchangeRates().length }}</strong>
+          </article>
+          <article>
+            <span>Active Rates</span>
+            <strong>{{ activeExchangeRateCount() }}</strong>
+          </article>
+          <article>
+            <span>Latest Rate</span>
+            <strong>{{ latestExchangeRateLabel() }}</strong>
+          </article>
+        </div>
+
+        <app-data-table
+          [hasData]="exchangeRates().length > 0"
+          emptyTitle="No exchange rates for this range"
+          emptyDescription="Add exchange rates for foreign currency transactions before filing the statement.">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Currency</th>
+              <th>Rate to MVR</th>
+              <th>Source</th>
+              <th>Notes</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of exchangeRates()">
+              <td>{{ row.rateDate }}</td>
+              <td>{{ row.currency }}</td>
+              <td>{{ row.rateToMvr | number: '1.2-6' }}</td>
+              <td>{{ row.source || '-' }}</td>
+              <td class="wrap-cell">{{ row.notes || '-' }}</td>
+              <td>{{ row.isActive ? 'Active' : 'Inactive' }}</td>
+              <td class="row-actions">
+                <div class="row-action-buttons">
+                  <app-button size="sm" variant="secondary" (clicked)="openExchangeRateEdit(row)">Edit</app-button>
+                  <app-button size="sm" variant="danger" (clicked)="confirmDelete('exchangeRate', row.id, row.currency + ' ' + row.rateDate)">Delete</app-button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </app-data-table>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'salesAdjustments'">
+        <div class="workspace-head">
+          <div>
+            <h3>Sales Returns and Allowances</h3>
+            <p>Record approved sales returns and allowances so net sales are based on real stored adjustments.</p>
+          </div>
+          <app-button size="sm" (clicked)="openSalesAdjustmentCreate()">New Sales Adjustment</app-button>
+        </div>
+
+        <app-data-table
+          [hasData]="salesAdjustments().length > 0"
+          emptyTitle="No sales returns or allowances"
+          emptyDescription="Create returns or allowance entries when they apply to the filing period.">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Adjustment No.</th>
+              <th>Type</th>
+              <th>Invoice</th>
+              <th>Customer</th>
+              <th>Currency</th>
+              <th>Original</th>
+              <th>MVR</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of salesAdjustments()">
+              <td>{{ row.transactionDate }}</td>
+              <td>{{ row.adjustmentNumber }}</td>
+              <td>{{ salesAdjustmentTypeLabel(row.adjustmentType) }}</td>
+              <td>{{ row.relatedInvoiceNumber || '-' }}</td>
+              <td>{{ row.customerName || '-' }}</td>
+              <td>{{ row.currency }}</td>
+              <td>{{ row.amountOriginal | number: '1.2-2' }}</td>
+              <td>{{ row.amountMvr | number: '1.2-2' }}</td>
+              <td>{{ row.approvalStatus }}</td>
+              <td class="wrap-cell">{{ row.notes || '-' }}</td>
+              <td class="row-actions">
+                <div class="row-action-buttons">
+                  <app-button size="sm" variant="secondary" (clicked)="openSalesAdjustmentEdit(row)">Edit</app-button>
+                  <app-button size="sm" variant="danger" (clicked)="confirmDelete('salesAdjustment', row.id, row.adjustmentNumber)">Delete</app-button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </app-data-table>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'otherIncome'">
+        <div class="workspace-head">
+          <div>
+            <h3>Other Income</h3>
+            <p>Store taxable other income entries separately so they flow into the statement instead of remaining a placeholder.</p>
+          </div>
+          <app-button size="sm" (clicked)="openOtherIncomeCreate()">New Other Income</app-button>
+        </div>
+
+        <app-data-table
+          [hasData]="otherIncomeEntries().length > 0"
+          emptyTitle="No other income"
+          emptyDescription="Create other income entries when the period includes non-sales income.">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Entry No.</th>
+              <th>Counterparty</th>
+              <th>Description</th>
+              <th>Currency</th>
+              <th>Original</th>
+              <th>MVR</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of otherIncomeEntries()">
+              <td>{{ row.transactionDate }}</td>
+              <td>{{ row.entryNumber }}</td>
+              <td>{{ row.counterpartyName || '-' }}</td>
+              <td class="wrap-cell">{{ row.description }}</td>
+              <td>{{ row.currency }}</td>
+              <td>{{ row.amountOriginal | number: '1.2-2' }}</td>
+              <td>{{ row.amountMvr | number: '1.2-2' }}</td>
+              <td>{{ row.approvalStatus }}</td>
+              <td class="wrap-cell">{{ row.notes || '-' }}</td>
+              <td class="row-actions">
+                <div class="row-action-buttons">
+                  <app-button size="sm" variant="secondary" (clicked)="openOtherIncomeEdit(row)">Edit</app-button>
+                  <app-button size="sm" variant="danger" (clicked)="confirmDelete('otherIncome', row.id, row.entryNumber)">Delete</app-button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </app-data-table>
+      </ng-container>
+
+      <ng-container *ngSwitchCase="'adjustments'">
+        <div class="workspace-head">
+          <div>
+            <h3>BPT Adjustments</h3>
+            <p>Use explicit period adjustments with an audit trail when a filing needs a documented BPT-only entry.</p>
+          </div>
+          <app-button size="sm" (clicked)="openAdjustmentCreate()">New Adjustment</app-button>
+        </div>
+
+        <app-data-table
+          [hasData]="adjustments().length > 0"
+          emptyTitle="No BPT adjustments"
+          emptyDescription="Manual BPT adjustments will appear here with their mapped category and approval status.">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Adjustment No.</th>
+              <th>Description</th>
+              <th>BPT Category</th>
+              <th>Group</th>
+              <th>Currency</th>
+              <th>Original</th>
+              <th>MVR</th>
+              <th>Status</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of adjustments()">
+              <td>{{ row.transactionDate }}</td>
+              <td>{{ row.adjustmentNumber }}</td>
+              <td class="wrap-cell">{{ row.description }}</td>
+              <td>{{ row.bptCategoryName }}</td>
+              <td>{{ classificationGroupLabel(row.classificationGroup) }}</td>
+              <td>{{ row.currency }}</td>
+              <td>{{ row.amountOriginal | number: '1.2-2' }}</td>
+              <td>{{ row.amountMvr | number: '1.2-2' }}</td>
+              <td>{{ row.approvalStatus }}</td>
+              <td class="wrap-cell">{{ row.notes || '-' }}</td>
+              <td class="row-actions">
+                <div class="row-action-buttons">
+                  <app-button size="sm" variant="secondary" (clicked)="openAdjustmentEdit(row)">Edit</app-button>
+                  <app-button size="sm" variant="danger" (clicked)="confirmDelete('adjustment', row.id, row.adjustmentNumber)">Delete</app-button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </app-data-table>
+      </ng-container>
+    </ng-container>
+
+    <ng-template #emptyReportTpl>
+      <app-empty-state
+        title="No BPT statement generated"
+        description="Choose the filing period and click Generate Statement to build the BPT summary and transaction trace from live data.">
+      </app-empty-state>
+    </ng-template>
+  </app-card>
+
+  <div class="drawer-shell" *ngIf="mappingEditorOpen()" (click)="closeMappingEditor()">
+    <app-card class="drawer-card" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <h3>Edit BPT Mapping</h3>
+          <p>Map one expense category to a clear BPT reporting category.</p>
+        </div>
+        <app-button variant="secondary" size="sm" (clicked)="closeMappingEditor()">Close</app-button>
+      </div>
+
+      <form [formGroup]="mappingForm" (ngSubmit)="saveMapping()" class="form-grid">
+        <label>
+          Expense Category
+          <input type="text" [value]="mappingTarget()?.expenseCategoryName || ''" readonly>
+        </label>
+
+        <label>
+          BPT Category
+          <select formControlName="bptCategoryId">
+            <option value="">Select BPT category</option>
+            <option *ngFor="let category of mappingTargetCategories()" [value]="category.id">
+              {{ category.name }} ({{ classificationGroupLabel(category.classificationGroup) }})
+            </option>
+          </select>
+        </label>
+
+        <label class="checkbox-line">
+          <input type="checkbox" formControlName="isActive">
+          <span>Mapping is active</span>
+        </label>
+
+        <label>
+          Notes
+          <textarea rows="4" formControlName="notes" placeholder="Optional rationale for this mapping"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <app-button variant="secondary" (clicked)="closeMappingEditor()">Cancel</app-button>
+          <app-button type="submit" [loading]="mappingSaving()">Save Mapping</app-button>
+        </div>
+      </form>
+    </app-card>
+  </div>
+
+  <div class="drawer-shell" *ngIf="exchangeRateEditorOpen()" (click)="closeExchangeRateEditor()">
+    <app-card class="drawer-card" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <h3>{{ exchangeRateEditingId() ? 'Edit Exchange Rate' : 'New Exchange Rate' }}</h3>
+          <p>Store the conversion rate used to translate foreign currency amounts into MVR.</p>
+        </div>
+        <app-button variant="secondary" size="sm" (clicked)="closeExchangeRateEditor()">Close</app-button>
+      </div>
+
+      <form [formGroup]="exchangeRateForm" (ngSubmit)="saveExchangeRate()" class="form-grid">
+        <div class="two-col">
+          <label>
+            Rate Date
+            <input type="date" formControlName="rateDate">
+          </label>
+
+          <label>
+            Currency
+            <select formControlName="currency">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            Rate to MVR
+            <input type="number" formControlName="rateToMvr" min="0.000001" step="0.000001">
+          </label>
+
+          <label>
+            Source
+            <input type="text" formControlName="source" maxlength="120" placeholder="Bank, tax circular, or internal source">
+          </label>
+        </div>
+
+        <label class="checkbox-line">
+          <input type="checkbox" formControlName="isActive">
+          <span>Rate is active</span>
+        </label>
+
+        <label>
+          Notes
+          <textarea rows="4" formControlName="notes" maxlength="600" placeholder="Optional notes for the filing record"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <app-button variant="secondary" (clicked)="closeExchangeRateEditor()">Cancel</app-button>
+          <app-button type="submit" [loading]="exchangeRateSaving()">Save Rate</app-button>
+        </div>
+      </form>
+    </app-card>
+  </div>
+
+  <div class="drawer-shell" *ngIf="salesAdjustmentEditorOpen()" (click)="closeSalesAdjustmentEditor()">
+    <app-card class="drawer-card" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <h3>{{ salesAdjustmentEditingId() ? 'Edit Sales Adjustment' : 'New Sales Adjustment' }}</h3>
+          <p>Capture sales returns or allowances that reduce gross sales for the filing period.</p>
+        </div>
+        <app-button variant="secondary" size="sm" (clicked)="closeSalesAdjustmentEditor()">Close</app-button>
+      </div>
+
+      <form [formGroup]="salesAdjustmentForm" (ngSubmit)="saveSalesAdjustment()" class="form-grid">
+        <div class="three-col">
+          <label>
+            Type
+            <select formControlName="adjustmentType">
+              <option value="Return">Sales Return</option>
+              <option value="Allowance">Sales Allowance</option>
+            </select>
+          </label>
+
+          <label>
+            Transaction Date
+            <input type="date" formControlName="transactionDate">
+          </label>
+
+          <label>
+            Approval Status
+            <select formControlName="approvalStatus">
+              <option *ngFor="let option of approvalStatusOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            Related Invoice
+            <select formControlName="relatedInvoiceId">
+              <option value="">Optional invoice link</option>
+              <option *ngFor="let invoice of invoiceOptions()" [value]="invoice.id">
+                {{ invoice.invoiceNo }} - {{ invoice.customer }}
+              </option>
+            </select>
+          </label>
+
+          <label>
+            Customer
+            <select formControlName="customerId">
+              <option value="">Optional customer</option>
+              <option *ngFor="let customer of customerOptions()" [value]="customer.id">{{ customer.name }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="three-col">
+          <label>
+            Currency
+            <select formControlName="currency">
+              <option value="MVR">MVR</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+
+          <label>
+            Amount in Original Currency
+            <input type="number" formControlName="amountOriginal" min="0.01" step="0.01">
+          </label>
+
+          <label>
+            Exchange Rate
+            <input type="number" formControlName="exchangeRate" min="0.000001" step="0.000001" placeholder="Leave blank to use stored rate">
+          </label>
+        </div>
+
+        <label>
+          Notes
+          <textarea rows="4" formControlName="notes" maxlength="600" placeholder="Optional context for the return or allowance"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <app-button variant="secondary" (clicked)="closeSalesAdjustmentEditor()">Cancel</app-button>
+          <app-button type="submit" [loading]="salesAdjustmentSaving()">Save Adjustment</app-button>
+        </div>
+      </form>
+    </app-card>
+  </div>
+
+  <div class="drawer-shell" *ngIf="otherIncomeEditorOpen()" (click)="closeOtherIncomeEditor()">
+    <app-card class="drawer-card" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <h3>{{ otherIncomeEditingId() ? 'Edit Other Income' : 'New Other Income' }}</h3>
+          <p>Create a real other income row so the statement reflects stored income outside core sales.</p>
+        </div>
+        <app-button variant="secondary" size="sm" (clicked)="closeOtherIncomeEditor()">Close</app-button>
+      </div>
+
+      <form [formGroup]="otherIncomeForm" (ngSubmit)="saveOtherIncome()" class="form-grid">
+        <div class="three-col">
+          <label>
+            Transaction Date
+            <input type="date" formControlName="transactionDate">
+          </label>
+
+          <label>
+            Approval Status
+            <select formControlName="approvalStatus">
+              <option *ngFor="let option of approvalStatusOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+
+          <label>
+            Customer
+            <select formControlName="customerId">
+              <option value="">Optional customer</option>
+              <option *ngFor="let customer of customerOptions()" [value]="customer.id">{{ customer.name }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            Counterparty Name
+            <input type="text" formControlName="counterpartyName" maxlength="200" placeholder="Optional payor or counterparty">
+          </label>
+
+          <label>
+            Description
+            <input type="text" formControlName="description" maxlength="300" placeholder="Describe the income source">
+          </label>
+        </div>
+
+        <div class="three-col">
+          <label>
+            Currency
+            <select formControlName="currency">
+              <option value="MVR">MVR</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+
+          <label>
+            Amount in Original Currency
+            <input type="number" formControlName="amountOriginal" min="0.01" step="0.01">
+          </label>
+
+          <label>
+            Exchange Rate
+            <input type="number" formControlName="exchangeRate" min="0.000001" step="0.000001" placeholder="Leave blank to use stored rate">
+          </label>
+        </div>
+
+        <label>
+          Notes
+          <textarea rows="4" formControlName="notes" maxlength="600" placeholder="Optional filing note or explanation"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <app-button variant="secondary" (clicked)="closeOtherIncomeEditor()">Cancel</app-button>
+          <app-button type="submit" [loading]="otherIncomeSaving()">Save Other Income</app-button>
+        </div>
+      </form>
+    </app-card>
+  </div>
+
+  <div class="drawer-shell" *ngIf="adjustmentEditorOpen()" (click)="closeAdjustmentEditor()">
+    <app-card class="drawer-card" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <h3>{{ adjustmentEditingId() ? 'Edit BPT Adjustment' : 'New BPT Adjustment' }}</h3>
+          <p>Post a documented BPT-only adjustment against a specific reporting category.</p>
+        </div>
+        <app-button variant="secondary" size="sm" (clicked)="closeAdjustmentEditor()">Close</app-button>
+      </div>
+
+      <form [formGroup]="adjustmentForm" (ngSubmit)="saveAdjustment()" class="form-grid">
+        <div class="three-col">
+          <label>
+            Transaction Date
+            <input type="date" formControlName="transactionDate">
+          </label>
+
+          <label>
+            Approval Status
+            <select formControlName="approvalStatus">
+              <option *ngFor="let option of approvalStatusOptions" [value]="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+
+          <label>
+            BPT Category
+            <select formControlName="bptCategoryId">
+              <option value="">Select BPT category</option>
+              <option *ngFor="let category of adjustableCategories()" [value]="category.id">
+                {{ category.name }} ({{ classificationGroupLabel(category.classificationGroup) }})
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Description
+          <input type="text" formControlName="description" maxlength="300" placeholder="Describe the adjustment">
+        </label>
+
+        <div class="three-col">
+          <label>
+            Currency
+            <select formControlName="currency">
+              <option value="MVR">MVR</option>
+              <option value="USD">USD</option>
+            </select>
+          </label>
+
+          <label>
+            Amount in Original Currency
+            <input type="number" formControlName="amountOriginal" min="0.01" step="0.01">
+          </label>
+
+          <label>
+            Exchange Rate
+            <input type="number" formControlName="exchangeRate" min="0.000001" step="0.000001" placeholder="Leave blank to use stored rate">
+          </label>
+        </div>
+
+        <label>
+          Notes
+          <textarea rows="4" formControlName="notes" maxlength="600" placeholder="Optional supporting detail"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <app-button variant="secondary" (clicked)="closeAdjustmentEditor()">Cancel</app-button>
+          <app-button type="submit" [loading]="adjustmentSaving()">Save Adjustment</app-button>
+        </div>
+      </form>
+    </app-card>
+  </div>
+
+  <app-confirm-dialog
+    [open]="deleteDialogOpen()"
+    [title]="deleteDialogTitle()"
+    [message]="deleteDialogMessage()"
+    (cancel)="closeDeleteDialog()"
+    (confirm)="runDelete()">
+  </app-confirm-dialog>
+</section>

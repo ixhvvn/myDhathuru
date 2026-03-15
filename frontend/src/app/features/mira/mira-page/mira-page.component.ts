@@ -9,6 +9,7 @@ import {
   MiraReportType
 } from '../../../core/models/app.models';
 import { ToastService } from '../../../core/services/toast.service';
+import { extractApiError } from '../../../core/utils/api-error.util';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
@@ -125,9 +126,10 @@ interface MiraOption<TValue>
         </div>
 
         <ng-container *ngIf="preview() as current; else emptyStateTpl">
-          <div class="assumptions" *ngIf="current.assumptions.length > 0">
+          <section class="filing-notes" *ngIf="current.assumptions.length > 0">
+            <div class="notes-title">Important Filing Notes</div>
             <article *ngFor="let item of current.assumptions">{{ item }}</article>
-          </div>
+          </section>
 
           <ng-container [ngSwitch]="selectedReportType()">
             <ng-container *ngSwitchCase="miraReportType.InputTaxStatement">
@@ -167,6 +169,8 @@ interface MiraOption<TValue>
                     <th>GST 16%</th>
                     <th>GST 17%</th>
                     <th>Total GST</th>
+                    <th>Activity No.</th>
+                    <th>Revenue / Capital</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -182,6 +186,8 @@ interface MiraOption<TValue>
                     <td>{{ row.gstChargedAt16 | number: '1.2-2' }}</td>
                     <td>{{ row.gstChargedAt17 | number: '1.2-2' }}</td>
                     <td>{{ row.totalGst | number: '1.2-2' }}</td>
+                    <td>{{ row.taxableActivityNumber || '-' }}</td>
+                    <td>{{ row.revenueCapitalClassification }}</td>
                   </tr>
                 </tbody>
               </app-data-table>
@@ -495,13 +501,21 @@ interface MiraOption<TValue>
       color: #2f456d;
       font-size: 1rem;
     }
-    .assumptions {
+    .filing-notes {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: .55rem;
       margin-bottom: .78rem;
     }
-    .assumptions article {
+    .notes-title {
+      grid-column: 1 / -1;
+      color: #6f5520;
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .filing-notes article {
       padding: .66rem .72rem;
       border-radius: 14px;
       border: 1px solid rgba(238, 194, 113, .44);
@@ -758,8 +772,18 @@ export class MiraPageComponent
     this.api.getMiraPreview(this.buildQueryParams())
       .pipe(finalize(() => this.previewLoading.set(false)))
       .subscribe({
-        next: (preview) => this.preview.set(preview),
-        error: (error) => this.toast.error(this.readError(error, 'Failed to generate MIRA preview.'))
+        next: (preview) =>
+        {
+          this.validationError.set(null);
+          this.preview.set(preview);
+        },
+        error: (error) =>
+        {
+          const message = extractApiError(error, 'Failed to generate MIRA preview.');
+          this.preview.set(null);
+          this.validationError.set(message);
+          this.toast.error(message);
+        }
       });
   }
 
@@ -786,10 +810,16 @@ export class MiraPageComponent
       .subscribe({
         next: (blob) =>
         {
+          this.validationError.set(null);
           this.download(blob, `${this.fileSlug()}-${this.todayIso()}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
           this.toast.success(`MIRA statement exported to ${format.toUpperCase()}.`);
         },
-        error: (error) => this.toast.error(this.readError(error, `Failed to export ${format.toUpperCase()} statement.`))
+        error: (error) =>
+        {
+          const message = extractApiError(error, `Failed to export ${format.toUpperCase()} statement.`);
+          this.validationError.set(message);
+          this.toast.error(message);
+        }
       });
   }
 
@@ -897,30 +927,5 @@ export class MiraPageComponent
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
-  }
-
-  private readError(error: unknown, fallback: string): string
-  {
-    const apiError = error as {
-      error?: {
-        message?: string;
-        errors?: string[] | Record<string, string[]>;
-        title?: string;
-        detail?: string;
-      };
-    };
-
-    const errors = apiError?.error?.errors;
-    const firstValidationError = Array.isArray(errors)
-      ? errors[0]
-      : errors && typeof errors === 'object'
-        ? Object.values(errors).flat()[0]
-        : undefined;
-
-    return firstValidationError
-      ?? apiError?.error?.message
-      ?? apiError?.error?.title
-      ?? apiError?.error?.detail
-      ?? fallback;
   }
 }

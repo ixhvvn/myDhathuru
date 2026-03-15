@@ -78,6 +78,8 @@ public class SettingsService : ISettingsService
         settings.InvoiceOwnerName = request.InvoiceOwnerName?.Trim() ?? string.Empty;
         settings.InvoiceOwnerIdCard = request.InvoiceOwnerIdCard?.Trim() ?? string.Empty;
         settings.LogoUrl = string.IsNullOrWhiteSpace(request.LogoUrl) ? DefaultInvoiceLogoUrl : request.LogoUrl.Trim();
+        settings.CompanyStampUrl = string.IsNullOrWhiteSpace(request.CompanyStampUrl) ? null : request.CompanyStampUrl.Trim();
+        settings.CompanySignatureUrl = string.IsNullOrWhiteSpace(request.CompanySignatureUrl) ? null : request.CompanySignatureUrl.Trim();
 
         var tenant = await _dbContext.Tenants.FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
@@ -154,7 +156,9 @@ public class SettingsService : ISettingsService
             MibUsdAccountNumber = settings.MibUsdAccountNumber,
             InvoiceOwnerName = settings.InvoiceOwnerName,
             InvoiceOwnerIdCard = settings.InvoiceOwnerIdCard,
-            LogoUrl = string.IsNullOrWhiteSpace(settings.LogoUrl) ? DefaultInvoiceLogoUrl : settings.LogoUrl
+            LogoUrl = string.IsNullOrWhiteSpace(settings.LogoUrl) ? DefaultInvoiceLogoUrl : settings.LogoUrl,
+            CompanyStampUrl = settings.CompanyStampUrl,
+            CompanySignatureUrl = settings.CompanySignatureUrl
         };
     }
 

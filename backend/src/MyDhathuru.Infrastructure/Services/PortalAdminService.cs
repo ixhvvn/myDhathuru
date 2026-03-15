@@ -918,7 +918,9 @@ public class PortalAdminService : IPortalAdminService
             MibUsdAccountNumber = string.Empty,
             InvoiceOwnerName = string.Empty,
             InvoiceOwnerIdCard = string.Empty,
-            LogoUrl = "/logo-name.svg"
+            LogoUrl = "/logo-name.svg",
+            CompanyStampUrl = null,
+            CompanySignatureUrl = null
         };
     }
 

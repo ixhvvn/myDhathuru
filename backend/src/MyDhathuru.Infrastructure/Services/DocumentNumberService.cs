@@ -39,6 +39,9 @@ public class DocumentNumberService : IDocumentNumberService
             DocumentType.DisciplinaryForm => "DF",
             DocumentType.Statement => settings.StatementPrefix,
             DocumentType.SalarySlip => settings.SalarySlipPrefix,
+            DocumentType.SalesAdjustment => "BSA",
+            DocumentType.OtherIncome => "BOI",
+            DocumentType.BptAdjustment => "BADJ",
             _ => "DOC"
         };
 

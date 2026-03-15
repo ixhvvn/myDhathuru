@@ -64,9 +64,19 @@ public class UpdateTenantSettingsRequestValidator : AbstractValidator<UpdateTena
         RuleFor(x => x.InvoiceOwnerIdCard).MaximumLength(100);
         RuleFor(x => x.LogoUrl)
             .MaximumLength(400)
-            .Must(BeSupportedLogoUrl)
+            .Must(BeSupportedImageUrl)
             .When(x => !string.IsNullOrWhiteSpace(x.LogoUrl))
             .WithMessage("Logo URL must use HTTP/HTTPS, a root static path, or start with /uploads.");
+        RuleFor(x => x.CompanyStampUrl)
+            .MaximumLength(400)
+            .Must(BeSupportedImageUrl)
+            .When(x => !string.IsNullOrWhiteSpace(x.CompanyStampUrl))
+            .WithMessage("Company stamp URL must use HTTP/HTTPS, a root static path, or start with /uploads.");
+        RuleFor(x => x.CompanySignatureUrl)
+            .MaximumLength(400)
+            .Must(BeSupportedImageUrl)
+            .When(x => !string.IsNullOrWhiteSpace(x.CompanySignatureUrl))
+            .WithMessage("Company signature URL must use HTTP/HTTPS, a root static path, or start with /uploads.");
     }
 
     private static bool BeValidCurrency(string? currency)
@@ -79,7 +89,7 @@ public class UpdateTenantSettingsRequestValidator : AbstractValidator<UpdateTena
         return Enum.TryParse<CurrencyCode>(currency.Trim(), true, out _);
     }
 
-    private static bool BeSupportedLogoUrl(string? value)
+    private static bool BeSupportedImageUrl(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

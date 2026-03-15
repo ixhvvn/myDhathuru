@@ -49,6 +49,11 @@
 
   --shadow-soft: 0 14px 34px rgba(61, 81, 132, 0.11);
   --shadow-hover: 0 20px 42px rgba(69, 92, 150, 0.18);
+
+  --dialog-scrim: rgba(34, 46, 77, 0.44);
+  --dialog-surface: linear-gradient(155deg, rgba(255, 255, 255, 0.995), rgba(247, 250, 255, 0.985));
+  --dialog-border: rgba(216, 225, 245, 0.98);
+  --dialog-shadow: 0 28px 72px rgba(44, 58, 95, 0.28);
 }
 
 * {
@@ -255,6 +260,53 @@ body select option:checked {
 ::-webkit-scrollbar-thumb {
   background: #d3dced;
   border-radius: 999px;
+}
+
+/* Make drawers and dialogs fully readable above page content. */
+body div.drawer,
+body .modal-backdrop,
+body .drawer-backdrop,
+body .overlay {
+  background: var(--dialog-scrim) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+body div.drawer app-card .card,
+body aside.drawer app-card .card,
+body .overlay .dialog,
+body section.modal {
+  background: var(--dialog-surface) !important;
+  border: 1px solid var(--dialog-border) !important;
+  box-shadow: var(--dialog-shadow) !important;
+  isolation: isolate;
+}
+
+body div.drawer app-card .card::after,
+body aside.drawer app-card .card::after {
+  display: none !important;
+}
+
+body div.drawer app-card .card:hover,
+body aside.drawer app-card .card:hover {
+  transform: none !important;
+  box-shadow: var(--dialog-shadow) !important;
+  border-color: var(--dialog-border) !important;
+}
+
+body div.drawer app-card .card input,
+body div.drawer app-card .card select,
+body div.drawer app-card .card textarea,
+body aside.drawer app-card .card input,
+body aside.drawer app-card .card select,
+body aside.drawer app-card .card textarea,
+body .overlay .dialog input,
+body .overlay .dialog select,
+body .overlay .dialog textarea,
+body section.modal input,
+body section.modal select,
+body section.modal textarea {
+  background: #fff !important;
 }
 
 /* Premium Auth Experience */

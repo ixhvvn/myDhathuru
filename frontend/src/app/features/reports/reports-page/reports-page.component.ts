@@ -503,6 +503,8 @@ interface ReportPresetOption
   `
 })
 export class ReportsPageComponent implements OnInit {
+  private static readonly maxCustomRangeMonths = 6;
+
   readonly reportType = ReportType;
   readonly reportDatePreset = ReportDatePreset;
 
@@ -831,10 +833,16 @@ export class ReportsPageComponent implements OnInit {
       return false;
     }
 
-    const totalDays = Math.floor((endMs - startMs) / 86400000) + 1;
-    if (totalDays > 31)
+    const maxEndMs = this.addMonthsClampedUtc(start, ReportsPageComponent.maxCustomRangeMonths);
+    if (maxEndMs === null)
     {
-      this.validationError.set('Custom range cannot exceed 31 days.');
+      this.validationError.set('Custom range dates are invalid.');
+      return false;
+    }
+
+    if (endMs > maxEndMs)
+    {
+      this.validationError.set('Custom range cannot exceed six months.');
       return false;
     }
 
@@ -904,6 +912,29 @@ export class ReportsPageComponent implements OnInit {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private addMonthsClampedUtc(isoDate: string, months: number): number | null {
+    const parts = isoDate.split('-').map((value) => Number(value));
+    if (parts.length !== 3 || parts.some((value) => Number.isNaN(value)))
+    {
+      return null;
+    }
+
+    const [year, month, day] = parts;
+    const sourceMonthIndex = month - 1;
+    if (month < 1 || month > 12 || day < 1)
+    {
+      return null;
+    }
+
+    const targetMonthIndex = sourceMonthIndex + months;
+    const targetYear = year + Math.floor(targetMonthIndex / 12);
+    const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+    const daysInTargetMonth = new Date(Date.UTC(targetYear, normalizedMonthIndex + 1, 0)).getUTCDate();
+    const targetDay = Math.min(day, daysInTargetMonth);
+
+    return Date.parse(`${targetYear}-${String(normalizedMonthIndex + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}T00:00:00Z`);
   }
 
   private download(blob: Blob, filename: string): void {

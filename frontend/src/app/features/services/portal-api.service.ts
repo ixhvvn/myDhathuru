@@ -2,6 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   AccountStatement,
+  BptAdjustmentRecord,
+  BptCategoryLookup,
+  BptExchangeRate,
+  BptExpenseMapping,
+  BptReport,
   BugReportRequest,
   Customer,
   DashboardAnalytics,
@@ -41,6 +46,8 @@ import {
   SalesTransactionsReport,
   MiraReportExportRequest,
   MiraReportPreview,
+  OtherIncomeEntryRecord,
+  SalesAdjustmentRecord,
   Staff,
   StaffConductDetail,
   StaffConductListItem,
@@ -96,6 +103,94 @@ export class PortalApiService {
 
   exportMiraPdf(payload: MiraReportExportRequest): Observable<Blob> {
     return this.api.postFile('mira/export/pdf', payload);
+  }
+
+  getBptReport(params: Record<string, unknown>): Observable<BptReport> {
+    return this.api.get<BptReport>('bpt/report', params);
+  }
+
+  exportBptExcel(payload: unknown): Observable<Blob> {
+    return this.api.postFile('bpt/export/excel', payload);
+  }
+
+  exportBptPdf(payload: unknown): Observable<Blob> {
+    return this.api.postFile('bpt/export/pdf', payload);
+  }
+
+  getBptCategories(): Observable<BptCategoryLookup[]> {
+    return this.api.get<BptCategoryLookup[]>('bpt/categories');
+  }
+
+  getBptMappings(): Observable<BptExpenseMapping[]> {
+    return this.api.get<BptExpenseMapping[]>('bpt/mappings');
+  }
+
+  updateBptMapping(expenseCategoryId: string, payload: unknown): Observable<BptExpenseMapping> {
+    return this.api.put<BptExpenseMapping>(`bpt/mappings/${expenseCategoryId}`, payload);
+  }
+
+  getBptExchangeRates(params: Record<string, unknown> = {}): Observable<BptExchangeRate[]> {
+    return this.api.get<BptExchangeRate[]>('bpt/exchange-rates', params);
+  }
+
+  createBptExchangeRate(payload: unknown): Observable<BptExchangeRate> {
+    return this.api.post<BptExchangeRate>('bpt/exchange-rates', payload);
+  }
+
+  updateBptExchangeRate(id: string, payload: unknown): Observable<BptExchangeRate> {
+    return this.api.put<BptExchangeRate>(`bpt/exchange-rates/${id}`, payload);
+  }
+
+  deleteBptExchangeRate(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`bpt/exchange-rates/${id}`);
+  }
+
+  getBptSalesAdjustments(params: Record<string, unknown> = {}): Observable<SalesAdjustmentRecord[]> {
+    return this.api.get<SalesAdjustmentRecord[]>('bpt/sales-adjustments', params);
+  }
+
+  createBptSalesAdjustment(payload: unknown): Observable<SalesAdjustmentRecord> {
+    return this.api.post<SalesAdjustmentRecord>('bpt/sales-adjustments', payload);
+  }
+
+  updateBptSalesAdjustment(id: string, payload: unknown): Observable<SalesAdjustmentRecord> {
+    return this.api.put<SalesAdjustmentRecord>(`bpt/sales-adjustments/${id}`, payload);
+  }
+
+  deleteBptSalesAdjustment(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`bpt/sales-adjustments/${id}`);
+  }
+
+  getBptOtherIncome(params: Record<string, unknown> = {}): Observable<OtherIncomeEntryRecord[]> {
+    return this.api.get<OtherIncomeEntryRecord[]>('bpt/other-income', params);
+  }
+
+  createBptOtherIncome(payload: unknown): Observable<OtherIncomeEntryRecord> {
+    return this.api.post<OtherIncomeEntryRecord>('bpt/other-income', payload);
+  }
+
+  updateBptOtherIncome(id: string, payload: unknown): Observable<OtherIncomeEntryRecord> {
+    return this.api.put<OtherIncomeEntryRecord>(`bpt/other-income/${id}`, payload);
+  }
+
+  deleteBptOtherIncome(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`bpt/other-income/${id}`);
+  }
+
+  getBptAdjustments(params: Record<string, unknown> = {}): Observable<BptAdjustmentRecord[]> {
+    return this.api.get<BptAdjustmentRecord[]>('bpt/adjustments', params);
+  }
+
+  createBptAdjustment(payload: unknown): Observable<BptAdjustmentRecord> {
+    return this.api.post<BptAdjustmentRecord>('bpt/adjustments', payload);
+  }
+
+  updateBptAdjustment(id: string, payload: unknown): Observable<BptAdjustmentRecord> {
+    return this.api.put<BptAdjustmentRecord>(`bpt/adjustments/${id}`, payload);
+  }
+
+  deleteBptAdjustment(id: string): Observable<Record<string, never>> {
+    return this.api.delete<Record<string, never>>(`bpt/adjustments/${id}`);
   }
 
   getCustomers(params: Record<string, unknown>): Observable<PagedResult<Customer>> {
@@ -568,6 +663,18 @@ export class PortalApiService {
     const formData = new FormData();
     formData.append('file', file, file.name);
     return this.api.post<TenantLogoUpload>('settings/logo-upload', formData);
+  }
+
+  uploadSettingsStamp(file: File): Observable<TenantLogoUpload> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.api.post<TenantLogoUpload>('settings/stamp-upload', formData);
+  }
+
+  uploadSettingsSignature(file: File): Observable<TenantLogoUpload> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.api.post<TenantLogoUpload>('settings/signature-upload', formData);
   }
 
   changePassword(payload: unknown): Observable<Record<string, never>> {

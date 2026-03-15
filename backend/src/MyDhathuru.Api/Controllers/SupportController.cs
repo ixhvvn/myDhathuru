@@ -14,7 +14,7 @@ namespace MyDhathuru.Api.Controllers;
 [ServiceFilter(typeof(ValidationActionFilter))]
 public class SupportController : BaseApiController
 {
-    private const long MaxAttachmentSizeBytes = 5 * 1024 * 1024;
+    private const long MaxAttachmentSizeBytes = 4 * 1024 * 1024;
     private const long MaxRequestBodySizeBytes = 6 * 1024 * 1024;
     private static readonly HashSet<string> AllowedImageMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -65,7 +65,7 @@ public class SupportController : BaseApiController
 
         if (attachment.Length > MaxAttachmentSizeBytes)
         {
-            throw new AppException("Attached image must be 5 MB or smaller.");
+            throw new AppException("Attached image must be 4 MB or smaller.");
         }
 
         var extension = Path.GetExtension(attachment.FileName);

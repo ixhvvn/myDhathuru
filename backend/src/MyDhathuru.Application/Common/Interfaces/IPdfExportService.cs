@@ -34,6 +34,6 @@ public interface IPdfExportService
     byte[] BuildStaffConductSummaryPdf(IReadOnlyList<StaffConductListItemDto> rows, StaffConductSummaryDto summary, string companyName, string companyInfo, string? logoUrl, StaffConductListQuery query);
     byte[] BuildMiraInputTaxStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildMiraOutputTaxStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);
-    byte[] BuildBptIncomeStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);
-    byte[] BuildBptNotesPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);
+    byte[] BuildBptIncomeStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl, string? companyStampUrl, string? companySignatureUrl);
+    byte[] BuildBptNotesPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl, string? companyStampUrl, string? companySignatureUrl);
 }

@@ -5,6 +5,8 @@ namespace MyDhathuru.Application.Reports.Validators;
 
 public class ReportExportRequestValidator : AbstractValidator<ReportExportRequest>
 {
+    private const int MaxCustomRangeMonths = 6;
+
     public ReportExportRequestValidator()
     {
         RuleFor(x => x.ReportType)
@@ -17,7 +19,7 @@ public class ReportExportRequestValidator : AbstractValidator<ReportExportReques
 
         RuleFor(x => x)
             .Must(IsValidCustomRange)
-            .WithMessage("Custom range must have valid start/end dates and cannot exceed 31 days.");
+            .WithMessage("Custom range must have valid start/end dates and cannot exceed six months.");
     }
 
     private static bool IsValidCustomRange(ReportExportRequest request)
@@ -37,7 +39,6 @@ public class ReportExportRequestValidator : AbstractValidator<ReportExportReques
             return false;
         }
 
-        var rangeDays = request.CustomEndDate.Value.DayNumber - request.CustomStartDate.Value.DayNumber + 1;
-        return rangeDays <= 31;
+        return request.CustomEndDate.Value <= request.CustomStartDate.Value.AddMonths(MaxCustomRangeMonths);
     }
 }

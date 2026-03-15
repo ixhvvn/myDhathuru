@@ -35,5 +35,7 @@ public class TenantSettings : TenantEntity
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
+    public string? CompanyStampUrl { get; set; }
+    public string? CompanySignatureUrl { get; set; }
     public Tenant Tenant { get; set; } = null!;
 }

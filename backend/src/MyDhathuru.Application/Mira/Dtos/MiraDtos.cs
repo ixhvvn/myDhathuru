@@ -85,6 +85,7 @@ public class MiraInputTaxRowDto
     public decimal GstChargedAt17 { get; set; }
     public decimal TotalGst { get; set; }
     public string TaxableActivityNumber { get; set; } = string.Empty;
+    public RevenueCapitalType RevenueCapitalClassification { get; set; }
 }
 
 public class MiraOutputTaxStatementDto
@@ -119,6 +120,7 @@ public class BptIncomeStatementDto
     public decimal GrossSales { get; set; }
     public decimal SalesReturnsAndAllowances { get; set; }
     public decimal NetSales { get; set; }
+    public List<BptIncomeLineDto> CostOfGoodsSoldLines { get; set; } = new();
     public decimal CostOfGoodsSold { get; set; }
     public decimal GrossProfit { get; set; }
     public List<BptIncomeLineDto> OperatingExpenses { get; set; } = new();

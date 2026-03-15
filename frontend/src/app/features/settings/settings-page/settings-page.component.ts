@@ -11,6 +11,8 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
 import { PortalApiService } from '../../services/portal-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 
+type SettingsImageKind = 'logo' | 'stamp' | 'signature';
+
 @Component({
   selector: 'app-settings-page',
   standalone: true,
@@ -51,30 +53,31 @@ import { ToastService } from '../../../core/services/toast.service';
           </div>
           <label>Business Registration Number <input formControlName="businessRegistrationNumber"></label>
 
-          <div class="logo-upload-field">
+          <div class="asset-upload-field">
             <span class="field-label">Company Logo</span>
             <input
               #logoFileInput
               class="file-input"
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              (change)="onLogoFilePicked($event)">
+              (change)="onImageFilePicked('logo', $event)">
             <button
               type="button"
-              class="logo-dropzone"
-              [class.dragging]="logoDragActive()"
-              [class.uploading]="logoUploading()"
-              (click)="openLogoPicker()"
-              (dragover)="onLogoDragOver($event)"
-              (dragleave)="onLogoDragLeave($event)"
-              (drop)="onLogoDrop($event)">
-              <ng-container *ngIf="logoPreviewUrl() as preview; else emptyLogoState">
+              class="asset-dropzone"
+              [class.dragging]="imageState.logo.dragging()"
+              [class.uploading]="imageState.logo.uploading()"
+              (click)="openImagePicker('logo')"
+              (dragover)="onImageDragOver('logo', $event)"
+              (dragleave)="onImageDragLeave('logo', $event)"
+              (drop)="onImageDrop('logo', $event)">
+              <ng-container *ngIf="imagePreviewUrl('logo') as preview; else emptyLogoState">
                 <img [src]="preview" alt="Company logo preview">
-                <span>{{ logoUploading() ? 'Uploading logo...' : 'Drop another logo or click to replace' }}</span>
-                <button type="button" class="logo-remove" (click)="removeLogo($event)">Remove logo</button>
+                <span>{{ imageState.logo.uploading() ? 'Uploading logo...' : 'Drop another logo or click to replace' }}</span>
+                <small>Used on invoices, reports, and document exports.</small>
+                <button type="button" class="asset-remove" (click)="removeImage('logo', $event)">Remove logo</button>
               </ng-container>
               <ng-template #emptyLogoState>
-                <span>{{ logoUploading() ? 'Uploading logo...' : 'Drag and drop company logo here' }}</span>
+                <span>{{ imageState.logo.uploading() ? 'Uploading logo...' : 'Drag and drop company logo here' }}</span>
                 <small>or click to browse (PNG, JPG, WEBP up to 5MB)</small>
               </ng-template>
             </button>
@@ -83,6 +86,74 @@ import { ToastService } from '../../../core/services/toast.service';
             Logo URL
             <input formControlName="logoUrl" type="text" placeholder="/logo-name.svg">
           </label>
+
+          <div class="asset-panel">
+            <div class="asset-panel-head">
+              <h4>BPT Stamp & Signature</h4>
+              <p>Upload the company stamp and authorized signature to place them automatically on BPT statement PDFs.</p>
+            </div>
+            <div class="two-col asset-grid">
+              <div class="asset-upload-field">
+                <span class="field-label">Company Stamp</span>
+                <input
+                  #stampFileInput
+                  class="file-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  (change)="onImageFilePicked('stamp', $event)">
+                <button
+                  type="button"
+                  class="asset-dropzone"
+                  [class.dragging]="imageState.stamp.dragging()"
+                  [class.uploading]="imageState.stamp.uploading()"
+                  (click)="openImagePicker('stamp')"
+                  (dragover)="onImageDragOver('stamp', $event)"
+                  (dragleave)="onImageDragLeave('stamp', $event)"
+                  (drop)="onImageDrop('stamp', $event)">
+                  <ng-container *ngIf="imagePreviewUrl('stamp') as preview; else emptyStampState">
+                    <img [src]="preview" alt="Company stamp preview">
+                    <span>{{ imageState.stamp.uploading() ? 'Uploading company stamp...' : 'Drop another stamp or click to replace' }}</span>
+                    <small>Shown in the BPT statement approval section.</small>
+                    <button type="button" class="asset-remove" (click)="removeImage('stamp', $event)">Remove stamp</button>
+                  </ng-container>
+                  <ng-template #emptyStampState>
+                    <span>{{ imageState.stamp.uploading() ? 'Uploading company stamp...' : 'Drag and drop company stamp here' }}</span>
+                    <small>or click to browse (PNG, JPG, WEBP up to 5MB)</small>
+                  </ng-template>
+                </button>
+              </div>
+
+              <div class="asset-upload-field">
+                <span class="field-label">Authorized Signature</span>
+                <input
+                  #signatureFileInput
+                  class="file-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  (change)="onImageFilePicked('signature', $event)">
+                <button
+                  type="button"
+                  class="asset-dropzone"
+                  [class.dragging]="imageState.signature.dragging()"
+                  [class.uploading]="imageState.signature.uploading()"
+                  (click)="openImagePicker('signature')"
+                  (dragover)="onImageDragOver('signature', $event)"
+                  (dragleave)="onImageDragLeave('signature', $event)"
+                  (drop)="onImageDrop('signature', $event)">
+                  <ng-container *ngIf="imagePreviewUrl('signature') as preview; else emptySignatureState">
+                    <img [src]="preview" alt="Authorized signature preview">
+                    <span>{{ imageState.signature.uploading() ? 'Uploading signature...' : 'Drop another signature or click to replace' }}</span>
+                    <small>Shown next to the company stamp in the BPT statement.</small>
+                    <button type="button" class="asset-remove" (click)="removeImage('signature', $event)">Remove signature</button>
+                  </ng-container>
+                  <ng-template #emptySignatureState>
+                    <span>{{ imageState.signature.uploading() ? 'Uploading signature...' : 'Drag and drop authorized signature here' }}</span>
+                    <small>or click to browse (PNG, JPG, WEBP up to 5MB)</small>
+                  </ng-template>
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div class="prefix-grid">
             <label>Invoice Prefix <input formControlName="invoicePrefix"></label>
@@ -206,14 +277,40 @@ import { ToastService } from '../../../core/services/toast.service';
       font-family: var(--font-heading);
       font-weight: 600;
     }
-    .logo-upload-field {
+    .asset-upload-field {
       display: grid;
       gap: .34rem;
     }
     .file-input {
       display: none;
     }
-    .logo-dropzone {
+    .asset-panel {
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      padding: .8rem;
+      background: rgba(246, 250, 255, .55);
+      display: grid;
+      gap: .75rem;
+    }
+    .asset-panel-head {
+      display: grid;
+      gap: .22rem;
+    }
+    .asset-panel-head h4 {
+      margin: 0;
+      font-size: .92rem;
+      color: var(--text-main);
+    }
+    .asset-panel-head p {
+      margin: 0;
+      font-size: .77rem;
+      line-height: 1.4;
+      color: var(--text-muted);
+    }
+    .asset-grid {
+      align-items: start;
+    }
+    .asset-dropzone {
       border: 1px dashed #b6c8ee;
       border-radius: 13px;
       background: linear-gradient(150deg, rgba(245, 248, 255, .95), rgba(235, 242, 255, .9));
@@ -227,19 +324,19 @@ import { ToastService } from '../../../core/services/toast.service';
       cursor: pointer;
       transition: border-color .2s ease, background .2s ease, transform .2s ease;
     }
-    .logo-dropzone:hover {
+    .asset-dropzone:hover {
       border-color: #90a6e7;
       transform: translateY(-1px);
     }
-    .logo-dropzone.dragging {
+    .asset-dropzone.dragging {
       border-color: #6f84f5;
       background: linear-gradient(150deg, rgba(228, 236, 255, .96), rgba(214, 228, 255, .9));
     }
-    .logo-dropzone.uploading {
+    .asset-dropzone.uploading {
       cursor: progress;
       opacity: .78;
     }
-    .logo-dropzone img {
+    .asset-dropzone img {
       max-height: 72px;
       max-width: 100%;
       object-fit: contain;
@@ -248,18 +345,18 @@ import { ToastService } from '../../../core/services/toast.service';
       background: #fff;
       padding: .2rem;
     }
-    .logo-dropzone span {
+    .asset-dropzone span {
       font-size: .85rem;
       font-family: var(--font-heading);
       font-weight: 600;
       line-height: 1.35;
     }
-    .logo-dropzone small {
+    .asset-dropzone small {
       color: #667aa4;
       font-size: .74rem;
       line-height: 1.35;
     }
-    .logo-remove {
+    .asset-remove {
       margin-top: .15rem;
       border: 1px solid #d9bfd0;
       border-radius: 9px;
@@ -271,7 +368,7 @@ import { ToastService } from '../../../core/services/toast.service';
       font-weight: 600;
       cursor: pointer;
     }
-    .logo-remove:hover {
+    .asset-remove:hover {
       border-color: #c99ab5;
       background: #fff5fa;
     }
@@ -351,8 +448,8 @@ import { ToastService } from '../../../core/services/toast.service';
   `
 })
 export class SettingsPageComponent implements OnInit {
-  private static readonly maxLogoSizeBytes = 5 * 1024 * 1024;
-  private static readonly allowedLogoMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+  private static readonly maxImageSizeBytes = 5 * 1024 * 1024;
+  private static readonly allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
   private static readonly defaultInvoiceLogoUrl = '/logo-name.svg';
 
   private readonly fb = inject(FormBuilder);
@@ -360,11 +457,20 @@ export class SettingsPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
 
-  readonly logoUploading = signal(false);
-  readonly logoDragActive = signal(false);
+  readonly imageState = {
+    logo: { uploading: signal(false), dragging: signal(false) },
+    stamp: { uploading: signal(false), dragging: signal(false) },
+    signature: { uploading: signal(false), dragging: signal(false) }
+  };
 
   @ViewChild('logoFileInput')
   private logoFileInput?: ElementRef<HTMLInputElement>;
+
+  @ViewChild('stampFileInput')
+  private stampFileInput?: ElementRef<HTMLInputElement>;
+
+  @ViewChild('signatureFileInput')
+  private signatureFileInput?: ElementRef<HTMLInputElement>;
 
   readonly settingsForm = this.fb.nonNullable.group({
     username: ['', Validators.pattern(NAME_REGEX)],
@@ -399,7 +505,9 @@ export class SettingsPageComponent implements OnInit {
     mibUsdAccountNumber: [''],
     invoiceOwnerName: ['', Validators.pattern(NAME_REGEX)],
     invoiceOwnerIdCard: [''],
-    logoUrl: [SettingsPageComponent.defaultInvoiceLogoUrl, Validators.maxLength(400)]
+    logoUrl: [SettingsPageComponent.defaultInvoiceLogoUrl, Validators.maxLength(400)],
+    companyStampUrl: ['', Validators.maxLength(400)],
+    companySignatureUrl: ['', Validators.maxLength(400)]
   });
 
   readonly passwordForm = this.fb.nonNullable.group({
@@ -417,7 +525,9 @@ export class SettingsPageComponent implements OnInit {
       next: (settings) => {
         this.settingsForm.reset({
           ...settings,
-          logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl)
+          logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl),
+          companyStampUrl: this.normalizePersistedOptionalImageUrl(settings.companyStampUrl),
+          companySignatureUrl: this.normalizePersistedOptionalImageUrl(settings.companySignatureUrl)
         });
         this.syncTaxConfiguration(settings.isTaxApplicable);
         this.persistUsername(settings.username ?? '');
@@ -443,15 +553,19 @@ export class SettingsPageComponent implements OnInit {
     }
 
     const logoUrl = this.settingsForm.controls.logoUrl.value.trim();
-    if (logoUrl && !SettingsPageComponent.isPersistableLogoUrl(logoUrl)) {
-      this.settingsForm.controls.logoUrl.markAsTouched();
-      this.toast.error('Logo URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /logo-name.svg.');
+    const companyStampUrl = this.settingsForm.controls.companyStampUrl.value.trim();
+    const companySignatureUrl = this.settingsForm.controls.companySignatureUrl.value.trim();
+    if (!this.validateImageUrl('logo', logoUrl)
+      || !this.validateImageUrl('stamp', companyStampUrl)
+      || !this.validateImageUrl('signature', companySignatureUrl)) {
       return;
     }
 
     const payload = {
       ...this.settingsForm.getRawValue(),
       logoUrl,
+      companyStampUrl,
+      companySignatureUrl,
       defaultTaxRate: this.settingsForm.controls.isTaxApplicable.value
         ? Number(this.settingsForm.controls.defaultTaxRate.value)
         : 0,
@@ -462,7 +576,9 @@ export class SettingsPageComponent implements OnInit {
       next: (settings) => {
         this.settingsForm.reset({
           ...settings,
-          logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl)
+          logoUrl: this.normalizePersistedLogoUrl(settings.logoUrl),
+          companyStampUrl: this.normalizePersistedOptionalImageUrl(settings.companyStampUrl),
+          companySignatureUrl: this.normalizePersistedOptionalImageUrl(settings.companySignatureUrl)
         });
         this.syncTaxConfiguration(settings.isTaxApplicable);
         this.persistUsername(settings.username ?? '');
@@ -472,8 +588,87 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
-  logoPreviewUrl(): string | null {
-    const value = this.settingsForm.controls.logoUrl.value.trim();
+  imagePreviewUrl(kind: SettingsImageKind): string | null {
+    const value = this.getImageControl(kind).value.trim();
+    return this.resolvePreviewUrl(value);
+  }
+
+  openImagePicker(kind: SettingsImageKind): void {
+    if (this.imageState[kind].uploading()) {
+      return;
+    }
+
+    this.getImageInput(kind)?.nativeElement.click();
+  }
+
+  onImageFilePicked(kind: SettingsImageKind, event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.item(0);
+    if (!file) {
+      return;
+    }
+
+    this.uploadImageFile(kind, file);
+  }
+
+  onImageDragOver(kind: SettingsImageKind, event: DragEvent): void {
+    event.preventDefault();
+    if (this.imageState[kind].uploading()) {
+      return;
+    }
+
+    this.imageState[kind].dragging.set(true);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  onImageDragLeave(kind: SettingsImageKind, event: DragEvent): void {
+    event.preventDefault();
+    this.imageState[kind].dragging.set(false);
+  }
+
+  onImageDrop(kind: SettingsImageKind, event: DragEvent): void {
+    event.preventDefault();
+    this.imageState[kind].dragging.set(false);
+
+    if (this.imageState[kind].uploading()) {
+      return;
+    }
+
+    const transfer = event.dataTransfer;
+    if (!transfer) {
+      return;
+    }
+
+    const file = transfer.files?.item(0);
+    if (file) {
+      this.uploadImageFile(kind, file);
+      return;
+    }
+
+    const droppedText = transfer.getData('text/uri-list') || transfer.getData('text/plain');
+    if (this.tryUseDroppedUrl(kind, droppedText)) {
+      return;
+    }
+
+    this.toast.error(`Drop a ${this.getImageLabel(kind).toLowerCase()} image file or image URL.`);
+  }
+
+  removeImage(kind: SettingsImageKind, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.imageState[kind].uploading()) {
+      return;
+    }
+
+    this.getImageControl(kind).setValue(kind === 'logo' ? SettingsPageComponent.defaultInvoiceLogoUrl : '');
+    this.getImageControl(kind).markAsDirty();
+    this.resetImageInput(kind);
+    this.toast.success(this.getImageRemovedMessage(kind));
+  }
+
+  private resolvePreviewUrl(value: string): string | null {
     if (!value) {
       return null;
     }
@@ -512,81 +707,6 @@ export class SettingsPageComponent implements OnInit {
     }
   }
 
-  openLogoPicker(): void {
-    if (this.logoUploading()) {
-      return;
-    }
-
-    this.logoFileInput?.nativeElement.click();
-  }
-
-  onLogoFilePicked(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.item(0);
-    if (!file) {
-      return;
-    }
-
-    this.uploadLogoFile(file);
-  }
-
-  onLogoDragOver(event: DragEvent): void {
-    event.preventDefault();
-    if (this.logoUploading()) {
-      return;
-    }
-
-    this.logoDragActive.set(true);
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'copy';
-    }
-  }
-
-  onLogoDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    this.logoDragActive.set(false);
-  }
-
-  onLogoDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.logoDragActive.set(false);
-
-    if (this.logoUploading()) {
-      return;
-    }
-
-    const transfer = event.dataTransfer;
-    if (!transfer) {
-      return;
-    }
-
-    const file = transfer.files?.item(0);
-    if (file) {
-      this.uploadLogoFile(file);
-      return;
-    }
-
-    const droppedText = transfer.getData('text/uri-list') || transfer.getData('text/plain');
-    if (this.tryUseDroppedUrl(droppedText)) {
-      return;
-    }
-
-    this.toast.error('Drop an image file or image URL.');
-  }
-
-  removeLogo(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.logoUploading()) {
-      return;
-    }
-
-    this.settingsForm.controls.logoUrl.setValue(SettingsPageComponent.defaultInvoiceLogoUrl);
-    this.settingsForm.controls.logoUrl.markAsDirty();
-    this.resetLogoInput();
-    this.toast.success('Logo reset to default invoice branding.');
-  }
-
   changePassword(): void {
     if (this.passwordForm.invalid) {
       this.toast.error('Please complete password fields.');
@@ -612,44 +732,44 @@ export class SettingsPageComponent implements OnInit {
     return extractApiError(error, fallback);
   }
 
-  private uploadLogoFile(file: File): void {
+  private uploadImageFile(kind: SettingsImageKind, file: File): void {
     if (file.size === 0) {
-      this.toast.error('Selected logo file is empty.');
-      this.resetLogoInput();
+      this.toast.error(`Selected ${this.getImageLabel(kind).toLowerCase()} file is empty.`);
+      this.resetImageInput(kind);
       return;
     }
 
-    if (file.size > SettingsPageComponent.maxLogoSizeBytes) {
-      this.toast.error('Logo file must be 5 MB or smaller.');
-      this.resetLogoInput();
+    if (file.size > SettingsPageComponent.maxImageSizeBytes) {
+      this.toast.error(`${this.getImageLabel(kind)} file must be 5 MB or smaller.`);
+      this.resetImageInput(kind);
       return;
     }
 
     const mimeType = file.type.toLowerCase();
-    if (mimeType && !SettingsPageComponent.allowedLogoMimeTypes.has(mimeType)) {
-      this.toast.error('Supported logo formats are PNG, JPG, and WEBP.');
-      this.resetLogoInput();
+    if (mimeType && !SettingsPageComponent.allowedImageMimeTypes.has(mimeType)) {
+      this.toast.error(`Supported ${this.getImageLabel(kind).toLowerCase()} formats are PNG, JPG, and WEBP.`);
+      this.resetImageInput(kind);
       return;
     }
 
-    this.logoUploading.set(true);
-    this.api.uploadSettingsLogo(file)
-      .pipe(finalize(() => this.logoUploading.set(false)))
+    this.imageState[kind].uploading.set(true);
+    this.uploadImageRequest(kind, file)
+      .pipe(finalize(() => this.imageState[kind].uploading.set(false)))
       .subscribe({
         next: (result) => {
-          this.settingsForm.controls.logoUrl.setValue(result.url);
-          this.settingsForm.controls.logoUrl.markAsDirty();
-          this.toast.success('Logo uploaded.');
-          this.resetLogoInput();
+          this.getImageControl(kind).setValue(result.url);
+          this.getImageControl(kind).markAsDirty();
+          this.toast.success(`${this.getImageLabel(kind)} uploaded.`);
+          this.resetImageInput(kind);
         },
         error: (error) => {
-          this.toast.error(this.readError(error, 'Unable to upload logo.'));
-          this.resetLogoInput();
+          this.toast.error(this.readError(error, `Unable to upload ${this.getImageLabel(kind).toLowerCase()}.`));
+          this.resetImageInput(kind);
         }
       });
   }
 
-  private tryUseDroppedUrl(value: string): boolean {
+  private tryUseDroppedUrl(kind: SettingsImageKind, value: string): boolean {
     if (!value) {
       return false;
     }
@@ -669,9 +789,9 @@ export class SettingsPageComponent implements OnInit {
         return false;
       }
 
-      this.settingsForm.controls.logoUrl.setValue(parsed.toString());
-      this.settingsForm.controls.logoUrl.markAsDirty();
-      this.toast.success('Logo URL added.');
+      this.getImageControl(kind).setValue(parsed.toString());
+      this.getImageControl(kind).markAsDirty();
+      this.toast.success(`${this.getImageLabel(kind)} URL added.`);
       return true;
     } catch {
       return false;
@@ -687,6 +807,17 @@ export class SettingsPageComponent implements OnInit {
     return SettingsPageComponent.isPersistableLogoUrl(value)
       ? value
       : SettingsPageComponent.defaultInvoiceLogoUrl;
+  }
+
+  private normalizePersistedOptionalImageUrl(raw: string | null | undefined): string {
+    const value = (raw ?? '').trim();
+    if (!value) {
+      return '';
+    }
+
+    return SettingsPageComponent.isPersistableLogoUrl(value)
+      ? value
+      : '';
   }
 
   private syncTaxConfiguration(isTaxApplicable: boolean): void {
@@ -742,9 +873,75 @@ export class SettingsPageComponent implements OnInit {
     }
   }
 
-  private resetLogoInput(): void {
-    if (this.logoFileInput) {
-      this.logoFileInput.nativeElement.value = '';
+  private validateImageUrl(kind: SettingsImageKind, value: string): boolean {
+    if (value && !SettingsPageComponent.isPersistableLogoUrl(value)) {
+      this.getImageControl(kind).markAsTouched();
+      this.toast.error(`${this.getImageLabel(kind)} URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /logo-name.svg.`);
+      return false;
+    }
+
+    return true;
+  }
+
+  private getImageControl(kind: SettingsImageKind) {
+    switch (kind) {
+      case 'logo':
+        return this.settingsForm.controls.logoUrl;
+      case 'stamp':
+        return this.settingsForm.controls.companyStampUrl;
+      case 'signature':
+        return this.settingsForm.controls.companySignatureUrl;
+    }
+  }
+
+  private getImageInput(kind: SettingsImageKind): ElementRef<HTMLInputElement> | undefined {
+    switch (kind) {
+      case 'logo':
+        return this.logoFileInput;
+      case 'stamp':
+        return this.stampFileInput;
+      case 'signature':
+        return this.signatureFileInput;
+    }
+  }
+
+  private getImageLabel(kind: SettingsImageKind): string {
+    switch (kind) {
+      case 'logo':
+        return 'Logo';
+      case 'stamp':
+        return 'Company stamp';
+      case 'signature':
+        return 'Signature';
+    }
+  }
+
+  private getImageRemovedMessage(kind: SettingsImageKind): string {
+    switch (kind) {
+      case 'logo':
+        return 'Logo reset to default invoice branding.';
+      case 'stamp':
+        return 'Company stamp removed.';
+      case 'signature':
+        return 'Signature removed.';
+    }
+  }
+
+  private uploadImageRequest(kind: SettingsImageKind, file: File) {
+    switch (kind) {
+      case 'logo':
+        return this.api.uploadSettingsLogo(file);
+      case 'stamp':
+        return this.api.uploadSettingsStamp(file);
+      case 'signature':
+        return this.api.uploadSettingsSignature(file);
+    }
+  }
+
+  private resetImageInput(kind: SettingsImageKind): void {
+    const input = this.getImageInput(kind);
+    if (input) {
+      input.nativeElement.value = '';
     }
   }
 

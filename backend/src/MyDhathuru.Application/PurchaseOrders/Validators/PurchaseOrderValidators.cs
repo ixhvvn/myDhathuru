@@ -8,7 +8,7 @@ public class CreatePurchaseOrderRequestValidator : AbstractValidator<CreatePurch
 {
     public CreatePurchaseOrderRequestValidator()
     {
-        RuleFor(x => x.CustomerId).NotEmpty();
+        RuleFor(x => x.SupplierId).NotEmpty();
         RuleFor(x => x.DateIssued).NotEmpty();
         RuleFor(x => x.RequiredDate)
             .GreaterThanOrEqualTo(x => x.DateIssued)

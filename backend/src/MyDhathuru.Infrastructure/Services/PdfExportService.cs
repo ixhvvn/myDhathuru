@@ -846,7 +846,7 @@ public class PdfExportService : IPdfExportService
                         });
 
                         header.Item().Text(
-                                $"Order for {Safe(model.CustomerName)} | Lead time {leadDays} day(s) | Courier: {Safe(model.CourierName)}")
+                                $"Order for {Safe(model.SupplierName)} | Lead time {leadDays} day(s) | Courier: {Safe(model.CourierName)}")
                             .FontSize(8.6f)
                             .FontColor(Muted);
                         header.Item().LineHorizontal(1).LineColor(Border);
@@ -870,13 +870,13 @@ public class PdfExportService : IPdfExportService
                                 {
                                     details.Spacing(4);
                                     details.Item().Text("Order To").Bold().FontSize(10.4f).FontColor(Ink);
-                                    details.Item().Text(model.CustomerName).Bold().FontSize(11.4f).FontColor(Ink);
+                                    details.Item().Text(model.SupplierName).Bold().FontSize(11.4f).FontColor(Ink);
                                     if (isTaxApplicable)
                                     {
-                                        details.Item().Text($"Customer TIN: {Safe(model.CustomerTinNumber)}").FontColor(Muted);
+                                        details.Item().Text($"Supplier TIN: {Safe(model.SupplierTinNumber)}").FontColor(Muted);
                                     }
-                                    details.Item().Text($"Phone: {Safe(model.CustomerPhone)}").FontColor(Muted);
-                                    details.Item().Text($"Email: {Safe(model.CustomerEmail)}").FontColor(Muted);
+                                    details.Item().Text($"Phone: {Safe(model.SupplierContactNumber)}").FontColor(Muted);
+                                    details.Item().Text($"Email: {Safe(model.SupplierEmail)}").FontColor(Muted);
                                 });
 
                             row.RelativeItem()
@@ -4816,7 +4816,9 @@ public class PdfExportService : IPdfExportService
             item.GstChargedAt12.ToString("N2"),
             item.GstChargedAt16.ToString("N2"),
             item.GstChargedAt17.ToString("N2"),
-            item.TotalGst.ToString("N2")
+            item.TotalGst.ToString("N2"),
+            item.TaxableActivityNumber,
+            item.RevenueCapitalClassification.ToString()
         }).ToList();
 
         var metrics = new[]
@@ -4834,7 +4836,7 @@ public class PdfExportService : IPdfExportService
             model,
             "MIRA Input Tax Statement",
             metrics,
-            new[] { "#", "Supplier TIN", "Supplier Name", "Invoice No.", "Invoice Date", "Taxable Value", "GST 6%", "GST 8%", "GST 12%", "GST 16%", "GST 17%", "Total GST" },
+            new[] { "#", "Supplier TIN", "Supplier Name", "Invoice No.", "Invoice Date", "Taxable Value", "GST 6%", "GST 8%", "GST 12%", "GST 16%", "GST 17%", "Total GST", "Activity No.", "Revenue / Capital" },
             rows);
     }
 
@@ -4875,16 +4877,17 @@ public class PdfExportService : IPdfExportService
             rows);
     }
 
-    public byte[] BuildBptIncomeStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl)
+    public byte[] BuildBptIncomeStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl, string? companyStampUrl, string? companySignatureUrl)
     {
         var statement = model.BptIncomeStatement ?? throw new InvalidOperationException("BPT income statement preview is missing.");
         var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var stampAsset = ResolveTenantSupportingImage(companyStampUrl, "Unable to load company stamp for BPT PDF rendering.");
+        var signatureAsset = ResolveTenantSupportingImage(companySignatureUrl, "Unable to load company signature for BPT PDF rendering.");
 
         const string Ink = "#283B63";
         const string Muted = "#697DA7";
         const string Border = "#D8E2F4";
         const string Panel = "#F7FAFF";
-        const string HeaderFill = "#EEF3FF";
         const string Accent = "#6F7FF5";
         const string GoodFill = "#E9F9F2";
 
@@ -4953,19 +4956,9 @@ public class PdfExportService : IPdfExportService
                                 });
                         });
 
-                        if (model.Assumptions.Count > 0)
+                        if (stampAsset?.HasValue == true || signatureAsset?.HasValue == true)
                         {
-                            column.Item()
-                                .Border(1).BorderColor(Border).Background(HeaderFill).CornerRadius(14).Padding(10)
-                                .Column(notes =>
-                                {
-                                    notes.Spacing(4);
-                                    notes.Item().Text("Filing assumptions").Bold().FontColor(Ink);
-                                    foreach (var item in model.Assumptions)
-                                    {
-                                        notes.Item().Text($"• {item}").FontColor(Muted);
-                                    }
-                                });
+                            column.Item().Element(c => BuildBptApprovalSection(c, stampAsset, signatureAsset, Border));
                         }
                     });
 
@@ -4975,10 +4968,12 @@ public class PdfExportService : IPdfExportService
             .GeneratePdf();
     }
 
-    public byte[] BuildBptNotesPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl)
+    public byte[] BuildBptNotesPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl, string? companyStampUrl, string? companySignatureUrl)
     {
         var notes = model.BptNotes ?? throw new InvalidOperationException("BPT notes preview is missing.");
         var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var stampAsset = ResolveTenantSupportingImage(companyStampUrl, "Unable to load company stamp for BPT notes PDF rendering.");
+        var signatureAsset = ResolveTenantSupportingImage(companySignatureUrl, "Unable to load company signature for BPT notes PDF rendering.");
 
         const string Ink = "#283B63";
         const string Muted = "#697DA7";
@@ -5015,6 +5010,11 @@ public class PdfExportService : IPdfExportService
                                     });
                                     block.Item().Element(c => BuildExpenseNotesTable(c, section, Border, HeaderFill, Panel, Ink, Muted));
                                 });
+                        }
+
+                        if (stampAsset?.HasValue == true || signatureAsset?.HasValue == true)
+                        {
+                            column.Item().Element(c => BuildBptApprovalSection(c, stampAsset, signatureAsset, Border));
                         }
                     });
 
@@ -5080,7 +5080,7 @@ public class PdfExportService : IPdfExportService
                                 .Column(notes =>
                                 {
                                     notes.Spacing(4);
-                                    notes.Item().Text("Filing assumptions").Bold().FontColor(Ink);
+                                    notes.Item().Text("Important Filing Notes").Bold().FontColor(Ink);
                                     foreach (var item in model.Assumptions)
                                     {
                                         notes.Item().Text($"• {item}").FontColor(Muted);
@@ -5314,6 +5314,43 @@ public class PdfExportService : IPdfExportService
             muted);
     }
 
+    private static void BuildBptApprovalSection(IContainer container, LogoAsset? stampAsset, LogoAsset? signatureAsset, string border)
+    {
+        var hasStamp = stampAsset?.HasValue == true;
+        var hasSignature = signatureAsset?.HasValue == true;
+        if (!hasStamp && !hasSignature)
+        {
+            return;
+        }
+
+        container
+            .PaddingTop(2)
+            .Row(row =>
+            {
+                row.Spacing(10);
+
+                if (hasStamp)
+                {
+                    row.ConstantItem(146).Element(c => BuildBptApprovalAssetCard(c, stampAsset!, border));
+                }
+
+                if (hasSignature)
+                {
+                    row.ConstantItem(182).Element(c => BuildBptApprovalAssetCard(c, signatureAsset!, border));
+                }
+            });
+    }
+
+    private static void BuildBptApprovalAssetCard(IContainer container, LogoAsset asset, string border)
+    {
+        container
+            .Border(1).BorderColor(border).Background(Colors.White).CornerRadius(10).Padding(6)
+            .Height(68)
+            .AlignCenter()
+            .AlignMiddle()
+            .Element(c => RenderLogo(c, asset));
+    }
+
 
     private static string BuildMetaLine(ReportMetaDto meta)
     {
@@ -5337,6 +5374,15 @@ public class PdfExportService : IPdfExportService
             includeTenantUploads: true,
             fallbackLogoFileName: DefaultInvoiceLogoFileName,
             warningMessage: "Unable to load tenant invoice logo for PDF rendering.");
+    }
+
+    private LogoAsset? ResolveTenantSupportingImage(string? imageUrl, string warningMessage)
+    {
+        return ResolveLogoAsset(
+            imageUrl,
+            includeTenantUploads: true,
+            fallbackLogoFileName: string.Empty,
+            warningMessage: warningMessage);
     }
 
     private LogoAsset? ResolveLogoAsset(
@@ -5464,12 +5510,6 @@ public class PdfExportService : IPdfExportService
     private bool TryReadTenantLogoFromUploadsPath(string pathOrUrl, out byte[] bytes)
     {
         bytes = Array.Empty<byte>();
-        var logoRootDirectory = GetTenantLogoRootDirectory();
-        if (string.IsNullOrWhiteSpace(logoRootDirectory))
-        {
-            return false;
-        }
-
         var normalized = pathOrUrl.Split('?', 2)[0].Split('#', 2)[0].Trim().Replace('\\', '/');
         if (normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
@@ -5477,19 +5517,24 @@ public class PdfExportService : IPdfExportService
         }
 
         var relativePath = normalized.TrimStart('/');
-        const string prefix = "uploads/company-logos/";
-        if (!relativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        foreach (var folderName in new[] { "company-logos", "company-stamps", "company-signatures" })
         {
-            return false;
+            var prefix = $"uploads/{folderName}/";
+            if (!relativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var childPath = relativePath[prefix.Length..];
+            if (string.IsNullOrWhiteSpace(childPath))
+            {
+                return false;
+            }
+
+            return TryReadRelativeFileUnderRoot(GetTenantUploadRootDirectory(folderName), childPath, out bytes);
         }
 
-        var childPath = relativePath[prefix.Length..];
-        if (string.IsNullOrWhiteSpace(childPath))
-        {
-            return false;
-        }
-
-        return TryReadRelativeFileUnderRoot(logoRootDirectory, childPath, out bytes);
+        return false;
     }
 
     private bool TryReadFileBytes(string filePath, out byte[] bytes)
@@ -5718,13 +5763,13 @@ public class PdfExportService : IPdfExportService
         return Path.Combine(webRootPath, "uploads", "logos");
     }
 
-    private string GetTenantLogoRootDirectory()
+    private string GetTenantUploadRootDirectory(string folderName)
     {
         var webRootPath = string.IsNullOrWhiteSpace(_hostEnvironment.WebRootPath)
             ? Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot")
             : _hostEnvironment.WebRootPath;
 
-        return Path.Combine(webRootPath, "uploads", "company-logos");
+        return Path.Combine(webRootPath, "uploads", folderName);
     }
 
     private bool TryReadRelativeFileUnderRoot(string rootDirectory, string childPath, out byte[] bytes)

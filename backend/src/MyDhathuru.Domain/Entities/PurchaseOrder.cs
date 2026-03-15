@@ -5,8 +5,8 @@ namespace MyDhathuru.Domain.Entities;
 public class PurchaseOrder : TenantEntity
 {
     public required string PurchaseOrderNo { get; set; }
-    public Guid CustomerId { get; set; }
-    public Customer Customer { get; set; } = null!;
+    public Guid SupplierId { get; set; }
+    public Supplier Supplier { get; set; } = null!;
     public Guid? CourierVesselId { get; set; }
     public Vessel? CourierVessel { get; set; }
     public DateOnly DateIssued { get; set; }

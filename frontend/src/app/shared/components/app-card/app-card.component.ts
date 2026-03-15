@@ -12,7 +12,7 @@ import { Component } from '@angular/core';
     }
     .card {
       position: relative;
-      overflow: hidden;
+      overflow: var(--card-overflow, hidden);
       background: var(--card-bg, linear-gradient(160deg, rgba(255,255,255,.9), rgba(248,251,255,.72)));
       border-radius: var(--card-radius, 20px);
       border: 1px solid var(--card-border, rgba(255,255,255,.85));

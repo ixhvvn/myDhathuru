@@ -431,6 +431,219 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.ToTable("AdminInvoiceLineItems");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdjustmentNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<decimal>("AmountMvr")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("AmountOriginal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("BptCategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BptCategoryId");
+
+                    b.HasIndex("TenantId", "AdjustmentNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "TransactionDate");
+
+                    b.HasIndex("TenantId", "BptCategoryId", "ApprovalStatus");
+
+                    b.ToTable("BptAdjustments");
+                });
+
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClassificationGroup")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("BptCategories");
+                });
+
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptMappingRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BptCategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ExpenseCategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RevenueCapitalClassification")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SalesAdjustmentType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("SourceModule")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BptCategoryId");
+
+                    b.HasIndex("ExpenseCategoryId");
+
+                    b.HasIndex("TenantId", "BptCategoryId", "IsActive");
+
+                    b.HasIndex("TenantId", "ExpenseCategoryId", "SourceModule", "IsActive");
+
+                    b.ToTable("BptMappingRules");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.BusinessAuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -895,6 +1108,62 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.ToTable("DocumentSequences");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.ExchangeRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<DateOnly>("RateDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("RateToMvr")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "RateDate");
+
+                    b.HasIndex("TenantId", "Currency", "RateDate")
+                        .IsUnique();
+
+                    b.ToTable("ExchangeRates");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.ExpenseCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1260,6 +1529,87 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.ToTable("InvoicePayments");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.OtherIncomeEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AmountMvr")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("AmountOriginal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CounterpartyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("EntryNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("TenantId", "ApprovalStatus");
+
+                    b.HasIndex("TenantId", "EntryNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "TransactionDate");
+
+                    b.ToTable("OtherIncomeEntries");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1591,9 +1941,6 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly>("DateIssued")
                         .HasColumnType("date");
 
@@ -1618,6 +1965,9 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("Subtotal")
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("TaxAmount")
                         .HasColumnType("numeric(18,2)");
 
@@ -1637,7 +1987,7 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CourierVesselId");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId", "DateIssued");
 
@@ -2373,6 +2723,96 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.ToTable("SalarySlips");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.SalesAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdjustmentNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("AdjustmentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("AmountMvr")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("AmountOriginal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("RelatedInvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelatedInvoiceNumber")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("RelatedInvoiceId");
+
+                    b.HasIndex("TenantId", "AdjustmentNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "TransactionDate");
+
+                    b.HasIndex("TenantId", "AdjustmentType", "ApprovalStatus");
+
+                    b.ToTable("SalesAdjustments");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.SignupRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2892,6 +3332,14 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("CompanySignatureUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("CompanyStampUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3210,6 +3658,35 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.Navigation("AdminInvoice");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptAdjustment", b =>
+                {
+                    b.HasOne("MyDhathuru.Domain.Entities.BptCategory", "BptCategory")
+                        .WithMany("Adjustments")
+                        .HasForeignKey("BptCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BptCategory");
+                });
+
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptMappingRule", b =>
+                {
+                    b.HasOne("MyDhathuru.Domain.Entities.BptCategory", "BptCategory")
+                        .WithMany("MappingRules")
+                        .HasForeignKey("BptCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyDhathuru.Domain.Entities.ExpenseCategory", "ExpenseCategory")
+                        .WithMany()
+                        .HasForeignKey("ExpenseCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("BptCategory");
+
+                    b.Navigation("ExpenseCategory");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.BusinessCustomRate", b =>
                 {
                     b.HasOne("MyDhathuru.Domain.Entities.Tenant", "Tenant")
@@ -3343,6 +3820,16 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.Navigation("Invoice");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.OtherIncomeEntry", b =>
+                {
+                    b.HasOne("MyDhathuru.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.HasOne("MyDhathuru.Domain.Entities.User", "User")
@@ -3397,15 +3884,15 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CourierVesselId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("MyDhathuru.Domain.Entities.Customer", "Customer")
+                    b.HasOne("MyDhathuru.Domain.Entities.Supplier", "Supplier")
                         .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CourierVessel");
 
-                    b.Navigation("Customer");
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("MyDhathuru.Domain.Entities.PurchaseOrderItem", b =>
@@ -3540,6 +4027,23 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.Navigation("PayrollEntry");
                 });
 
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.SalesAdjustment", b =>
+                {
+                    b.HasOne("MyDhathuru.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MyDhathuru.Domain.Entities.Invoice", "RelatedInvoice")
+                        .WithMany()
+                        .HasForeignKey("RelatedInvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("RelatedInvoice");
+                });
+
             modelBuilder.Entity("MyDhathuru.Domain.Entities.StaffConductForm", b =>
                 {
                     b.HasOne("MyDhathuru.Domain.Entities.Staff", "Staff")
@@ -3586,6 +4090,13 @@ namespace MyDhathuru.Infrastructure.Persistence.Migrations
                     b.Navigation("EmailLogs");
 
                     b.Navigation("LineItems");
+                });
+
+            modelBuilder.Entity("MyDhathuru.Domain.Entities.BptCategory", b =>
+                {
+                    b.Navigation("Adjustments");
+
+                    b.Navigation("MappingRules");
                 });
 
             modelBuilder.Entity("MyDhathuru.Domain.Entities.Customer", b =>

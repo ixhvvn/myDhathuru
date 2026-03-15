@@ -1,6 +1,7 @@
 using System.Globalization;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using MyDhathuru.Application.Bpt.Dtos;
 using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Mira.Dtos;
@@ -17,15 +18,18 @@ public class MiraService : IMiraService
     private const string PdfContentType = "application/pdf";
 
     private readonly ApplicationDbContext _dbContext;
+    private readonly IBptService _bptService;
     private readonly IPdfExportService _pdfExportService;
     private readonly ICurrentTenantService _currentTenantService;
 
     public MiraService(
         ApplicationDbContext dbContext,
+        IBptService bptService,
         IPdfExportService pdfExportService,
         ICurrentTenantService currentTenantService)
     {
         _dbContext = dbContext;
+        _bptService = bptService;
         _pdfExportService = pdfExportService;
         _currentTenantService = currentTenantService;
     }
@@ -86,8 +90,8 @@ public class MiraService : IMiraService
         {
             MiraReportType.InputTaxStatement => _pdfExportService.BuildMiraInputTaxStatementPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl),
             MiraReportType.OutputTaxStatement => _pdfExportService.BuildMiraOutputTaxStatementPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl),
-            MiraReportType.BptIncomeStatement => _pdfExportService.BuildBptIncomeStatementPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl),
-            MiraReportType.BptNotes => _pdfExportService.BuildBptNotesPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl),
+            MiraReportType.BptIncomeStatement => _pdfExportService.BuildBptIncomeStatementPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl, settings.CompanyStampUrl, settings.CompanySignatureUrl),
+            MiraReportType.BptNotes => _pdfExportService.BuildBptNotesPdf(preview, settings.CompanyName, companyInfo, settings.LogoUrl, settings.CompanyStampUrl, settings.CompanySignatureUrl),
             _ => throw new AppException("Unsupported MIRA report type.")
         };
 
@@ -144,7 +148,8 @@ public class MiraService : IMiraService
                     GstChargedAt16 = Round2(lineBuckets.Where(i => NormalizeRatePercent(i.GstRate) == 16m).Sum(i => i.GstAmount)),
                     GstChargedAt17 = Round2(lineBuckets.Where(i => NormalizeRatePercent(i.GstRate) == 17m).Sum(i => i.GstAmount)),
                     TotalGst = Round2(x.GstAmount),
-                    TaxableActivityNumber = Safe(string.IsNullOrWhiteSpace(x.MiraTaxableActivityNumber) ? settings.TaxableActivityNumber : x.MiraTaxableActivityNumber)
+                    TaxableActivityNumber = Safe(string.IsNullOrWhiteSpace(x.MiraTaxableActivityNumber) ? settings.TaxableActivityNumber : x.MiraTaxableActivityNumber),
+                    RevenueCapitalClassification = x.RevenueCapitalClassification
                 };
             })
             .ToList();
@@ -223,92 +228,14 @@ public class MiraService : IMiraService
 
     private async Task<MiraReportPreviewDto> BuildBptIncomePreviewAsync(TenantSettings settings, MiraRangeContext range, CancellationToken cancellationToken)
     {
-        var grossSales = await GetGrossSalesAsync(range, cancellationToken);
-        var salaryRows = await GetSalaryRowsAsync(range, cancellationToken);
-        var expenseRows = await GetExpenseRowsAsync(range, cancellationToken);
-
-        var usdRevenueTotal = grossSales.Where(x => !IsMvr(x.Currency)).Sum(x => x.Amount);
-        var usdExpenseTotal = expenseRows.Where(x => !IsMvr(x.Currency)).Sum(x => x.Amount);
-
-        var mvrExpenseRows = expenseRows.Where(x => IsMvr(x.Currency)).ToList();
-        var salaryTotal = Round2(salaryRows.Sum(x => x.TotalForPeriodRange));
-        var costOfGoodsSold = Round2(mvrExpenseRows
-            .Where(x => x.CategoryCode == BptCategoryCode.DieselCharges)
-            .Sum(x => x.Amount));
-
-        var operatingExpenseLines = BuildOperatingExpenseLines(mvrExpenseRows, salaryTotal);
-        var totalOperatingExpenses = Round2(operatingExpenseLines.Sum(x => x.Amount));
-        var netSales = Round2(grossSales.Where(x => IsMvr(x.Currency)).Sum(x => x.Amount));
-        var grossProfit = Round2(netSales - costOfGoodsSold);
-        var netOperatingIncome = Round2(grossProfit - totalOperatingExpenses);
-
-        var statement = new BptIncomeStatementDto
-        {
-            GrossSales = netSales,
-            SalesReturnsAndAllowances = 0m,
-            NetSales = netSales,
-            CostOfGoodsSold = costOfGoodsSold,
-            GrossProfit = grossProfit,
-            OperatingExpenses = operatingExpenseLines,
-            TotalOperatingExpenses = totalOperatingExpenses,
-            NetOperatingIncome = netOperatingIncome,
-            OtherIncome = new List<BptIncomeLineDto>(),
-            TotalOtherIncome = 0m,
-            NetIncome = netOperatingIncome
-        };
-
-        return new MiraReportPreviewDto
-        {
-            ReportType = MiraReportType.BptIncomeStatement,
-            Meta = BuildMeta(settings, range, "BPT Income Statement", usdRevenueTotal, usdExpenseTotal),
-            Assumptions = BuildAssumptions(MiraReportType.BptIncomeStatement, usdRevenueTotal, usdExpenseTotal),
-            BptIncomeStatement = statement
-        };
+        var report = await _bptService.GetReportAsync(ToBptQuery(range), cancellationToken);
+        return MapBptReport(report, MiraReportType.BptIncomeStatement);
     }
 
     private async Task<MiraReportPreviewDto> BuildBptNotesPreviewAsync(TenantSettings settings, MiraRangeContext range, CancellationToken cancellationToken)
     {
-        var salaryRows = await GetSalaryRowsAsync(range, cancellationToken);
-        var expenseRows = await GetExpenseRowsAsync(range, cancellationToken);
-
-        var usdExpenseTotal = expenseRows.Where(x => !IsMvr(x.Currency)).Sum(x => x.Amount);
-        var sections = expenseRows
-            .Where(x => IsMvr(x.Currency) && x.CategoryCode != BptCategoryCode.Salary)
-            .GroupBy(x => x.CategoryCode)
-            .OrderBy(g => (int)g.Key)
-            .Select(g => new BptExpenseNoteSectionDto
-            {
-                CategoryCode = g.Key,
-                Title = GetBptCategoryTitle(g.Key),
-                TotalAmount = Round2(g.Sum(x => x.Amount)),
-                Rows = g.OrderBy(x => x.Date)
-                    .ThenBy(x => x.DocumentNumber)
-                    .Select(x => new BptExpenseNoteRowDto
-                    {
-                        Date = x.Date,
-                        DocumentNumber = x.DocumentNumber,
-                        PayeeName = x.PayeeName,
-                        Detail = x.Detail,
-                        Amount = Round2(x.Amount)
-                    })
-                    .ToList()
-            })
-            .ToList();
-
-        var notes = new BptNotesDto
-        {
-            SalaryRows = salaryRows,
-            TotalSalary = Round2(salaryRows.Sum(x => x.TotalForPeriodRange)),
-            Sections = sections
-        };
-
-        return new MiraReportPreviewDto
-        {
-            ReportType = MiraReportType.BptNotes,
-            Meta = BuildMeta(settings, range, "BPT Notes", usdExpenseTotal: usdExpenseTotal),
-            Assumptions = BuildAssumptions(MiraReportType.BptNotes, usdExpenseTotal: usdExpenseTotal),
-            BptNotes = notes
-        };
+        var report = await _bptService.GetReportAsync(ToBptQuery(range), cancellationToken);
+        return MapBptReport(report, MiraReportType.BptNotes);
     }
 
     private async Task<List<(string Currency, decimal Amount)>> GetGrossSalesAsync(MiraRangeContext range, CancellationToken cancellationToken)
@@ -497,7 +424,7 @@ public class MiraService : IMiraService
         var headers = new[]
         {
             "#", "Supplier TIN", "Supplier Name", "Supplier Invoice Number", "Invoice Date", "Invoice Total (Excl GST)",
-            "GST @6%", "GST @8%", "GST @12%", "GST @16%", "GST @17%", "Total GST", "Your Taxable Activity Number"
+            "GST @6%", "GST @8%", "GST @12%", "GST @16%", "GST @17%", "Total GST", "Your Taxable Activity Number", "Revenue / Capital"
         };
         WriteTableHeaders(sheet, row, headers);
         var dataStart = row + 1;
@@ -519,14 +446,15 @@ public class MiraService : IMiraService
             sheet.Cell(row, 11).Value = item.GstChargedAt17;
             sheet.Cell(row, 12).Value = item.TotalGst;
             sheet.Cell(row, 13).Value = item.TaxableActivityNumber;
+            sheet.Cell(row, 14).Value = item.RevenueCapitalClassification.ToString();
         }
 
         WriteTotalsRow(sheet, row, new object[]
         {
             "", "", "", "", "Total",
-            model.TotalInvoiceBase, model.TotalGst6, model.TotalGst8, model.TotalGst12, model.TotalGst16, model.TotalGst17, model.TotalClaimableGst, ""
+            model.TotalInvoiceBase, model.TotalGst6, model.TotalGst8, model.TotalGst12, model.TotalGst16, model.TotalGst17, model.TotalClaimableGst, "", ""
         });
-        StyleMiraStatementSheet(sheet, dataStart, row, headers.Length, dateColumn: 5, numericFromColumn: 6);
+        StyleMiraStatementSheet(sheet, dataStart, row, headers.Length, dateColumn: 5, numericColumns: new[] { 6, 7, 8, 9, 10, 11, 12 });
     }
 
     private static void BuildOutputTaxWorkbook(XLWorkbook workbook, MiraReportPreviewDto preview)
@@ -576,7 +504,7 @@ public class MiraService : IMiraService
             "", "", "", "", "Total",
             model.TotalTaxableSupplies, model.TotalZeroRatedSupplies, model.TotalExemptSupplies, model.TotalOutOfScopeSupplies, "", model.TotalTaxAmount, ""
         });
-        StyleMiraStatementSheet(detailSheet, dataStart, row, headers.Length, dateColumn: 5, numericFromColumn: 6);
+        StyleMiraStatementSheet(detailSheet, dataStart, row, headers.Length, dateColumn: 5, numericColumns: new[] { 6, 7, 8, 9, 10, 11 });
 
         var summarySheet = workbook.Worksheets.Add("OtherTransactions");
         row = 1;
@@ -592,7 +520,7 @@ public class MiraService : IMiraService
         summarySheet.Cell(row, 3).Value = model.TotalZeroRatedSupplies;
         summarySheet.Cell(row, 4).Value = model.TotalExemptSupplies;
         summarySheet.Cell(row, 5).Value = model.TotalOutOfScopeSupplies;
-        StyleMiraStatementSheet(summarySheet, row, row, 5, dateColumn: null, numericFromColumn: 2);
+        StyleMiraStatementSheet(summarySheet, row, row, 5, dateColumn: null, numericColumns: new[] { 2, 3, 4, 5 });
     }
 
     private static void BuildBptIncomeWorkbook(XLWorkbook workbook, MiraReportPreviewDto preview)
@@ -601,7 +529,7 @@ public class MiraService : IMiraService
         var sheet = workbook.Worksheets.Add("BPTIncomeStatement");
         var row = 1;
 
-        row = BuildWorkbookHeader(sheet, preview.Meta, row, "BPT Income Statement", preview.Assumptions);
+        row = BuildWorkbookHeader(sheet, preview.Meta, row, "BPT Income Statement", Array.Empty<string>());
         row += 1;
         row = WriteMetricStrip(sheet, row, new[]
         {
@@ -622,7 +550,17 @@ public class MiraService : IMiraService
         sheet.Cell(row, 1).Value = "Cost of Goods Sold";
         StyleSectionRow(sheet, row, 2);
         row++;
-        row = WriteLabelValue(sheet, row, "Diesel charges / direct cost", model.CostOfGoodsSold);
+        if (model.CostOfGoodsSoldLines.Count == 0)
+        {
+            row = WriteLabelValue(sheet, row, "No cost of goods sold mapped", 0m);
+        }
+        else
+        {
+            foreach (var item in model.CostOfGoodsSoldLines)
+            {
+                row = WriteLabelValue(sheet, row, item.Label, item.Amount);
+            }
+        }
         row = WriteGrandTotalLabelValue(sheet, row, "Gross profit", model.GrossProfit);
         row++;
         sheet.Cell(row, 1).Value = "Operating Expenses";
@@ -667,7 +605,7 @@ public class MiraService : IMiraService
 
         var salarySheet = workbook.Worksheets.Add("SalaryDetails");
         var row = 1;
-        row = BuildWorkbookHeader(salarySheet, preview.Meta, row, "BPT Notes - Salary Details", preview.Assumptions);
+        row = BuildWorkbookHeader(salarySheet, preview.Meta, row, "BPT Notes - Salary Details", Array.Empty<string>());
         row += 1;
         row = WriteMetricStrip(salarySheet, row, new[]
         {
@@ -693,7 +631,7 @@ public class MiraService : IMiraService
         }
 
         WriteTotalsRow(salarySheet, row, new object[] { "", "", "", "", "Total", model.TotalSalary });
-        StyleMiraStatementSheet(salarySheet, dataStart, row, 6, dateColumn: null, numericFromColumn: 3);
+        StyleMiraStatementSheet(salarySheet, dataStart, row, 6, dateColumn: null, numericColumns: new[] { 3, 4, 5, 6 });
 
         foreach (var section in model.Sections)
         {
@@ -706,7 +644,7 @@ public class MiraService : IMiraService
 
             var sheet = workbook.Worksheets.Add(name);
             row = 1;
-            row = BuildWorkbookHeader(sheet, preview.Meta, row, $"BPT Notes - {section.Title}", preview.Assumptions);
+            row = BuildWorkbookHeader(sheet, preview.Meta, row, $"BPT Notes - {section.Title}", Array.Empty<string>());
             row += 1;
             row = WriteMetricStrip(sheet, row, new[]
             {
@@ -731,7 +669,7 @@ public class MiraService : IMiraService
             }
 
             WriteTotalsRow(sheet, row, new object[] { "", "", "", "Total", section.TotalAmount });
-            StyleMiraStatementSheet(sheet, dataStart, row, 5, dateColumn: 1, numericFromColumn: 5);
+            StyleMiraStatementSheet(sheet, dataStart, row, 5, dateColumn: 1, numericColumns: new[] { 5 });
         }
     }
 
@@ -758,7 +696,7 @@ public class MiraService : IMiraService
 
         if (assumptions.Count > 0)
         {
-            sheet.Cell(row, 1).Value = "Assumptions:";
+            sheet.Cell(row, 1).Value = "Important Filing Notes:";
             sheet.Cell(row, 1).Style.Font.Bold = true;
             sheet.Cell(row, 1).Style.Font.FontColor = XLColor.FromHtml("#E28A1B");
             row++;
@@ -847,7 +785,7 @@ public class MiraService : IMiraService
         }
     }
 
-    private static void StyleMiraStatementSheet(IXLWorksheet sheet, int dataStartRow, int endRow, int totalColumns, int? dateColumn, int numericFromColumn)
+    private static void StyleMiraStatementSheet(IXLWorksheet sheet, int dataStartRow, int endRow, int totalColumns, int? dateColumn, IReadOnlyCollection<int> numericColumns)
     {
         var usedRange = sheet.Range(1, 1, endRow, totalColumns);
         usedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
@@ -874,7 +812,7 @@ public class MiraService : IMiraService
             sheet.Column(dateColumn.Value).Style.DateFormat.Format = "yyyy-MM-dd";
         }
 
-        for (var column = numericFromColumn; column <= totalColumns; column++)
+        foreach (var column in numericColumns.Distinct().Where(column => column >= 1 && column <= totalColumns))
         {
             sheet.Column(column).Style.NumberFormat.Format = "#,##0.00";
         }
@@ -1017,6 +955,39 @@ public class MiraService : IMiraService
         }
 
         return new MiraRangeContext(startDate.Value, endDate.Value, $"{startDate:yyyy-MM-dd} to {endDate:yyyy-MM-dd}");
+    }
+
+    private static BptReportQuery ToBptQuery(MiraRangeContext range)
+    {
+        return new BptReportQuery
+        {
+            PeriodMode = BptPeriodMode.CustomRange,
+            CustomStartDate = range.StartDate,
+            CustomEndDate = range.EndDate,
+            Year = range.StartDate.Year
+        };
+    }
+
+    private static MiraReportPreviewDto MapBptReport(BptReportDto report, MiraReportType reportType)
+    {
+        return new MiraReportPreviewDto
+        {
+            ReportType = reportType,
+            Meta = new MiraReportMetaDto
+            {
+                Title = report.Meta.Title,
+                PeriodLabel = report.Meta.PeriodLabel,
+                RangeStart = report.Meta.RangeStart,
+                RangeEnd = report.Meta.RangeEnd,
+                GeneratedAtUtc = report.Meta.GeneratedAtUtc,
+                TaxableActivityNumber = report.Meta.TaxableActivityNumber,
+                CompanyName = report.Meta.CompanyName,
+                CompanyTinNumber = report.Meta.CompanyTinNumber
+            },
+            Assumptions = report.ImportantNotes,
+            BptIncomeStatement = report.Statement,
+            BptNotes = report.Notes
+        };
     }
 
     private static string BuildCompanyInfo(string tin, string? settingsPhone, string? settingsEmail)

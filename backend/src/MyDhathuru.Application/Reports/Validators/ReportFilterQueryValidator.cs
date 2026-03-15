@@ -5,6 +5,8 @@ namespace MyDhathuru.Application.Reports.Validators;
 
 public class ReportFilterQueryValidator : AbstractValidator<ReportFilterQuery>
 {
+    private const int MaxCustomRangeMonths = 6;
+
     public ReportFilterQueryValidator()
     {
         RuleFor(x => x.DatePreset)
@@ -13,7 +15,7 @@ public class ReportFilterQueryValidator : AbstractValidator<ReportFilterQuery>
 
         RuleFor(x => x)
             .Must(IsValidCustomRange)
-            .WithMessage("Custom range must have valid start/end dates and cannot exceed 31 days.");
+            .WithMessage("Custom range must have valid start/end dates and cannot exceed six months.");
     }
 
     private static bool IsValidCustomRange(ReportFilterQuery query)
@@ -33,7 +35,6 @@ public class ReportFilterQueryValidator : AbstractValidator<ReportFilterQuery>
             return false;
         }
 
-        var rangeDays = query.CustomEndDate.Value.DayNumber - query.CustomStartDate.Value.DayNumber + 1;
-        return rangeDays <= 31;
+        return query.CustomEndDate.Value <= query.CustomStartDate.Value.AddMonths(MaxCustomRangeMonths);
     }
 }

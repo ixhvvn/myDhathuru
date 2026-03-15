@@ -9,7 +9,7 @@ import { AppDataTableComponent } from '../../../shared/components/app-data-table
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
 import { AppSearchBarComponent } from '../../../shared/components/app-search-bar/app-search-bar.component';
-import { Customer, PagedResult, PurchaseOrder, PurchaseOrderListItem, Vessel } from '../../../core/models/app.models';
+import { PagedResult, PurchaseOrder, PurchaseOrderListItem, SupplierLookup, Vessel } from '../../../core/models/app.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
@@ -60,7 +60,7 @@ type DatePreset =
         <div class="search-tools">
           <app-search-bar
             [value]="searchDraft()"
-            placeholder="Search PO or customer"
+            placeholder="Search PO or supplier"
             (searchChange)="onSearchDraftChange($event)">
           </app-search-bar>
           <app-button variant="secondary" (clicked)="applySearch()">Search</app-button>
@@ -97,7 +97,7 @@ type DatePreset =
         <thead>
           <tr>
             <th>PO No</th>
-            <th>Customer</th>
+            <th>Supplier</th>
             <th>Courier</th>
             <th>Currency</th>
             <th>Amount</th>
@@ -109,7 +109,7 @@ type DatePreset =
         <tbody>
           <tr *ngFor="let purchaseOrder of purchaseOrders()?.items">
             <td>{{ purchaseOrder.purchaseOrderNo }}</td>
-            <td>{{ purchaseOrder.customer }}</td>
+            <td>{{ purchaseOrder.supplier }}</td>
             <td>{{ purchaseOrder.courierName || '-' }}</td>
             <td>{{ purchaseOrder.currency }}</td>
             <td>{{ purchaseOrder.amount | appCurrency: purchaseOrder.currency }}</td>
@@ -139,10 +139,10 @@ type DatePreset =
         <h3>{{ editId() ? 'Edit PO' : 'New PO' }}</h3>
         <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
           <div class="two-col">
-            <label>Customer
-              <select formControlName="customerId">
-                <option value="">Select customer</option>
-                <option *ngFor="let customer of customers()" [value]="customer.id">{{ customer.name }}</option>
+            <label>Supplier
+              <select formControlName="supplierId">
+                <option value="">Select supplier</option>
+                <option *ngFor="let supplier of suppliers()" [value]="supplier.id">{{ supplier.name }}</option>
               </select>
             </label>
             <label>Courier
@@ -219,8 +219,8 @@ type DatePreset =
     <div class="drawer" *ngIf="detail()">
       <app-card>
         <h3>PO {{ detail()?.purchaseOrderNo }}</h3>
-        <p><strong>Customer:</strong> {{ detail()?.customerName }}</p>
-        <p><strong>Contact:</strong> {{ detail()?.customerPhone || '-' }} | {{ detail()?.customerEmail || '-' }}</p>
+        <p><strong>Supplier:</strong> {{ detail()?.supplierName }}</p>
+        <p><strong>Contact:</strong> {{ detail()?.supplierContactNumber || '-' }} | {{ detail()?.supplierEmail || '-' }}</p>
         <p><strong>Courier:</strong> {{ detail()?.courierName || '-' }}</p>
         <p><strong>Currency:</strong> {{ detail()?.currency }}</p>
         <p><strong>Issued:</strong> {{ detail()?.dateIssued }} | <strong>Required Date:</strong> {{ detail()?.requiredDate }}</p>
@@ -441,7 +441,7 @@ type DatePreset =
 })
 export class PoPageComponent implements OnInit {
   readonly purchaseOrders = signal<PagedResult<PurchaseOrderListItem> | null>(null);
-  readonly customers = signal<Customer[]>([]);
+  readonly suppliers = signal<SupplierLookup[]>([]);
   readonly vessels = signal<Vessel[]>([]);
   readonly search = signal('');
   readonly searchDraft = signal('');
@@ -480,7 +480,7 @@ export class PoPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
 
   readonly form = this.fb.nonNullable.group({
-    customerId: ['', Validators.required],
+    supplierId: ['', Validators.required],
     courierId: [''],
     dateIssued: [this.today(), Validators.required],
     requiredDate: [this.futureDate(7), Validators.required],
@@ -583,7 +583,7 @@ export class PoPageComponent implements OnInit {
   openCreate(): void {
     this.editId.set(null);
     this.form.reset({
-      customerId: '',
+      supplierId: '',
       courierId: '',
       dateIssued: this.today(),
       requiredDate: this.futureDate(this.defaultDueDays()),
@@ -605,7 +605,7 @@ export class PoPageComponent implements OnInit {
       next: (detail) => {
         this.editId.set(purchaseOrder.id);
         this.form.reset({
-          customerId: detail.customerId,
+          supplierId: detail.supplierId,
           courierId: detail.courierId || '',
           dateIssued: detail.dateIssued,
           requiredDate: detail.requiredDate,
@@ -653,7 +653,7 @@ export class PoPageComponent implements OnInit {
     }
 
     const payload = {
-      customerId: raw.customerId,
+      supplierId: raw.supplierId,
       courierId: raw.courierId || null,
       dateIssued: raw.dateIssued,
       requiredDate: raw.requiredDate,
@@ -735,9 +735,9 @@ export class PoPageComponent implements OnInit {
   }
 
   private loadLookup(): void {
-    this.api.getCustomers({ pageNumber: 1, pageSize: 500 }).subscribe({
-      next: (result) => this.customers.set(result.items),
-      error: () => this.toast.error('Failed to load customers.')
+    this.api.getSupplierLookup().subscribe({
+      next: (result) => this.suppliers.set(result),
+      error: () => this.toast.error('Failed to load suppliers.')
     });
 
     this.api.getAllVessels().subscribe({

@@ -262,6 +262,7 @@ export interface MiraInputTaxRow {
   gstChargedAt17: number;
   totalGst: number;
   taxableActivityNumber: string;
+  revenueCapitalClassification: 'Revenue' | 'Capital';
 }
 
 export interface MiraInputTaxStatement {
@@ -310,6 +311,7 @@ export interface BptIncomeStatement {
   grossSales: number;
   salesReturnsAndAllowances: number;
   netSales: number;
+  costOfGoodsSoldLines: BptIncomeLine[];
   costOfGoodsSold: number;
   grossProfit: number;
   operatingExpenses: BptIncomeLine[];
@@ -358,6 +360,153 @@ export interface MiraReportPreview {
   outputTaxStatement?: MiraOutputTaxStatement;
   bptIncomeStatement?: BptIncomeStatement;
   bptNotes?: BptNotes;
+}
+
+export enum BptPeriodMode {
+  Quarter = 1,
+  Year = 2,
+  CustomRange = 3
+}
+
+export type BptClassificationGroup =
+  'Revenue'
+  | 'SalesReturnAllowance'
+  | 'OtherIncome'
+  | 'CostOfGoodsSold'
+  | 'OperatingExpense'
+  | 'Excluded';
+
+export type BptSourceModule =
+  'Invoice'
+  | 'SalesAdjustment'
+  | 'OtherIncome'
+  | 'ReceivedInvoice'
+  | 'ExpenseEntry'
+  | 'RentEntry'
+  | 'Payroll'
+  | 'BptAdjustment';
+
+export type SalesAdjustmentType = 'Return' | 'Allowance';
+
+export interface BptReportMeta {
+  title: string;
+  periodLabel: string;
+  rangeStart: string;
+  rangeEnd: string;
+  generatedAtUtc: string;
+  taxableActivityNumber: string;
+  companyName: string;
+  companyTinNumber: string;
+}
+
+export interface BptTraceTransaction {
+  sourceDocumentId?: string;
+  sourceModule: BptSourceModule;
+  sourceDocumentNumber: string;
+  transactionDate: string;
+  financialYear: number;
+  counterpartyName: string;
+  description: string;
+  currency: string;
+  exchangeRate: number;
+  amountOriginal: number;
+  amountMvr: number;
+  sourceStatus: string;
+  classificationGroup: BptClassificationGroup;
+  bptCategoryId?: string;
+  bptCategoryCode: string;
+  bptCategoryName: string;
+  isAdjustment: boolean;
+  notes?: string;
+}
+
+export interface BptReport {
+  meta: BptReportMeta;
+  importantNotes: string[];
+  statement: BptIncomeStatement;
+  notes: BptNotes;
+  transactions: BptTraceTransaction[];
+}
+
+export interface BptCategoryLookup {
+  id: string;
+  name: string;
+  code: string;
+  classificationGroup: BptClassificationGroup;
+}
+
+export interface BptExpenseMapping {
+  id?: string;
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  expenseCategoryCode: string;
+  bptCategoryId: string;
+  bptCategoryCode: string;
+  bptCategoryName: string;
+  classificationGroup: BptClassificationGroup;
+  sourceModule?: BptSourceModule;
+  isSystem: boolean;
+  isActive: boolean;
+  notes?: string;
+}
+
+export interface BptExchangeRate {
+  id: string;
+  rateDate: string;
+  currency: string;
+  rateToMvr: number;
+  source?: string;
+  notes?: string;
+  isActive: boolean;
+}
+
+export interface SalesAdjustmentRecord {
+  id: string;
+  adjustmentNumber: string;
+  adjustmentType: SalesAdjustmentType;
+  transactionDate: string;
+  relatedInvoiceId?: string;
+  relatedInvoiceNumber?: string;
+  customerId?: string;
+  customerName?: string;
+  currency: string;
+  exchangeRate: number;
+  amountOriginal: number;
+  amountMvr: number;
+  approvalStatus: ApprovalStatus;
+  notes?: string;
+}
+
+export interface OtherIncomeEntryRecord {
+  id: string;
+  entryNumber: string;
+  transactionDate: string;
+  customerId?: string;
+  counterpartyName?: string;
+  description: string;
+  currency: string;
+  exchangeRate: number;
+  amountOriginal: number;
+  amountMvr: number;
+  approvalStatus: ApprovalStatus;
+  notes?: string;
+}
+
+export interface BptAdjustmentRecord {
+  id: string;
+  adjustmentNumber: string;
+  transactionDate: string;
+  description: string;
+  bptCategoryId: string;
+  bptCategoryName: string;
+  bptCategoryCode: string;
+  classificationGroup: BptClassificationGroup;
+  currency: string;
+  exchangeRate: number;
+  amountOriginal: number;
+  amountMvr: number;
+  approvalStatus: ApprovalStatus;
+  notes?: string;
 }
 
 export interface BugReportRequest {
@@ -582,11 +731,11 @@ export interface PurchaseOrderItem {
 export interface PurchaseOrder {
   id: string;
   purchaseOrderNo: string;
-  customerId: string;
-  customerName: string;
-  customerTinNumber?: string;
-  customerPhone?: string;
-  customerEmail?: string;
+  supplierId: string;
+  supplierName: string;
+  supplierTinNumber?: string;
+  supplierContactNumber?: string;
+  supplierEmail?: string;
   courierId?: string;
   courierName?: string;
   dateIssued: string;
@@ -603,7 +752,7 @@ export interface PurchaseOrder {
 export interface PurchaseOrderListItem {
   id: string;
   purchaseOrderNo: string;
-  customer: string;
+  supplier: string;
   courierId?: string;
   courierName?: string;
   currency: string;
@@ -1068,6 +1217,8 @@ export interface TenantSettings {
   invoiceOwnerName: string;
   invoiceOwnerIdCard: string;
   logoUrl?: string;
+  companyStampUrl?: string;
+  companySignatureUrl?: string;
 }
 
 export interface TenantLogoUpload {

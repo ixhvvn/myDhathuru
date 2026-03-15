@@ -34,15 +34,15 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var purchaseOrders = _dbContext.PurchaseOrders
             .AsNoTracking()
-            .Include(x => x.Customer)
+            .Include(x => x.Supplier)
             .Include(x => x.CourierVessel)
             .Where(x =>
                 (query.DateFrom == null || x.DateIssued >= query.DateFrom)
                 && (query.DateTo == null || x.DateIssued <= query.DateTo)
-                && (query.CustomerId == null || x.CustomerId == query.CustomerId)
+                && (query.SupplierId == null || x.SupplierId == query.SupplierId)
                 && (string.IsNullOrWhiteSpace(query.Search)
                     || x.PurchaseOrderNo.ToLower().Contains(query.Search.ToLower())
-                    || x.Customer.Name.ToLower().Contains(query.Search.ToLower())));
+                    || x.Supplier.Name.ToLower().Contains(query.Search.ToLower())));
 
         purchaseOrders = query.SortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)
             ? purchaseOrders.OrderBy(x => x.DateIssued).ThenBy(x => x.CreatedAt)
@@ -52,7 +52,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             {
                 Id = x.Id,
                 PurchaseOrderNo = x.PurchaseOrderNo,
-                Customer = x.Customer.Name,
+                Supplier = x.Supplier.Name,
                 CourierId = x.CourierVesselId,
                 CourierName = x.CourierVessel != null ? x.CourierVessel.Name : null,
                 Currency = x.Currency,
@@ -67,7 +67,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var purchaseOrder = await _dbContext.PurchaseOrders
             .AsNoTracking()
-            .Include(x => x.Customer)
+            .Include(x => x.Supplier)
             .Include(x => x.CourierVessel)
             .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -77,8 +77,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDetailDto> CreateAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken = default)
     {
-        var customer = await _dbContext.Customers.FirstOrDefaultAsync(x => x.Id == request.CustomerId, cancellationToken)
-            ?? throw new NotFoundException("Customer not found.");
+        var supplier = await _dbContext.Suppliers.FirstOrDefaultAsync(x => x.Id == request.SupplierId, cancellationToken)
+            ?? throw new NotFoundException("Supplier not found.");
 
         Vessel? courier = null;
         if (request.CourierId.HasValue)
@@ -95,7 +95,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         var purchaseOrder = new PurchaseOrder
         {
             PurchaseOrderNo = purchaseOrderNo,
-            CustomerId = customer.Id,
+            SupplierId = supplier.Id,
             CourierVesselId = courier?.Id,
             DateIssued = dateIssued,
             RequiredDate = requiredDate,
@@ -129,8 +129,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Purchase order not found.");
 
-        var customer = await _dbContext.Customers.FirstOrDefaultAsync(x => x.Id == request.CustomerId, cancellationToken)
-            ?? throw new NotFoundException("Customer not found.");
+        var supplier = await _dbContext.Suppliers.FirstOrDefaultAsync(x => x.Id == request.SupplierId, cancellationToken)
+            ?? throw new NotFoundException("Supplier not found.");
 
         Vessel? courier = null;
         if (request.CourierId.HasValue)
@@ -140,7 +140,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        purchaseOrder.CustomerId = customer.Id;
+        purchaseOrder.SupplierId = supplier.Id;
         purchaseOrder.CourierVesselId = courier?.Id;
         purchaseOrder.DateIssued = request.DateIssued;
         purchaseOrder.RequiredDate = request.RequiredDate ?? request.DateIssued.AddDays(settings.DefaultDueDays);
@@ -228,11 +228,11 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             Id = purchaseOrder.Id,
             PurchaseOrderNo = purchaseOrder.PurchaseOrderNo,
-            CustomerId = purchaseOrder.CustomerId,
-            CustomerName = purchaseOrder.Customer.Name,
-            CustomerTinNumber = purchaseOrder.Customer.TinNumber,
-            CustomerPhone = purchaseOrder.Customer.Phone,
-            CustomerEmail = purchaseOrder.Customer.Email,
+            SupplierId = purchaseOrder.SupplierId,
+            SupplierName = purchaseOrder.Supplier.Name,
+            SupplierTinNumber = purchaseOrder.Supplier.TinNumber,
+            SupplierContactNumber = purchaseOrder.Supplier.ContactNumber,
+            SupplierEmail = purchaseOrder.Supplier.Email,
             CourierId = purchaseOrder.CourierVesselId,
             CourierName = purchaseOrder.CourierVessel?.Name,
             DateIssued = purchaseOrder.DateIssued,

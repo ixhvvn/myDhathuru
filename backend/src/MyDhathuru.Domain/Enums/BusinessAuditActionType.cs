@@ -26,5 +26,18 @@ public enum BusinessAuditActionType
     RentEntryUpdated = 22,
     RentEntryDeleted = 23,
     StaffConductFormCreated = 24,
-    StaffConductFormUpdated = 25
+    StaffConductFormUpdated = 25,
+    BptMappingRuleUpdated = 26,
+    ExchangeRateCreated = 27,
+    ExchangeRateUpdated = 28,
+    ExchangeRateDeleted = 29,
+    SalesAdjustmentCreated = 30,
+    SalesAdjustmentUpdated = 31,
+    SalesAdjustmentDeleted = 32,
+    OtherIncomeEntryCreated = 33,
+    OtherIncomeEntryUpdated = 34,
+    OtherIncomeEntryDeleted = 35,
+    BptAdjustmentCreated = 36,
+    BptAdjustmentUpdated = 37,
+    BptAdjustmentDeleted = 38
 }

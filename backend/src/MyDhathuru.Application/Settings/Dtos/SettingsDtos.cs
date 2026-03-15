@@ -35,6 +35,8 @@ public class TenantSettingsDto
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
+    public string? CompanyStampUrl { get; set; }
+    public string? CompanySignatureUrl { get; set; }
 }
 
 public class UpdateTenantSettingsRequest
@@ -72,6 +74,8 @@ public class UpdateTenantSettingsRequest
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
+    public string? CompanyStampUrl { get; set; }
+    public string? CompanySignatureUrl { get; set; }
 }
 
 public class TenantLogoUploadDto

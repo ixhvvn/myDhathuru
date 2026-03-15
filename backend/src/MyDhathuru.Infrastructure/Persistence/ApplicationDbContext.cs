@@ -42,6 +42,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<CustomerContact> CustomerContacts => Set<CustomerContact>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+    public DbSet<BptCategory> BptCategories => Set<BptCategory>();
+    public DbSet<BptMappingRule> BptMappingRules => Set<BptMappingRule>();
+    public DbSet<BptAdjustment> BptAdjustments => Set<BptAdjustment>();
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+    public DbSet<SalesAdjustment> SalesAdjustments => Set<SalesAdjustment>();
+    public DbSet<OtherIncomeEntry> OtherIncomeEntries => Set<OtherIncomeEntry>();
     public DbSet<Vessel> Vessels => Set<Vessel>();
     public DbSet<DeliveryNote> DeliveryNotes => Set<DeliveryNote>();
     public DbSet<DeliveryNoteItem> DeliveryNoteItems => Set<DeliveryNoteItem>();
@@ -259,6 +265,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.InvoiceOwnerName).HasMaxLength(200);
             entity.Property(x => x.InvoiceOwnerIdCard).HasMaxLength(100);
             entity.Property(x => x.LogoUrl).HasMaxLength(400);
+            entity.Property(x => x.CompanyStampUrl).HasMaxLength(400);
+            entity.Property(x => x.CompanySignatureUrl).HasMaxLength(400);
         });
 
         modelBuilder.Entity<DocumentSequence>(entity =>
@@ -306,6 +314,109 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.Code).HasMaxLength(50);
             entity.Property(x => x.Description).HasMaxLength(400);
             entity.Property(x => x.BptCategoryCode).HasConversion<string>().HasMaxLength(60);
+        });
+
+        modelBuilder.Entity<BptCategory>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            entity.Property(x => x.Code).HasConversion<string>().HasMaxLength(60);
+            entity.Property(x => x.Name).HasMaxLength(150);
+            entity.Property(x => x.ClassificationGroup).HasConversion<string>().HasMaxLength(40);
+            entity.Property(x => x.Description).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<BptMappingRule>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.ExpenseCategoryId, x.SourceModule, x.IsActive });
+            entity.HasIndex(x => new { x.TenantId, x.BptCategoryId, x.IsActive });
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.SourceModule).HasConversion<string>().HasMaxLength(40);
+            entity.Property(x => x.SalesAdjustmentType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.RevenueCapitalClassification).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(600);
+            entity.HasOne(x => x.ExpenseCategory)
+                .WithMany()
+                .HasForeignKey(x => x.ExpenseCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.BptCategory)
+                .WithMany(x => x.MappingRules)
+                .HasForeignKey(x => x.BptCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BptAdjustment>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.AdjustmentNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.TransactionDate });
+            entity.HasIndex(x => new { x.TenantId, x.BptCategoryId, x.ApprovalStatus });
+            entity.Property(x => x.AdjustmentNumber).HasMaxLength(60);
+            entity.Property(x => x.Description).HasMaxLength(300);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.ExchangeRate).HasColumnType("numeric(18,6)");
+            entity.Property(x => x.AmountOriginal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.AmountMvr).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.BptCategory)
+                .WithMany(x => x.Adjustments)
+                .HasForeignKey(x => x.BptCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ExchangeRate>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.Currency, x.RateDate }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.RateDate });
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.RateToMvr).HasColumnType("numeric(18,6)");
+            entity.Property(x => x.Source).HasMaxLength(120);
+            entity.Property(x => x.Notes).HasMaxLength(600);
+        });
+
+        modelBuilder.Entity<SalesAdjustment>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.AdjustmentNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.TransactionDate });
+            entity.HasIndex(x => new { x.TenantId, x.AdjustmentType, x.ApprovalStatus });
+            entity.Property(x => x.AdjustmentNumber).HasMaxLength(60);
+            entity.Property(x => x.AdjustmentType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.RelatedInvoiceNumber).HasMaxLength(60);
+            entity.Property(x => x.CustomerName).HasMaxLength(200);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.ExchangeRate).HasColumnType("numeric(18,6)");
+            entity.Property(x => x.AmountOriginal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.AmountMvr).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.RelatedInvoice)
+                .WithMany()
+                .HasForeignKey(x => x.RelatedInvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<OtherIncomeEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.EntryNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.TransactionDate });
+            entity.HasIndex(x => new { x.TenantId, x.ApprovalStatus });
+            entity.Property(x => x.EntryNumber).HasMaxLength(60);
+            entity.Property(x => x.CounterpartyName).HasMaxLength(200);
+            entity.Property(x => x.Description).HasMaxLength(300);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.ExchangeRate).HasColumnType("numeric(18,6)");
+            entity.Property(x => x.AmountOriginal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.AmountMvr).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.ApprovalStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CustomerContact>(entity =>
@@ -551,6 +662,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(x => new { x.TenantId, x.PurchaseOrderNo }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.DateIssued });
+            entity.HasIndex(x => x.SupplierId);
             entity.HasIndex(x => x.CourierVesselId);
             entity.Property(x => x.PurchaseOrderNo).HasMaxLength(50);
             entity.Property(x => x.Currency).HasMaxLength(3);
@@ -563,6 +675,10 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.CourierVesselId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Supplier)
+                .WithMany()
+                .HasForeignKey(x => x.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<PurchaseOrderItem>(entity =>

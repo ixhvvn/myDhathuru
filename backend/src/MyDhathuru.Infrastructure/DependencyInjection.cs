@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IMiraService, MiraService>();
+        services.AddScoped<IBptService, BptService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IExpenseCategoryService, ExpenseCategoryService>();

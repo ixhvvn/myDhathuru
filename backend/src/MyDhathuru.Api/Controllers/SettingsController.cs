@@ -14,8 +14,8 @@ namespace MyDhathuru.Api.Controllers;
 [ServiceFilter(typeof(ValidationActionFilter))]
 public class SettingsController : BaseApiController
 {
-    private const long MaxLogoSizeBytes = 5 * 1024 * 1024;
-    private static readonly HashSet<string> AllowedLogoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private const long MaxImageSizeBytes = 5 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".png",
         ".jpg",
@@ -54,23 +54,56 @@ public class SettingsController : BaseApiController
 
     [HttpPost("logo-upload")]
     [Authorize(Policy = "AdminOnly")]
-    [RequestSizeLimit(MaxLogoSizeBytes)]
+    [RequestSizeLimit(MaxImageSizeBytes)]
     public async Task<ActionResult<ApiResponse<TenantLogoUploadDto>>> UploadLogo([FromForm] IFormFile? file, CancellationToken cancellationToken)
+    {
+        return await UploadTenantImageAsync(file, "logo", "company-logos", "logo", cancellationToken);
+    }
+
+    [HttpPost("stamp-upload")]
+    [Authorize(Policy = "AdminOnly")]
+    [RequestSizeLimit(MaxImageSizeBytes)]
+    public async Task<ActionResult<ApiResponse<TenantLogoUploadDto>>> UploadStamp([FromForm] IFormFile? file, CancellationToken cancellationToken)
+    {
+        return await UploadTenantImageAsync(file, "company stamp", "company-stamps", "stamp", cancellationToken);
+    }
+
+    [HttpPost("signature-upload")]
+    [Authorize(Policy = "AdminOnly")]
+    [RequestSizeLimit(MaxImageSizeBytes)]
+    public async Task<ActionResult<ApiResponse<TenantLogoUploadDto>>> UploadSignature([FromForm] IFormFile? file, CancellationToken cancellationToken)
+    {
+        return await UploadTenantImageAsync(file, "company signature", "company-signatures", "signature", cancellationToken);
+    }
+
+    [HttpPost("change-password")]
+    public async Task<ActionResult<ApiResponse<object>>> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _settingsService.ChangePasswordAsync(request, cancellationToken);
+        return SuccessMessage("Password changed successfully.");
+    }
+
+    private async Task<ActionResult<ApiResponse<TenantLogoUploadDto>>> UploadTenantImageAsync(
+        IFormFile? file,
+        string assetLabel,
+        string folderName,
+        string filePrefix,
+        CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
         {
-            throw new AppException("Please select a logo file.");
+            throw new AppException($"Please select a {assetLabel} image.");
         }
 
-        if (file.Length > MaxLogoSizeBytes)
+        if (file.Length > MaxImageSizeBytes)
         {
-            throw new AppException("Logo file must be 5 MB or smaller.");
+            throw new AppException($"{ToDisplayLabel(assetLabel)} image must be 5 MB or smaller.");
         }
 
         var extension = Path.GetExtension(file.FileName);
-        if (string.IsNullOrWhiteSpace(extension) || !AllowedLogoExtensions.Contains(extension))
+        if (string.IsNullOrWhiteSpace(extension) || !AllowedImageExtensions.Contains(extension))
         {
-            throw new AppException("Supported logo formats are PNG, JPG, and WEBP.");
+            throw new AppException($"Supported {assetLabel} formats are PNG, JPG, and WEBP.");
         }
 
         if (string.IsNullOrWhiteSpace(file.ContentType) || !file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
@@ -85,18 +118,18 @@ public class SettingsController : BaseApiController
             ? Path.Combine(_environment.ContentRootPath, "wwwroot")
             : _environment.WebRootPath;
 
-        var logoDirectory = Path.Combine(webRootPath, "uploads", "company-logos", tenantId.ToString("N"));
-        Directory.CreateDirectory(logoDirectory);
+        var assetDirectory = Path.Combine(webRootPath, "uploads", folderName, tenantId.ToString("N"));
+        Directory.CreateDirectory(assetDirectory);
 
-        var fileName = $"logo-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
-        var filePath = Path.Combine(logoDirectory, fileName);
+        var fileName = $"{filePrefix}-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+        var filePath = Path.Combine(assetDirectory, fileName);
 
         await using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {
             await file.CopyToAsync(stream, cancellationToken);
         }
 
-        var relativePath = $"/uploads/company-logos/{tenantId:N}/{fileName}";
+        var relativePath = $"/uploads/{folderName}/{tenantId:N}/{fileName}";
         var absoluteUrl = $"{Request.Scheme}://{Request.Host}{relativePath}";
 
         return OkResponse(
@@ -106,13 +139,13 @@ public class SettingsController : BaseApiController
                 RelativePath = relativePath,
                 FileName = fileName
             },
-            "Logo uploaded.");
+            $"{ToDisplayLabel(assetLabel)} uploaded.");
     }
 
-    [HttpPost("change-password")]
-    public async Task<ActionResult<ApiResponse<object>>> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    private static string ToDisplayLabel(string assetLabel)
     {
-        await _settingsService.ChangePasswordAsync(request, cancellationToken);
-        return SuccessMessage("Password changed successfully.");
+        return string.IsNullOrWhiteSpace(assetLabel)
+            ? "Image"
+            : char.ToUpperInvariant(assetLabel[0]) + assetLabel[1..];
     }
 }

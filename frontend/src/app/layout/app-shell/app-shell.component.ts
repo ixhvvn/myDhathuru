@@ -6,6 +6,7 @@ import { finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { InactivityService } from '../../core/services/inactivity.service';
 import { ToastService } from '../../core/services/toast.service';
+import { extractApiError } from '../../core/utils/api-error.util';
 import { PortalApiService } from '../../features/services/portal-api.service';
 
 type NavItem = {
@@ -100,27 +101,41 @@ type NavSection = {
           </section>
         </nav>
 
-        <section class="support-card">
-          <div class="support-icon" aria-hidden="true">
-            <span>?</span>
-          </div>
-          <h3>Assistance</h3>
-          <p>Contact <strong>{{ supportPhone }}</strong> for assistance.</p>
-          <a class="support-btn" [href]="supportPhoneLink">Contact Assistance</a>
-          <button class="bug-btn" type="button" (click)="openBugDialog()">Report Bug</button>
-        </section>
-
-        <p class="developed-by">developed by ixhvvn</p>
-
-        <div class="user-box">
-          <div class="user-profile">
-            <span class="user-avatar">{{ userInitials() }}</span>
-            <div class="user-meta">
-              <strong>{{ profileDisplayName() }}</strong>
-              <small>{{ authService.user()?.role }}</small>
+        <div class="sidebar-footer">
+          <section class="support-card">
+            <div class="support-card-head">
+              <div class="support-icon" aria-hidden="true">
+                <span>?</span>
+              </div>
+              <div class="support-copy">
+                <h3>Assistance</h3>
+                <p>Call for help or send a quick bug report.</p>
+              </div>
             </div>
+            <div class="support-actions">
+              <a class="support-btn" [href]="supportPhoneLink">
+                <span class="support-action-title">Call Support</span>
+                <small>{{ supportPhone }}</small>
+              </a>
+              <button class="bug-btn" type="button" (click)="openBugDialog()">
+                <span class="support-action-title">Report Bug</span>
+                <small>Attach 1 image</small>
+              </button>
+            </div>
+          </section>
+
+          <p class="developed-by">developed by ixhvvn</p>
+
+          <div class="user-box">
+            <div class="user-profile">
+              <span class="user-avatar">{{ userInitials() }}</span>
+              <div class="user-meta">
+                <strong>{{ profileDisplayName() }}</strong>
+                <small>{{ authService.user()?.role }}</small>
+              </div>
+            </div>
+            <button class="logout-btn" (click)="logout()" aria-label="Logout">Logout</button>
           </div>
-          <button class="logout-btn" (click)="logout()" aria-label="Logout">Logout</button>
         </div>
       </aside>
 
@@ -131,7 +146,7 @@ type NavSection = {
       <div class="bug-backdrop" *ngIf="bugDialogOpen()" (click)="closeBugDialog()"></div>
       <section class="bug-modal" *ngIf="bugDialogOpen()" role="dialog" aria-modal="true" aria-labelledby="bugModalTitle">
         <h3 id="bugModalTitle">Report a Bug</h3>
-        <p>Send a detailed issue report to our support inbox.</p>
+        <p>Send a detailed issue report to our support inbox. You can attach one image up to {{ bugAttachmentLimitLabel }}.</p>
 
         <form [formGroup]="bugForm" (ngSubmit)="submitBugReport()">
           <label for="bugSubject">Issue title</label>
@@ -173,7 +188,7 @@ type NavSection = {
               </ng-container>
               <ng-template #emptyBugAttachmentState>
                 <span>Drag and drop image here</span>
-                <small>or click to browse (PNG, JPG, WEBP, GIF up to 5MB)</small>
+                <small>or click to browse (PNG, JPG, WEBP, GIF up to {{ bugAttachmentLimitLabel }})</small>
               </ng-template>
             </button>
 
@@ -395,14 +410,33 @@ type NavSection = {
       border-color: #afc5ec;
       box-shadow: 0 6px 12px rgba(117, 142, 194, .22);
     }
+    .sidebar-footer {
+      display: grid;
+      gap: .45rem;
+      margin-top: auto;
+      padding-top: .1rem;
+      flex: 0 0 auto;
+    }
     .support-card {
       display: grid;
-      gap: .46rem;
+      gap: .58rem;
+    }
+    .support-card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: .56rem;
+      min-width: 0;
     }
     .support-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      flex: 0 0 auto;
+    }
+    .support-copy {
+      display: grid;
+      gap: .18rem;
+      min-width: 0;
     }
     .support-card h3 {
       margin: 0;
@@ -410,18 +444,25 @@ type NavSection = {
     .support-card p {
       margin: 0;
     }
+    .support-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .42rem;
+    }
     .support-btn,
     .bug-btn {
-      text-align: center;
+      text-align: left;
       text-decoration: none;
       cursor: pointer;
+      align-content: center;
+      min-height: 0;
     }
     .developed-by {
-      margin: .22rem auto 0;
+      margin: 0;
       text-align: center;
     }
     .user-box {
-      margin-top: .22rem;
+      margin-top: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -466,15 +507,14 @@ type NavSection = {
     .logout-btn {
       cursor: pointer;
       flex: 0 0 auto;
+      min-width: 96px;
     }
     .sidebar.sidebar-collapsed {
       align-items: center;
       padding: .75rem .5rem;
     }
     .sidebar.sidebar-collapsed .brand,
-    .sidebar.sidebar-collapsed .support-card,
-    .sidebar.sidebar-collapsed .developed-by,
-    .sidebar.sidebar-collapsed .user-box,
+    .sidebar.sidebar-collapsed .sidebar-footer,
     .sidebar.sidebar-collapsed .mobile-only {
       display: none;
     }
@@ -612,8 +652,14 @@ type NavSection = {
         width: 28px;
         height: 28px;
       }
+      .sidebar-footer {
+        gap: .34rem;
+      }
       .support-card {
         padding: .58rem;
+      }
+      .support-actions {
+        gap: .34rem;
       }
       .support-card h3 {
         font-size: .92rem;
@@ -784,9 +830,15 @@ type NavSection = {
       nav a {
         padding: .47rem .58rem;
       }
+      .sidebar-footer {
+        gap: .38rem;
+      }
       .support-card {
         padding: .58rem;
         gap: .3rem;
+      }
+      .support-actions {
+        gap: .34rem;
       }
       .support-card h3 {
         font-size: .9rem;
@@ -836,6 +888,9 @@ type NavSection = {
       .sidebar {
         width: min(88vw, 320px);
       }
+      .support-actions {
+        grid-template-columns: 1fr;
+      }
       .user-box {
         flex-direction: column;
         align-items: stretch;
@@ -858,7 +913,7 @@ type NavSection = {
   `
 })
 export class AppShellComponent implements OnInit, OnDestroy {
-  private static readonly maxBugAttachmentSizeBytes = 5 * 1024 * 1024;
+  private static readonly maxBugAttachmentSizeBytes = 4 * 1024 * 1024;
   private static readonly sidebarResizeAnimationDurationMs = 280;
   private static readonly allowedBugAttachmentMimeTypes = new Set([
     'image/png',
@@ -884,6 +939,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   readonly bugAttachmentDragActive = signal(false);
   readonly bugAttachmentFile = signal<File | null>(null);
   readonly bugAttachmentPreviewUrl = signal<string | null>(null);
+  readonly bugAttachmentLimitLabel = `${AppShellComponent.maxBugAttachmentSizeBytes / (1024 * 1024)} MB`;
   readonly supportPhone = '+9607515618';
   readonly supportPhoneLink = 'tel:+9607515618';
   private readonly sidebarStorageKey = 'mydhathuru-sidebar-collapsed';
@@ -971,6 +1027,11 @@ export class AppShellComponent implements OnInit, OnDestroy {
           path: '/app/rent',
           label: 'Rent',
           iconPaths: ['M4 11l8-6 8 6', 'M6 10.5V20h12v-9.5', 'M10 20v-5h4v5']
+        },
+        {
+          path: '/app/bpt',
+          label: 'BPT',
+          iconPaths: ['M5 20h14', 'M7 16l3-4 3 2 4-6', 'M16 6h3v3', 'M5 4h14v16H5z']
         },
         {
           path: '/app/mira',
@@ -1264,8 +1325,8 @@ export class AppShellComponent implements OnInit, OnDestroy {
           this.bugDialogOpen.set(false);
           this.toastService.success('Bug report sent successfully.');
         },
-        error: () => {
-          this.toastService.error('Unable to send bug report.');
+        error: (error) => {
+          this.toastService.error(extractApiError(error, 'Unable to send bug report.'));
         }
       });
   }
@@ -1278,7 +1339,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
     }
 
     if (file.size > AppShellComponent.maxBugAttachmentSizeBytes) {
-      this.toastService.error('Image file must be 5 MB or smaller.');
+      this.toastService.error(`Image file must be ${this.bugAttachmentLimitLabel} or smaller.`);
       this.resetBugAttachmentInput();
       return;
     }

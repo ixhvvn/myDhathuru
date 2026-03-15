@@ -12,5 +12,8 @@ public enum DocumentType
     PaymentVoucher = 9,
     RentEntry = 10,
     WarningForm = 11,
-    DisciplinaryForm = 12
+    DisciplinaryForm = 12,
+    SalesAdjustment = 13,
+    OtherIncome = 14,
+    BptAdjustment = 15
 }

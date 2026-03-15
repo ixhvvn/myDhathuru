@@ -11,6 +11,7 @@ namespace MyDhathuru.Infrastructure.Services;
 
 public class ReportService : IReportService
 {
+    private const int MaxCustomRangeMonths = 6;
     private const string AllCustomersLabel = "All Customers";
     private const string UnassignedVesselLabel = "Unassigned Vessel";
     private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -497,10 +498,9 @@ public class ReportService : IReportService
             throw new AppException("Custom range end date cannot be earlier than start date.");
         }
 
-        var rangeDays = customEndDate.Value.DayNumber - customStartDate.Value.DayNumber + 1;
-        if (rangeDays > 31)
+        if (customEndDate.Value > customStartDate.Value.AddMonths(MaxCustomRangeMonths))
         {
-            throw new AppException("Custom range cannot exceed 31 days.");
+            throw new AppException("Custom range cannot exceed six months.");
         }
 
         return BuildDateBasedRange(customStartDate.Value, customEndDate.Value);

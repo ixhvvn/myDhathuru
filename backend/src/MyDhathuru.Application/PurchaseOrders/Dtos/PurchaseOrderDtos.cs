@@ -6,7 +6,7 @@ public class PurchaseOrderListQuery : PaginationQuery
 {
     public DateOnly? DateFrom { get; set; }
     public DateOnly? DateTo { get; set; }
-    public Guid? CustomerId { get; set; }
+    public Guid? SupplierId { get; set; }
 }
 
 public class PurchaseOrderItemDto
@@ -29,7 +29,7 @@ public class PurchaseOrderListItemDto
 {
     public Guid Id { get; set; }
     public string PurchaseOrderNo { get; set; } = string.Empty;
-    public string Customer { get; set; } = string.Empty;
+    public string Supplier { get; set; } = string.Empty;
     public Guid? CourierId { get; set; }
     public string? CourierName { get; set; }
     public string Currency { get; set; } = "MVR";
@@ -42,11 +42,11 @@ public class PurchaseOrderDetailDto
 {
     public Guid Id { get; set; }
     public string PurchaseOrderNo { get; set; } = string.Empty;
-    public Guid CustomerId { get; set; }
-    public string CustomerName { get; set; } = string.Empty;
-    public string? CustomerTinNumber { get; set; }
-    public string? CustomerPhone { get; set; }
-    public string? CustomerEmail { get; set; }
+    public Guid SupplierId { get; set; }
+    public string SupplierName { get; set; } = string.Empty;
+    public string? SupplierTinNumber { get; set; }
+    public string? SupplierContactNumber { get; set; }
+    public string? SupplierEmail { get; set; }
     public Guid? CourierId { get; set; }
     public string? CourierName { get; set; }
     public DateOnly DateIssued { get; set; }
@@ -62,7 +62,7 @@ public class PurchaseOrderDetailDto
 
 public class CreatePurchaseOrderRequest
 {
-    public Guid CustomerId { get; set; }
+    public Guid SupplierId { get; set; }
     public Guid? CourierId { get; set; }
     public DateOnly DateIssued { get; set; }
     public DateOnly? RequiredDate { get; set; }
