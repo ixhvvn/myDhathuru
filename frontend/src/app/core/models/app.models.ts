@@ -608,6 +608,7 @@ export type ApprovalStatus = 'Draft' | 'Approved' | 'Rejected';
 export type ReceivedInvoiceStatus = 'Unpaid' | 'Partial' | 'Paid' | 'Overdue';
 export type PaymentVoucherStatus = 'Draft' | 'Approved' | 'Posted' | 'Cancelled';
 export type ExpenseSourceType = 'ReceivedInvoice' | 'Rent' | 'Payroll' | 'Manual';
+export type DocumentEmailStatus = 'Pending' | 'Emailed';
 
 export interface InvoiceItem {
   id?: string;
@@ -635,6 +636,8 @@ export interface Invoice {
   poNumber?: string;
   customerId: string;
   customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
   deliveryNoteId?: string;
   courierId?: string;
   courierName?: string;
@@ -648,6 +651,8 @@ export interface Invoice {
   amountPaid: number;
   balance: number;
   paymentStatus: PaymentStatus;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
   notes?: string;
   items: InvoiceItem[];
   payments: InvoicePayment[];
@@ -666,6 +671,8 @@ export interface InvoiceListItem {
   dateIssued: string;
   dateDue: string;
   paymentStatus: PaymentStatus;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
 }
 
 export interface QuotationItem {
@@ -696,6 +703,8 @@ export interface Quotation {
   taxRate: number;
   taxAmount: number;
   grandTotal: number;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
   notes?: string;
   items: QuotationItem[];
 }
@@ -712,6 +721,8 @@ export interface QuotationListItem {
   amount: number;
   dateIssued: string;
   validUntil: string;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
 }
 
 export interface QuotationConversionResult {
@@ -745,6 +756,8 @@ export interface PurchaseOrder {
   taxRate: number;
   taxAmount: number;
   grandTotal: number;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
   notes?: string;
   items: PurchaseOrderItem[];
 }
@@ -759,6 +772,8 @@ export interface PurchaseOrderListItem {
   amount: number;
   dateIssued: string;
   requiredDate: string;
+  emailStatus: DocumentEmailStatus;
+  lastEmailedAt?: string;
 }
 
 export interface Supplier {
@@ -1216,9 +1231,17 @@ export interface TenantSettings {
   mibUsdAccountNumber: string;
   invoiceOwnerName: string;
   invoiceOwnerIdCard: string;
+  quotationEmailBodyTemplate: string;
+  invoiceEmailBodyTemplate: string;
+  purchaseOrderEmailBodyTemplate: string;
   logoUrl?: string;
   companyStampUrl?: string;
   companySignatureUrl?: string;
+}
+
+export interface DocumentEmailRequest {
+  ccEmail?: string;
+  body?: string;
 }
 
 export interface TenantLogoUpload {

@@ -6,6 +6,7 @@ using MyDhathuru.Application.Quotations.Dtos;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Extensions;
+using MyDhathuru.Infrastructure.Helpers;
 using MyDhathuru.Infrastructure.Persistence;
 using MyDhathuru.Infrastructure.Security;
 
@@ -16,17 +17,20 @@ public class QuotationService : IQuotationService
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentNumberService _documentNumberService;
     private readonly IPdfExportService _pdfExportService;
+    private readonly INotificationService _notificationService;
     private readonly ICurrentTenantService _currentTenantService;
 
     public QuotationService(
         ApplicationDbContext dbContext,
         IDocumentNumberService documentNumberService,
         IPdfExportService pdfExportService,
+        INotificationService notificationService,
         ICurrentTenantService currentTenantService)
     {
         _dbContext = dbContext;
         _documentNumberService = documentNumberService;
         _pdfExportService = pdfExportService;
+        _notificationService = notificationService;
         _currentTenantService = currentTenantService;
     }
 
@@ -60,7 +64,9 @@ public class QuotationService : IQuotationService
                 DateIssued = x.DateIssued,
                 ValidUntil = x.ValidUntil,
                 ConvertedInvoiceId = x.ConvertedInvoice != null ? x.ConvertedInvoice.Id : null,
-                ConvertedInvoiceNo = x.ConvertedInvoice != null ? x.ConvertedInvoice.InvoiceNo : null
+                ConvertedInvoiceNo = x.ConvertedInvoice != null ? x.ConvertedInvoice.InvoiceNo : null,
+                EmailStatus = x.EmailStatus,
+                LastEmailedAt = x.LastEmailedAt
             })
             .ToPagedResultAsync(query, cancellationToken);
     }
@@ -152,6 +158,7 @@ public class QuotationService : IQuotationService
         quotation.Currency = NormalizeCurrency(request.Currency, settings.DefaultCurrency);
         quotation.TaxRate = ResolveTaxRate(request.TaxRate, settings);
         quotation.Notes = request.Notes?.Trim();
+        ResetEmailStatus(quotation);
 
         foreach (var item in quotation.Items.ToList())
         {
@@ -246,14 +253,56 @@ public class QuotationService : IQuotationService
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task SendEmailAsync(Guid id, SendQuotationEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        var quotation = await _dbContext.Quotations
+            .Include(x => x.Customer)
+            .Include(x => x.CourierVessel)
+            .Include(x => x.ConvertedInvoice)
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Quotation not found.");
+
+        var recipientEmail = quotation.Customer.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            throw new AppException("Customer email is required before sending this quotation.");
+        }
+
+        var settings = await GetTenantSettingsAsync(cancellationToken);
+        var body = DocumentEmailTemplateHelper.RenderQuotation(
+            string.IsNullOrWhiteSpace(request.Body) ? settings.QuotationEmailBodyTemplate : request.Body,
+            settings.CompanyName);
+        var ccEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
+        var subject = $"Quotation {quotation.QuotationNo} from {settings.CompanyName}";
+        var pdfBytes = BuildQuotationPdf(MapQuotation(quotation), settings);
+
+        await _notificationService.SendDocumentEmailAsync(
+            recipientEmail,
+            ccEmail,
+            subject,
+            body,
+            pdfBytes,
+            $"{quotation.QuotationNo}.pdf",
+            settings.CompanyName,
+            settings.CompanyEmail,
+            cancellationToken);
+
+        quotation.EmailStatus = DocumentEmailStatus.Emailed;
+        quotation.LastEmailedAt = DateTimeOffset.UtcNow;
+        quotation.LastEmailedTo = recipientEmail;
+        quotation.LastEmailedCc = ccEmail;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var quotation = await GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Quotation not found.");
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
-        return _pdfExportService.BuildQuotationPdf(quotation, settings.CompanyName, companyInfo, settings.LogoUrl, settings.IsTaxApplicable);
+        return BuildQuotationPdf(quotation, settings);
     }
 
     private static List<QuotationItem> BuildQuotationItems(IEnumerable<QuotationItemInputDto> items, Guid? quotationId = null)
@@ -307,6 +356,8 @@ public class QuotationService : IQuotationService
             TaxRate = quotation.TaxRate,
             TaxAmount = quotation.TaxAmount,
             GrandTotal = quotation.GrandTotal,
+            EmailStatus = quotation.EmailStatus,
+            LastEmailedAt = quotation.LastEmailedAt,
             Notes = quotation.Notes,
             ConvertedInvoiceId = quotation.ConvertedInvoice?.Id,
             ConvertedInvoiceNo = quotation.ConvertedInvoice?.InvoiceNo,
@@ -340,6 +391,20 @@ public class QuotationService : IQuotationService
         }
 
         return parsed.ToString().ToUpperInvariant();
+    }
+
+    private static void ResetEmailStatus(Quotation quotation)
+    {
+        quotation.EmailStatus = DocumentEmailStatus.Pending;
+        quotation.LastEmailedAt = null;
+        quotation.LastEmailedTo = null;
+        quotation.LastEmailedCc = null;
+    }
+
+    private byte[] BuildQuotationPdf(QuotationDetailDto quotation, TenantSettings settings)
+    {
+        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
+        return _pdfExportService.BuildQuotationPdf(quotation, settings.CompanyName, companyInfo, settings.LogoUrl, settings.IsTaxApplicable);
     }
 
     private static void RecalculateInvoice(Invoice invoice)

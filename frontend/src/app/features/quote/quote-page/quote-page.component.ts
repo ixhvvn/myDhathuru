@@ -1,19 +1,23 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { finalize } from 'rxjs';
 import { Router } from '@angular/router';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppConfirmDialogComponent } from '../../../shared/components/app-confirm-dialog/app-confirm-dialog.component';
+import { AppDocumentEmailDialogComponent } from '../../../shared/components/app-document-email-dialog/app-document-email-dialog.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
 import { AppSearchBarComponent } from '../../../shared/components/app-search-bar/app-search-bar.component';
-import { Customer, PagedResult, Quotation, QuotationListItem, Vessel } from '../../../core/models/app.models';
+import { AppStatusChipComponent } from '../../../shared/components/app-status-chip/app-status-chip.component';
+import { Customer, DocumentEmailRequest, DocumentEmailStatus, PagedResult, Quotation, QuotationListItem, TenantSettings, Vessel } from '../../../core/models/app.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { resolveDocumentEmailBody } from '../../../core/utils/document-email-template.util';
 import { PortalApiService } from '../../services/portal-api.service';
 
 type DatePreset =
@@ -35,11 +39,13 @@ type DatePreset =
     AppButtonComponent,
     AppCardComponent,
     AppConfirmDialogComponent,
+    AppDocumentEmailDialogComponent,
     AppCurrencyPipe,
     AppDataTableComponent,
     AppDateBadgeComponent,
     AppPageHeaderComponent,
-    AppSearchBarComponent
+    AppSearchBarComponent,
+    AppStatusChipComponent
   ],
   template: `
     <app-page-header title="Quote" subtitle="Create polished quotations, track quotation history, and export PDF quotes">
@@ -104,6 +110,7 @@ type DatePreset =
             <th>Amount</th>
             <th>Date Issued</th>
             <th>Valid Until</th>
+            <th>Email Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -116,6 +123,9 @@ type DatePreset =
             <td>{{ quote.amount | appCurrency: quote.currency }}</td>
             <td><app-date-badge [value]="quote.dateIssued"></app-date-badge></td>
             <td><app-date-badge [value]="quote.validUntil"></app-date-badge></td>
+            <td>
+              <app-status-chip [label]="quote.emailStatus === 'Emailed' ? 'Emailed' : 'Email Pending'" [variant]="emailStatusVariant(quote.emailStatus)"></app-status-chip>
+            </td>
             <td class="actions">
               <app-button size="sm" variant="secondary" (clicked)="openDetail(quote)">View</app-button>
               <app-button size="sm" variant="secondary" (clicked)="edit(quote)">Edit</app-button>
@@ -126,6 +136,7 @@ type DatePreset =
                 {{ quote.convertedInvoiceId ? 'View Sale' : 'Convert to Sale' }}
               </app-button>
               <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(quote)">Delete</app-button>
+              <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(quote)">Email</app-button>
               <app-button size="sm" variant="secondary" (clicked)="exportQuote(quote)">PDF</app-button>
             </td>
           </tr>
@@ -251,6 +262,19 @@ type DatePreset =
       (cancel)="closeDeleteDialog()"
       (confirm)="deleteQuote()">
     </app-confirm-dialog>
+
+    <app-document-email-dialog
+      [open]="emailDialogOpen()"
+      title="Email Quotation"
+      [toEmail]="emailTo()"
+      [body]="emailBody()"
+      [attachmentName]="emailAttachmentName()"
+      [loading]="emailSending()"
+      [emailStatus]="emailStatus()"
+      [lastEmailedAt]="emailLastEmailedAt()"
+      (cancel)="closeEmailDialog()"
+      (send)="sendEmail($event)">
+    </app-document-email-dialog>
   `,
   styles: `
     .toolbar {
@@ -329,7 +353,7 @@ type DatePreset =
       gap: .35rem;
       flex-wrap: nowrap;
       align-items: center;
-      min-width: 300px;
+      min-width: 390px;
     }
     .actions app-button {
       flex: 0 0 auto;
@@ -449,6 +473,7 @@ export class QuotePageComponent implements OnInit {
   readonly quotes = signal<PagedResult<QuotationListItem> | null>(null);
   readonly customers = signal<Customer[]>([]);
   readonly vessels = signal<Vessel[]>([]);
+  readonly settings = signal<TenantSettings | null>(null);
   readonly search = signal('');
   readonly searchDraft = signal('');
   readonly pageNumber = signal(1);
@@ -468,6 +493,14 @@ export class QuotePageComponent implements OnInit {
   readonly defaultDueDays = signal(7);
   readonly deleteDialogOpen = signal(false);
   readonly deleteTarget = signal<QuotationListItem | null>(null);
+  readonly emailDialogOpen = signal(false);
+  readonly emailTargetId = signal<string | null>(null);
+  readonly emailTo = signal('');
+  readonly emailBody = signal('');
+  readonly emailAttachmentName = signal('quotation.pdf');
+  readonly emailStatus = signal<DocumentEmailStatus>('Pending');
+  readonly emailLastEmailedAt = signal<string | null>(null);
+  readonly emailSending = signal(false);
 
   readonly pageSizeOptions = [10, 20, 40, 80, 100] as const;
   readonly datePresetOptions = [
@@ -769,6 +802,10 @@ export class QuotePageComponent implements OnInit {
     return this.auth.user()?.role === 'Admin';
   }
 
+  emailStatusVariant(status: DocumentEmailStatus): 'green' | 'amber' {
+    return status === 'Emailed' ? 'green' : 'amber';
+  }
+
   private loadLookup(): void {
     this.api.getCustomers({ pageNumber: 1, pageSize: 500 }).subscribe({
       next: (result) => this.customers.set(result.items),
@@ -784,6 +821,7 @@ export class QuotePageComponent implements OnInit {
   private loadSettings(): void {
     this.api.getSettings().subscribe({
       next: (settings) => {
+        this.settings.set(settings);
         this.taxApplicable.set(settings.isTaxApplicable);
         this.defaultTaxRate.set(settings.defaultTaxRate > 0 ? settings.defaultTaxRate : 0.08);
         this.defaultDueDays.set(settings.defaultDueDays > 0 ? settings.defaultDueDays : 7);
@@ -795,6 +833,60 @@ export class QuotePageComponent implements OnInit {
       },
       error: () => this.toast.error('Failed to load quote settings.')
     });
+  }
+
+  openEmailDialog(quote: QuotationListItem): void {
+    this.api.getQuoteById(quote.id).subscribe({
+      next: (detail) => {
+        if (!detail.customerEmail?.trim()) {
+          this.toast.error('Customer email is not configured for this quotation.');
+          return;
+        }
+
+        this.emailTargetId.set(quote.id);
+        this.emailTo.set(detail.customerEmail.trim());
+        this.emailBody.set(this.buildEmailBody());
+        this.emailAttachmentName.set(`${detail.quotationNo}.pdf`);
+        this.emailStatus.set(detail.emailStatus);
+        this.emailLastEmailedAt.set(detail.lastEmailedAt ?? null);
+        this.emailDialogOpen.set(true);
+      },
+      error: () => this.toast.error('Failed to load quotation email details.')
+    });
+  }
+
+  closeEmailDialog(): void {
+    this.emailDialogOpen.set(false);
+    this.emailTargetId.set(null);
+    this.emailTo.set('');
+    this.emailBody.set('');
+    this.emailAttachmentName.set('quotation.pdf');
+    this.emailStatus.set('Pending');
+    this.emailLastEmailedAt.set(null);
+  }
+
+  sendEmail(payload: DocumentEmailRequest): void {
+    const quoteId = this.emailTargetId();
+    if (!quoteId) {
+      return;
+    }
+
+    this.emailSending.set(true);
+    this.api.sendQuoteEmail(quoteId, payload)
+      .pipe(finalize(() => this.emailSending.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Quotation emailed.');
+          if (this.detail()?.id === quoteId) {
+            this.api.getQuoteById(quoteId).subscribe({
+              next: (detail) => this.detail.set(detail)
+            });
+          }
+          this.closeEmailDialog();
+          this.reload();
+        },
+        error: (error) => this.toast.error(this.readError(error, 'Unable to email quotation.'))
+      });
   }
 
   private reload(): void {
@@ -951,5 +1043,17 @@ export class QuotePageComponent implements OnInit {
 
   private readError(error: unknown, fallback: string): string {
     return extractApiError(error, fallback);
+  }
+
+  private buildEmailBody(): string {
+    return resolveDocumentEmailBody(
+      this.settings()?.quotationEmailBodyTemplate,
+      'Quotation',
+      this.companyName()
+    );
+  }
+
+  private companyName(): string {
+    return this.settings()?.companyName?.trim() || this.auth.user()?.companyName?.trim() || 'Your Company';
   }
 }

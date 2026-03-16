@@ -128,6 +128,43 @@ public class NotificationService : INotificationService
             billingMonth.ToString("yyyy-MM"));
     }
 
+    public async Task SendDocumentEmailAsync(
+        string toEmail,
+        string? ccEmail,
+        string subject,
+        string body,
+        byte[] pdfBytes,
+        string attachmentFileName,
+        string? fromName,
+        string? replyToEmail,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!HasValidSmtpConfiguration())
+        {
+            _logger.LogWarning("SMTP configuration is incomplete. Document email cannot be sent.");
+            throw new AppException("Document email is not configured.");
+        }
+
+        if (pdfBytes.Length == 0)
+        {
+            throw new AppException("Document attachment is empty.");
+        }
+
+        var htmlBody = BuildEditableDocumentBody(body);
+        await SendWithAttachmentAsync(
+            toEmail,
+            ccEmail,
+            subject,
+            htmlBody,
+            pdfBytes,
+            attachmentFileName,
+            fromName,
+            replyToEmail,
+            cancellationToken);
+    }
+
     public async Task SendBugReportAsync(
         string reporterName,
         string? reporterEmail,
@@ -347,6 +384,21 @@ public class NotificationService : INotificationService
     </p>
     <p style=""margin:14px 0 0;color:#223b6c;line-height:1.55;"">Regards,</p>
     <p style=""margin:4px 0 0;color:#4d6290;"">myDhathuru Team</p>
+  </div>
+</div>";
+    }
+
+    private static string BuildEditableDocumentBody(string body)
+    {
+        var encoded = HtmlEncoder.Default
+            .Encode(body.Trim())
+            .Replace("\r\n", "<br />")
+            .Replace("\n", "<br />");
+
+        return $@"
+<div style=""font-family:Segoe UI,Arial,sans-serif;background:#f5f8ff;padding:24px;"">
+  <div style=""max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d9e4fb;border-radius:14px;padding:24px;"">
+    <div style=""margin:0;color:#42557f;line-height:1.7;white-space:normal;"">{encoded}</div>
   </div>
 </div>";
     }

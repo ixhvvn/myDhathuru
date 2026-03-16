@@ -62,6 +62,9 @@ public class UpdateTenantSettingsRequestValidator : AbstractValidator<UpdateTena
             .When(x => !string.IsNullOrWhiteSpace(x.InvoiceOwnerName))
             .WithMessage("Invoice owner name must not contain numbers.");
         RuleFor(x => x.InvoiceOwnerIdCard).MaximumLength(100);
+        RuleFor(x => x.QuotationEmailBodyTemplate).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.InvoiceEmailBodyTemplate).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.PurchaseOrderEmailBodyTemplate).NotEmpty().MaximumLength(4000);
         RuleFor(x => x.LogoUrl)
             .MaximumLength(400)
             .Must(BeSupportedImageUrl)

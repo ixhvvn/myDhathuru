@@ -55,6 +55,8 @@ public class InvoiceListItemDto
     public DateOnly DateIssued { get; set; }
     public DateOnly DateDue { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
 }
 
 public class InvoiceDetailDto
@@ -67,6 +69,8 @@ public class InvoiceDetailDto
     public Guid CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public string? CustomerTinNumber { get; set; }
+    public string? CustomerEmail { get; set; }
+    public string? CustomerPhone { get; set; }
     public Guid? DeliveryNoteId { get; set; }
     public string? DeliveryNoteNo { get; set; }
     public Guid? CourierId { get; set; }
@@ -82,6 +86,8 @@ public class InvoiceDetailDto
     public decimal AmountPaid { get; set; }
     public decimal Balance { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
     public string? Notes { get; set; }
 
     public List<InvoiceItemDto> Items { get; set; } = new();
@@ -128,4 +134,10 @@ public class ReceiveInvoicePaymentRequest
     public PaymentMethod Method { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
+}
+
+public class SendInvoiceEmailRequest
+{
+    public string? CcEmail { get; set; }
+    public string? Body { get; set; }
 }

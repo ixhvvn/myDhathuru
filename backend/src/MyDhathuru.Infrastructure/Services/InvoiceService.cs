@@ -6,6 +6,7 @@ using MyDhathuru.Application.Invoices.Dtos;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Extensions;
+using MyDhathuru.Infrastructure.Helpers;
 using MyDhathuru.Infrastructure.Persistence;
 using MyDhathuru.Infrastructure.Security;
 
@@ -16,6 +17,7 @@ public class InvoiceService : IInvoiceService
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentNumberService _documentNumberService;
     private readonly IPdfExportService _pdfExportService;
+    private readonly INotificationService _notificationService;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPasswordHasher _passwordHasher;
@@ -24,6 +26,7 @@ public class InvoiceService : IInvoiceService
         ApplicationDbContext dbContext,
         IDocumentNumberService documentNumberService,
         IPdfExportService pdfExportService,
+        INotificationService notificationService,
         ICurrentTenantService currentTenantService,
         ICurrentUserService currentUserService,
         IPasswordHasher passwordHasher)
@@ -31,6 +34,7 @@ public class InvoiceService : IInvoiceService
         _dbContext = dbContext;
         _documentNumberService = documentNumberService;
         _pdfExportService = pdfExportService;
+        _notificationService = notificationService;
         _currentTenantService = currentTenantService;
         _currentUserService = currentUserService;
         _passwordHasher = passwordHasher;
@@ -80,7 +84,9 @@ public class InvoiceService : IInvoiceService
                 Amount = x.GrandTotal,
                 DateIssued = x.DateIssued,
                 DateDue = x.DateDue,
-                PaymentStatus = x.PaymentStatus
+                PaymentStatus = x.PaymentStatus,
+                EmailStatus = x.EmailStatus,
+                LastEmailedAt = x.LastEmailedAt
             })
             .ToPagedResultAsync(query, cancellationToken);
     }
@@ -283,6 +289,7 @@ public class InvoiceService : IInvoiceService
         invoice.Currency = requestedCurrency;
         invoice.TaxRate = ResolveTaxRate(request.TaxRate, settings);
         invoice.Notes = request.Notes?.Trim();
+        ResetEmailStatus(invoice);
 
         foreach (var item in invoice.Items.ToList())
         {
@@ -473,27 +480,58 @@ public class InvoiceService : IInvoiceService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task SendEmailAsync(Guid id, SendInvoiceEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _dbContext.Invoices
+            .Include(x => x.Customer)
+            .Include(x => x.Quotation)
+            .Include(x => x.DeliveryNote)
+            .Include(x => x.CourierVessel)
+            .Include(x => x.Items)
+            .Include(x => x.Payments)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Invoice not found.");
+
+        var recipientEmail = invoice.Customer.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            throw new AppException("Customer email is required before sending this invoice.");
+        }
+
+        var settings = await GetTenantSettingsAsync(cancellationToken);
+        var body = DocumentEmailTemplateHelper.RenderInvoice(
+            string.IsNullOrWhiteSpace(request.Body) ? settings.InvoiceEmailBodyTemplate : request.Body,
+            settings.CompanyName);
+        var ccEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
+        var subject = $"Invoice {invoice.InvoiceNo} from {settings.CompanyName}";
+        var pdfBytes = BuildInvoicePdf(MapInvoice(invoice), settings);
+
+        await _notificationService.SendDocumentEmailAsync(
+            recipientEmail,
+            ccEmail,
+            subject,
+            body,
+            pdfBytes,
+            $"{invoice.InvoiceNo}.pdf",
+            settings.CompanyName,
+            settings.CompanyEmail,
+            cancellationToken);
+
+        invoice.EmailStatus = DocumentEmailStatus.Emailed;
+        invoice.LastEmailedAt = DateTimeOffset.UtcNow;
+        invoice.LastEmailedTo = recipientEmail;
+        invoice.LastEmailedCc = ccEmail;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var invoice = await GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Invoice not found.");
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
-        var bankDetails = new InvoiceBankDetailsDto
-        {
-            BmlMvrAccountName = settings.BmlMvrAccountName,
-            BmlMvrAccountNumber = settings.BmlMvrAccountNumber,
-            BmlUsdAccountName = settings.BmlUsdAccountName,
-            BmlUsdAccountNumber = settings.BmlUsdAccountNumber,
-            MibMvrAccountName = settings.MibMvrAccountName,
-            MibMvrAccountNumber = settings.MibMvrAccountNumber,
-            MibUsdAccountName = settings.MibUsdAccountName,
-            MibUsdAccountNumber = settings.MibUsdAccountNumber,
-            InvoiceOwnerName = settings.InvoiceOwnerName,
-            InvoiceOwnerIdCard = settings.InvoiceOwnerIdCard
-        };
-        return _pdfExportService.BuildInvoicePdf(invoice, settings.CompanyName, companyInfo, bankDetails, settings.LogoUrl, settings.IsTaxApplicable);
+        return BuildInvoicePdf(invoice, settings);
     }
 
     private static void RecalculateInvoice(Invoice invoice)
@@ -534,6 +572,8 @@ public class InvoiceService : IInvoiceService
             CustomerId = invoice.CustomerId,
             CustomerName = invoice.Customer.Name,
             CustomerTinNumber = invoice.Customer.TinNumber,
+            CustomerEmail = invoice.Customer.Email,
+            CustomerPhone = invoice.Customer.Phone,
             DeliveryNoteId = invoice.DeliveryNoteId,
             DeliveryNoteNo = invoice.DeliveryNote?.DeliveryNoteNo,
             CourierId = invoice.CourierVesselId,
@@ -548,6 +588,8 @@ public class InvoiceService : IInvoiceService
             AmountPaid = invoice.AmountPaid,
             Balance = invoice.Balance,
             PaymentStatus = invoice.PaymentStatus,
+            EmailStatus = invoice.EmailStatus,
+            LastEmailedAt = invoice.LastEmailedAt,
             Notes = invoice.Notes,
             Items = invoice.Items.OrderBy(x => x.CreatedAt).Select(item => new InvoiceItemDto
             {
@@ -612,5 +654,33 @@ public class InvoiceService : IInvoiceService
         }
 
         return parsed.ToString().ToUpperInvariant();
+    }
+
+    private static void ResetEmailStatus(Invoice invoice)
+    {
+        invoice.EmailStatus = DocumentEmailStatus.Pending;
+        invoice.LastEmailedAt = null;
+        invoice.LastEmailedTo = null;
+        invoice.LastEmailedCc = null;
+    }
+
+    private byte[] BuildInvoicePdf(InvoiceDetailDto invoice, TenantSettings settings)
+    {
+        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
+        var bankDetails = new InvoiceBankDetailsDto
+        {
+            BmlMvrAccountName = settings.BmlMvrAccountName,
+            BmlMvrAccountNumber = settings.BmlMvrAccountNumber,
+            BmlUsdAccountName = settings.BmlUsdAccountName,
+            BmlUsdAccountNumber = settings.BmlUsdAccountNumber,
+            MibMvrAccountName = settings.MibMvrAccountName,
+            MibMvrAccountNumber = settings.MibMvrAccountNumber,
+            MibUsdAccountName = settings.MibUsdAccountName,
+            MibUsdAccountNumber = settings.MibUsdAccountNumber,
+            InvoiceOwnerName = settings.InvoiceOwnerName,
+            InvoiceOwnerIdCard = settings.InvoiceOwnerIdCard
+        };
+
+        return _pdfExportService.BuildInvoicePdf(invoice, settings.CompanyName, companyInfo, bankDetails, settings.LogoUrl, settings.IsTaxApplicable);
     }
 }

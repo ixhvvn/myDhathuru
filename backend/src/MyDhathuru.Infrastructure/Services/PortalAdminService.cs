@@ -5,6 +5,7 @@ using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Common.Models;
 using MyDhathuru.Application.PortalAdmin.Dtos;
+using MyDhathuru.Domain.Constants;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Persistence;
@@ -918,6 +919,9 @@ public class PortalAdminService : IPortalAdminService
             MibUsdAccountNumber = string.Empty,
             InvoiceOwnerName = string.Empty,
             InvoiceOwnerIdCard = string.Empty,
+            QuotationEmailBodyTemplate = DocumentEmailTemplateDefaults.Quotation,
+            InvoiceEmailBodyTemplate = DocumentEmailTemplateDefaults.Invoice,
+            PurchaseOrderEmailBodyTemplate = DocumentEmailTemplateDefaults.PurchaseOrder,
             LogoUrl = "/logo-name.svg",
             CompanyStampUrl = null,
             CompanySignatureUrl = null

@@ -1234,3 +1234,107 @@
   .landing-page--v2 .node-bottom-right,
   .landing-page--v2 .map-node-d { right: 18px; }
 }
+
+.landing-page .footer {
+  position: relative;
+  margin: 1.25rem auto 1.5rem;
+  padding: 0;
+  border: 1px solid rgba(112, 132, 183, 0.18);
+  border-radius: 40px;
+  background:
+    radial-gradient(circle at top left, rgba(94, 121, 255, 0.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(77, 199, 173, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(237, 243, 255, 0.94));
+  box-shadow: 0 30px 80px rgba(62, 81, 122, 0.14);
+  overflow: hidden;
+}
+
+.landing-page .footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 36%);
+}
+
+.landing-page .footer-grid {
+  padding: 1.8rem clamp(1.2rem, 3vw, 2rem) 1.9rem;
+}
+
+.landing-page .footer-brand {
+  padding-left: .35rem;
+}
+
+.landing-page .footer-brand .brand {
+  padding: .2rem .2rem .2rem 0;
+}
+
+.landing-page .footer-bottom {
+  padding: 1.1rem clamp(1rem, 3vw, 2rem) 1.35rem;
+  border-top: 1px solid rgba(112, 132, 183, 0.14);
+}
+
+@media (max-width: 820px) {
+  .landing-page .footer {
+    border-radius: 32px;
+  }
+
+  .landing-page .visibility-map {
+    grid-template-areas:
+      'chrome chrome'
+      'north-west north'
+      'north-east east-top'
+      'core core'
+      'west east'
+      'inner-left inner-right'
+      'south-west south'
+      'south-east south-east';
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-page .footer {
+    padding-bottom: 2rem;
+    border-radius: 28px;
+  }
+
+  .landing-page .footer-brand {
+    padding-left: .15rem;
+  }
+
+  .landing-page .visibility-map {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'chrome'
+      'north-west'
+      'north'
+      'north-east'
+      'east-top'
+      'core'
+      'west'
+      'east'
+      'inner-left'
+      'inner-right'
+      'south-west'
+      'south'
+      'south-east';
+  }
+
+  .landing-page .visibility-map__chrome {
+    align-items: flex-start;
+  }
+
+  .landing-page .visibility-core {
+    text-align: left;
+  }
+
+  .landing-page .visibility-core strong {
+    font-size: 1.14rem;
+    line-height: 1.2;
+  }
+
+  .landing-page .visibility-core p {
+    font-size: .91rem;
+    line-height: 1.55;
+  }
+}

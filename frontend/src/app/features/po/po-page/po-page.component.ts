@@ -1,18 +1,22 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { finalize } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppConfirmDialogComponent } from '../../../shared/components/app-confirm-dialog/app-confirm-dialog.component';
+import { AppDocumentEmailDialogComponent } from '../../../shared/components/app-document-email-dialog/app-document-email-dialog.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
 import { AppSearchBarComponent } from '../../../shared/components/app-search-bar/app-search-bar.component';
-import { PagedResult, PurchaseOrder, PurchaseOrderListItem, SupplierLookup, Vessel } from '../../../core/models/app.models';
+import { AppStatusChipComponent } from '../../../shared/components/app-status-chip/app-status-chip.component';
+import { DocumentEmailRequest, DocumentEmailStatus, PagedResult, PurchaseOrder, PurchaseOrderListItem, SupplierLookup, TenantSettings, Vessel } from '../../../core/models/app.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { resolveDocumentEmailBody } from '../../../core/utils/document-email-template.util';
 import { PortalApiService } from '../../services/portal-api.service';
 
 type DatePreset =
@@ -34,11 +38,13 @@ type DatePreset =
     AppButtonComponent,
     AppCardComponent,
     AppConfirmDialogComponent,
+    AppDocumentEmailDialogComponent,
     AppCurrencyPipe,
     AppDataTableComponent,
     AppDateBadgeComponent,
     AppPageHeaderComponent,
-    AppSearchBarComponent
+    AppSearchBarComponent,
+    AppStatusChipComponent
   ],
   template: `
     <app-page-header title="PO" subtitle="Create and export purchase orders">
@@ -103,6 +109,7 @@ type DatePreset =
             <th>Amount</th>
             <th>Date Issued</th>
             <th>Required Date</th>
+            <th>Email Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -115,10 +122,14 @@ type DatePreset =
             <td>{{ purchaseOrder.amount | appCurrency: purchaseOrder.currency }}</td>
             <td><app-date-badge [value]="purchaseOrder.dateIssued"></app-date-badge></td>
             <td><app-date-badge [value]="purchaseOrder.requiredDate"></app-date-badge></td>
+            <td>
+              <app-status-chip [label]="purchaseOrder.emailStatus === 'Emailed' ? 'Emailed' : 'Email Pending'" [variant]="emailStatusVariant(purchaseOrder.emailStatus)"></app-status-chip>
+            </td>
             <td class="actions">
               <app-button size="sm" variant="secondary" (clicked)="openDetail(purchaseOrder)">View</app-button>
               <app-button size="sm" variant="secondary" (clicked)="edit(purchaseOrder)">Edit</app-button>
               <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(purchaseOrder)">Delete</app-button>
+              <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(purchaseOrder)">Email</app-button>
               <app-button size="sm" variant="secondary" (clicked)="exportPurchaseOrder(purchaseOrder)">PDF</app-button>
             </td>
           </tr>
@@ -244,6 +255,19 @@ type DatePreset =
       (cancel)="closeDeleteDialog()"
       (confirm)="deletePurchaseOrder()">
     </app-confirm-dialog>
+
+    <app-document-email-dialog
+      [open]="emailDialogOpen()"
+      title="Email Purchase Order"
+      [toEmail]="emailTo()"
+      [body]="emailBody()"
+      [attachmentName]="emailAttachmentName()"
+      [loading]="emailSending()"
+      [emailStatus]="emailStatus()"
+      [lastEmailedAt]="emailLastEmailedAt()"
+      (cancel)="closeEmailDialog()"
+      (send)="sendEmail($event)">
+    </app-document-email-dialog>
   `,
   styles: `
     .toolbar {
@@ -322,7 +346,7 @@ type DatePreset =
       gap: .35rem;
       flex-wrap: nowrap;
       align-items: center;
-      min-width: 300px;
+      min-width: 390px;
     }
     .actions app-button {
       flex: 0 0 auto;
@@ -443,6 +467,7 @@ export class PoPageComponent implements OnInit {
   readonly purchaseOrders = signal<PagedResult<PurchaseOrderListItem> | null>(null);
   readonly suppliers = signal<SupplierLookup[]>([]);
   readonly vessels = signal<Vessel[]>([]);
+  readonly settings = signal<TenantSettings | null>(null);
   readonly search = signal('');
   readonly searchDraft = signal('');
   readonly pageNumber = signal(1);
@@ -462,6 +487,14 @@ export class PoPageComponent implements OnInit {
   readonly defaultDueDays = signal(7);
   readonly deleteDialogOpen = signal(false);
   readonly deleteTarget = signal<PurchaseOrderListItem | null>(null);
+  readonly emailDialogOpen = signal(false);
+  readonly emailTargetId = signal<string | null>(null);
+  readonly emailTo = signal('');
+  readonly emailBody = signal('');
+  readonly emailAttachmentName = signal('purchase-order.pdf');
+  readonly emailStatus = signal<DocumentEmailStatus>('Pending');
+  readonly emailLastEmailedAt = signal<string | null>(null);
+  readonly emailSending = signal(false);
 
   readonly pageSizeOptions = [10, 20, 40, 80, 100] as const;
   readonly datePresetOptions = [
@@ -734,6 +767,10 @@ export class PoPageComponent implements OnInit {
     return this.auth.user()?.role === 'Admin';
   }
 
+  emailStatusVariant(status: DocumentEmailStatus): 'green' | 'amber' {
+    return status === 'Emailed' ? 'green' : 'amber';
+  }
+
   private loadLookup(): void {
     this.api.getSupplierLookup().subscribe({
       next: (result) => this.suppliers.set(result),
@@ -749,6 +786,7 @@ export class PoPageComponent implements OnInit {
   private loadSettings(): void {
     this.api.getSettings().subscribe({
       next: (settings) => {
+        this.settings.set(settings);
         this.taxApplicable.set(settings.isTaxApplicable);
         this.defaultTaxRate.set(settings.defaultTaxRate > 0 ? settings.defaultTaxRate : 0.08);
         this.defaultDueDays.set(settings.defaultDueDays > 0 ? settings.defaultDueDays : 7);
@@ -760,6 +798,60 @@ export class PoPageComponent implements OnInit {
       },
       error: () => this.toast.error('Failed to load settings.')
     });
+  }
+
+  openEmailDialog(purchaseOrder: PurchaseOrderListItem): void {
+    this.api.getPurchaseOrderById(purchaseOrder.id).subscribe({
+      next: (detail) => {
+        if (!detail.supplierEmail?.trim()) {
+          this.toast.error('Supplier email is not configured for this purchase order.');
+          return;
+        }
+
+        this.emailTargetId.set(purchaseOrder.id);
+        this.emailTo.set(detail.supplierEmail.trim());
+        this.emailBody.set(this.buildEmailBody());
+        this.emailAttachmentName.set(`${detail.purchaseOrderNo}.pdf`);
+        this.emailStatus.set(detail.emailStatus);
+        this.emailLastEmailedAt.set(detail.lastEmailedAt ?? null);
+        this.emailDialogOpen.set(true);
+      },
+      error: () => this.toast.error('Failed to load PO email details.')
+    });
+  }
+
+  closeEmailDialog(): void {
+    this.emailDialogOpen.set(false);
+    this.emailTargetId.set(null);
+    this.emailTo.set('');
+    this.emailBody.set('');
+    this.emailAttachmentName.set('purchase-order.pdf');
+    this.emailStatus.set('Pending');
+    this.emailLastEmailedAt.set(null);
+  }
+
+  sendEmail(payload: DocumentEmailRequest): void {
+    const purchaseOrderId = this.emailTargetId();
+    if (!purchaseOrderId) {
+      return;
+    }
+
+    this.emailSending.set(true);
+    this.api.sendPurchaseOrderEmail(purchaseOrderId, payload)
+      .pipe(finalize(() => this.emailSending.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Purchase order emailed.');
+          if (this.detail()?.id === purchaseOrderId) {
+            this.api.getPurchaseOrderById(purchaseOrderId).subscribe({
+              next: (detail) => this.detail.set(detail)
+            });
+          }
+          this.closeEmailDialog();
+          this.reload();
+        },
+        error: (error) => this.toast.error(this.readError(error, 'Unable to email purchase order.'))
+      });
   }
 
   private reload(): void {
@@ -909,5 +1001,17 @@ export class PoPageComponent implements OnInit {
 
   private readError(error: unknown, fallback: string): string {
     return extractApiError(error, fallback);
+  }
+
+  private buildEmailBody(): string {
+    return resolveDocumentEmailBody(
+      this.settings()?.purchaseOrderEmailBodyTemplate,
+      'PO',
+      this.companyName()
+    );
+  }
+
+  private companyName(): string {
+    return this.settings()?.companyName?.trim() || this.auth.user()?.companyName?.trim() || 'Your Company';
   }
 }

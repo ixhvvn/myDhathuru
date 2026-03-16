@@ -1,4 +1,5 @@
 using MyDhathuru.Domain.Common;
+using MyDhathuru.Domain.Constants;
 namespace MyDhathuru.Domain.Entities;
 public class TenantSettings : TenantEntity
 {
@@ -34,6 +35,9 @@ public class TenantSettings : TenantEntity
     public string MibUsdAccountNumber { get; set; } = string.Empty;
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
+    public string QuotationEmailBodyTemplate { get; set; } = DocumentEmailTemplateDefaults.Quotation;
+    public string InvoiceEmailBodyTemplate { get; set; } = DocumentEmailTemplateDefaults.Invoice;
+    public string PurchaseOrderEmailBodyTemplate { get; set; } = DocumentEmailTemplateDefaults.PurchaseOrder;
     public string? LogoUrl { get; set; }
     public string? CompanyStampUrl { get; set; }
     public string? CompanySignatureUrl { get; set; }

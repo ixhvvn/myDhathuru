@@ -13,5 +13,6 @@ public interface IInvoiceService
     Task<InvoicePaymentDto> ReceivePaymentAsync(Guid invoiceId, ReceiveInvoicePaymentRequest request, CancellationToken cancellationToken = default);
     Task ClearAllAsync(string password, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<InvoicePaymentDto>> GetPaymentHistoryAsync(Guid invoiceId, CancellationToken cancellationToken = default);
+    Task SendEmailAsync(Guid id, SendInvoiceEmailRequest request, CancellationToken cancellationToken = default);
     Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default);
 }

@@ -23,6 +23,10 @@ public class Invoice : TenantEntity
     public decimal AmountPaid { get; set; }
     public decimal Balance { get; set; }
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
+    public DocumentEmailStatus EmailStatus { get; set; } = DocumentEmailStatus.Pending;
+    public DateTimeOffset? LastEmailedAt { get; set; }
+    public string? LastEmailedTo { get; set; }
+    public string? LastEmailedCc { get; set; }
     public string? Notes { get; set; }
     public ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
     public ICollection<InvoicePayment> Payments { get; set; } = new List<InvoicePayment>();

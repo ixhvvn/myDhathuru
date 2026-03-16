@@ -14,6 +14,7 @@ import {
   DeliveryNote,
   DeliveryNoteAttachment,
   DeliveryNoteListItem,
+  DocumentEmailRequest,
   ExpenseCategory,
   ExpenseCategoryLookup,
   ExpenseEntryDetail,
@@ -365,6 +366,10 @@ export class PortalApiService {
     return this.api.getFile(`invoices/${id}/export`);
   }
 
+  sendInvoiceEmail(id: string, payload: DocumentEmailRequest): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>(`invoices/${id}/email`, payload);
+  }
+
   getReceivedInvoices(params: Record<string, unknown>): Observable<PagedResult<ReceivedInvoiceListItem>> {
     return this.api.get<PagedResult<ReceivedInvoiceListItem>>('received-invoices', params);
   }
@@ -511,6 +516,10 @@ export class PortalApiService {
     return this.api.getFile(`purchase-orders/${id}/export`);
   }
 
+  sendPurchaseOrderEmail(id: string, payload: DocumentEmailRequest): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>(`purchase-orders/${id}/email`, payload);
+  }
+
   getQuotes(params: Record<string, unknown>): Observable<PagedResult<QuotationListItem>> {
     return this.api.get<PagedResult<QuotationListItem>>('quotes', params);
   }
@@ -537,6 +546,10 @@ export class PortalApiService {
 
   exportQuote(id: string): Observable<Blob> {
     return this.api.getFile(`quotes/${id}/export`);
+  }
+
+  sendQuoteEmail(id: string, payload: DocumentEmailRequest): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>(`quotes/${id}/email`, payload);
   }
 
   getStatement(customerId: string, year: number): Observable<AccountStatement> {

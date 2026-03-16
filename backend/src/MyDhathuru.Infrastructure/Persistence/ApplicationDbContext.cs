@@ -264,6 +264,9 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.MibUsdAccountNumber).HasMaxLength(100);
             entity.Property(x => x.InvoiceOwnerName).HasMaxLength(200);
             entity.Property(x => x.InvoiceOwnerIdCard).HasMaxLength(100);
+            entity.Property(x => x.QuotationEmailBodyTemplate).HasMaxLength(4000);
+            entity.Property(x => x.InvoiceEmailBodyTemplate).HasMaxLength(4000);
+            entity.Property(x => x.PurchaseOrderEmailBodyTemplate).HasMaxLength(4000);
             entity.Property(x => x.LogoUrl).HasMaxLength(400);
             entity.Property(x => x.CompanyStampUrl).HasMaxLength(400);
             entity.Property(x => x.CompanySignatureUrl).HasMaxLength(400);
@@ -474,6 +477,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.DateIssued });
             entity.HasIndex(x => x.CourierVesselId);
             entity.HasIndex(x => x.QuotationId).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.EmailStatus });
             entity.Property(x => x.InvoiceNo).HasMaxLength(50);
             entity.Property(x => x.PoNumber).HasMaxLength(100);
             entity.Property(x => x.Currency).HasMaxLength(3);
@@ -484,6 +488,9 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
             entity.Property(x => x.AmountPaid).HasColumnType("numeric(18,2)");
             entity.Property(x => x.Balance).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.EmailStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.LastEmailedTo).HasMaxLength(200);
+            entity.Property(x => x.LastEmailedCc).HasMaxLength(500);
             entity.HasOne(x => x.CourierVessel)
                 .WithMany()
                 .HasForeignKey(x => x.CourierVesselId)
@@ -664,6 +671,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.DateIssued });
             entity.HasIndex(x => x.SupplierId);
             entity.HasIndex(x => x.CourierVesselId);
+            entity.HasIndex(x => new { x.TenantId, x.EmailStatus });
             entity.Property(x => x.PurchaseOrderNo).HasMaxLength(50);
             entity.Property(x => x.Currency).HasMaxLength(3);
             entity.Property(x => x.Notes).HasMaxLength(500);
@@ -671,6 +679,9 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.TaxRate).HasColumnType("numeric(8,4)");
             entity.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
             entity.Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.EmailStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.LastEmailedTo).HasMaxLength(200);
+            entity.Property(x => x.LastEmailedCc).HasMaxLength(500);
             entity.HasOne(x => x.CourierVessel)
                 .WithMany()
                 .HasForeignKey(x => x.CourierVesselId)
@@ -694,6 +705,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(x => new { x.TenantId, x.QuotationNo }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.DateIssued });
             entity.HasIndex(x => x.CourierVesselId);
+            entity.HasIndex(x => new { x.TenantId, x.EmailStatus });
             entity.Property(x => x.QuotationNo).HasMaxLength(50);
             entity.Property(x => x.PoNumber).HasMaxLength(100);
             entity.Property(x => x.Currency).HasMaxLength(3);
@@ -702,6 +714,9 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.TaxRate).HasColumnType("numeric(8,4)");
             entity.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
             entity.Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
+            entity.Property(x => x.EmailStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.LastEmailedTo).HasMaxLength(200);
+            entity.Property(x => x.LastEmailedCc).HasMaxLength(500);
             entity.HasOne(x => x.CourierVessel)
                 .WithMany()
                 .HasForeignKey(x => x.CourierVesselId)

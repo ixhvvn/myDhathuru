@@ -5,15 +5,17 @@ import { finalize } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppConfirmDialogComponent } from '../../../shared/components/app-confirm-dialog/app-confirm-dialog.component';
+import { AppDocumentEmailDialogComponent } from '../../../shared/components/app-document-email-dialog/app-document-email-dialog.component';
 import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
 import { AppSearchBarComponent } from '../../../shared/components/app-search-bar/app-search-bar.component';
 import { AppStatusChipComponent } from '../../../shared/components/app-status-chip/app-status-chip.component';
-import { Customer, DeliveryNoteListItem, Invoice, InvoiceListItem, PagedResult, Vessel } from '../../../core/models/app.models';
+import { Customer, DeliveryNoteListItem, DocumentEmailRequest, DocumentEmailStatus, Invoice, InvoiceListItem, PagedResult, TenantSettings, Vessel } from '../../../core/models/app.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { resolveDocumentEmailBody } from '../../../core/utils/document-email-template.util';
 import { PortalApiService } from '../../services/portal-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -26,6 +28,7 @@ import { ToastService } from '../../../core/services/toast.service';
     AppButtonComponent,
     AppCardComponent,
     AppConfirmDialogComponent,
+    AppDocumentEmailDialogComponent,
     AppCurrencyPipe,
     AppDataTableComponent,
     AppDateBadgeComponent,
@@ -62,6 +65,7 @@ import { ToastService } from '../../../core/services/toast.service';
             <th>Date Issued</th>
             <th>Date Due</th>
             <th>Payment Status</th>
+            <th>Email Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -76,6 +80,9 @@ import { ToastService } from '../../../core/services/toast.service';
             <td>
               <app-status-chip [label]="invoice.paymentStatus" [variant]="statusVariant(invoice.paymentStatus)"></app-status-chip>
             </td>
+            <td>
+              <app-status-chip [label]="invoice.emailStatus === 'Emailed' ? 'Emailed' : 'Email Pending'" [variant]="emailStatusVariant(invoice.emailStatus)"></app-status-chip>
+            </td>
             <td class="actions">
               <app-button size="sm" variant="secondary" (clicked)="openDetail(invoice)">View</app-button>
               <app-button size="sm" variant="secondary" (clicked)="edit(invoice)">Edit</app-button>
@@ -87,6 +94,7 @@ import { ToastService } from '../../../core/services/toast.service';
                 (clicked)="openPayment(invoice)">
                 {{ paymentButtonLabel(invoice.paymentStatus) }}
               </app-button>
+              <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(invoice)">Email</app-button>
               <app-button size="sm" variant="secondary" (clicked)="exportInvoice(invoice)">PDF</app-button>
             </td>
           </tr>
@@ -273,6 +281,19 @@ import { ToastService } from '../../../core/services/toast.service';
         </form>
       </app-card>
     </div>
+
+    <app-document-email-dialog
+      [open]="emailDialogOpen()"
+      title="Email Invoice"
+      [toEmail]="emailTo()"
+      [body]="emailBody()"
+      [attachmentName]="emailAttachmentName()"
+      [loading]="emailSending()"
+      [emailStatus]="emailStatus()"
+      [lastEmailedAt]="emailLastEmailedAt()"
+      (cancel)="closeEmailDialog()"
+      (send)="sendEmail($event)">
+    </app-document-email-dialog>
   `,
   styles: `
     .filters {
@@ -303,7 +324,7 @@ import { ToastService } from '../../../core/services/toast.service';
       gap: .35rem;
       flex-wrap: nowrap;
       align-items: center;
-      min-width: 420px;
+      min-width: 500px;
     }
     .actions app-button {
       flex: 0 0 auto;
@@ -436,6 +457,7 @@ export class InvoicesPageComponent implements OnInit {
   readonly formOpen = signal(false);
   readonly editId = signal<string | null>(null);
   readonly detail = signal<Invoice | null>(null);
+  readonly settings = signal<TenantSettings | null>(null);
   readonly isCustomerLocked = signal(false);
   readonly isCurrencyLocked = signal(false);
   readonly isCourierLocked = signal(false);
@@ -449,6 +471,14 @@ export class InvoicesPageComponent implements OnInit {
   readonly deleteTarget = signal<InvoiceListItem | null>(null);
   readonly clearAllDialogOpen = signal(false);
   readonly clearAllPending = signal(false);
+  readonly emailDialogOpen = signal(false);
+  readonly emailTargetId = signal<string | null>(null);
+  readonly emailTo = signal('');
+  readonly emailBody = signal('');
+  readonly emailAttachmentName = signal('invoice.pdf');
+  readonly emailStatus = signal<DocumentEmailStatus>('Pending');
+  readonly emailLastEmailedAt = signal<string | null>(null);
+  readonly emailSending = signal(false);
 
   readonly customers = signal<Customer[]>([]);
   readonly vessels = signal<Vessel[]>([]);
@@ -532,6 +562,10 @@ export class InvoicesPageComponent implements OnInit {
       return 'Partial';
     }
     return 'Receive Payment';
+  }
+
+  emailStatusVariant(status: DocumentEmailStatus): 'green' | 'amber' {
+    return status === 'Emailed' ? 'green' : 'amber';
   }
 
   onSearch(value: string): void {
@@ -772,6 +806,60 @@ export class InvoicesPageComponent implements OnInit {
     });
   }
 
+  openEmailDialog(invoice: InvoiceListItem): void {
+    this.api.getInvoiceById(invoice.id).subscribe({
+      next: (detail) => {
+        if (!detail.customerEmail?.trim()) {
+          this.toast.error('Customer email is not configured for this invoice.');
+          return;
+        }
+
+        this.emailTargetId.set(invoice.id);
+        this.emailTo.set(detail.customerEmail.trim());
+        this.emailBody.set(this.buildEmailBody());
+        this.emailAttachmentName.set(`${detail.invoiceNo}.pdf`);
+        this.emailStatus.set(detail.emailStatus);
+        this.emailLastEmailedAt.set(detail.lastEmailedAt ?? null);
+        this.emailDialogOpen.set(true);
+      },
+      error: () => this.toast.error('Failed to load invoice email details.')
+    });
+  }
+
+  closeEmailDialog(): void {
+    this.emailDialogOpen.set(false);
+    this.emailTargetId.set(null);
+    this.emailTo.set('');
+    this.emailBody.set('');
+    this.emailAttachmentName.set('invoice.pdf');
+    this.emailStatus.set('Pending');
+    this.emailLastEmailedAt.set(null);
+  }
+
+  sendEmail(payload: DocumentEmailRequest): void {
+    const invoiceId = this.emailTargetId();
+    if (!invoiceId) {
+      return;
+    }
+
+    this.emailSending.set(true);
+    this.api.sendInvoiceEmail(invoiceId, payload)
+      .pipe(finalize(() => this.emailSending.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Invoice emailed.');
+          if (this.detail()?.id === invoiceId) {
+            this.api.getInvoiceById(invoiceId).subscribe({
+              next: (detail) => this.detail.set(detail)
+            });
+          }
+          this.closeEmailDialog();
+          this.reload();
+        },
+        error: (error) => this.toast.error(this.readError(error, 'Unable to email invoice.'))
+      });
+  }
+
   confirmDelete(invoice: InvoiceListItem): void {
     this.deleteTarget.set(invoice);
     this.deleteDialogOpen.set(true);
@@ -871,6 +959,7 @@ export class InvoicesPageComponent implements OnInit {
   private loadSettings(): void {
     this.api.getSettings().subscribe({
       next: (settings) => {
+        this.settings.set(settings);
         this.taxApplicable.set(settings.isTaxApplicable);
         this.defaultTaxRate.set(settings.defaultTaxRate > 0 ? settings.defaultTaxRate : 0.08);
 
@@ -931,6 +1020,18 @@ export class InvoicesPageComponent implements OnInit {
 
   private readError(error: unknown, fallback: string): string {
     return extractApiError(error, fallback);
+  }
+
+  private buildEmailBody(): string {
+    return resolveDocumentEmailBody(
+      this.settings()?.invoiceEmailBodyTemplate,
+      'Invoice',
+      this.companyName()
+    );
+  }
+
+  private companyName(): string {
+    return this.settings()?.companyName?.trim() || this.auth.user()?.companyName?.trim() || 'Your Company';
   }
 
   currentDateFilterLabel(): string {

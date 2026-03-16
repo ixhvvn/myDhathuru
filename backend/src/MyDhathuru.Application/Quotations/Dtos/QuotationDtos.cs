@@ -1,4 +1,5 @@
 using MyDhathuru.Application.Common.Models;
+using MyDhathuru.Domain.Enums;
 
 namespace MyDhathuru.Application.Quotations.Dtos;
 
@@ -38,6 +39,8 @@ public class QuotationListItemDto
     public DateOnly ValidUntil { get; set; }
     public Guid? ConvertedInvoiceId { get; set; }
     public string? ConvertedInvoiceNo { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
 }
 
 public class QuotationDetailDto
@@ -59,6 +62,8 @@ public class QuotationDetailDto
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal GrandTotal { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
     public string? Notes { get; set; }
     public Guid? ConvertedInvoiceId { get; set; }
     public string? ConvertedInvoiceNo { get; set; }
@@ -87,4 +92,10 @@ public class CreateQuotationRequest
 
 public class UpdateQuotationRequest : CreateQuotationRequest
 {
+}
+
+public class SendQuotationEmailRequest
+{
+    public string? CcEmail { get; set; }
+    public string? Body { get; set; }
 }

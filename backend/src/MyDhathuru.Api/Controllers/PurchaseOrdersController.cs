@@ -62,6 +62,13 @@ public class PurchaseOrdersController : BaseApiController
         return SuccessMessage("Purchase order deleted.");
     }
 
+    [HttpPost("{id:guid}/email")]
+    public async Task<ActionResult<ApiResponse<object>>> SendEmail(Guid id, [FromBody] SendPurchaseOrderEmailRequest request, CancellationToken cancellationToken)
+    {
+        await _purchaseOrderService.SendEmailAsync(id, request, cancellationToken);
+        return SuccessMessage("Purchase order emailed.");
+    }
+
     [HttpGet("{id:guid}/export")]
     public async Task<IActionResult> Export(Guid id, CancellationToken cancellationToken)
     {

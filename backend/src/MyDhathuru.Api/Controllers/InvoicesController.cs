@@ -84,6 +84,13 @@ public class InvoicesController : BaseApiController
         return OkResponse(result);
     }
 
+    [HttpPost("{id:guid}/email")]
+    public async Task<ActionResult<ApiResponse<object>>> SendEmail(Guid id, [FromBody] SendInvoiceEmailRequest request, CancellationToken cancellationToken)
+    {
+        await _invoiceService.SendEmailAsync(id, request, cancellationToken);
+        return SuccessMessage("Invoice emailed.");
+    }
+
     [HttpGet("{id:guid}/export")]
     public async Task<IActionResult> Export(Guid id, CancellationToken cancellationToken)
     {

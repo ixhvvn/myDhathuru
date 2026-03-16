@@ -241,6 +241,23 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
             </div>
           </div>
 
+          <div class="bank-section">
+            <h4>Document Email Bodies</h4>
+            <p class="section-note">Use <code>{{'{{companyName}}'}}</code> to insert your business name automatically in outgoing document emails.</p>
+            <label>
+              Quotation Email Body
+              <textarea rows="6" formControlName="quotationEmailBodyTemplate"></textarea>
+            </label>
+            <label>
+              Invoice Email Body
+              <textarea rows="6" formControlName="invoiceEmailBodyTemplate"></textarea>
+            </label>
+            <label>
+              PO Email Body
+              <textarea rows="6" formControlName="purchaseOrderEmailBodyTemplate"></textarea>
+            </label>
+          </div>
+
           <div class="actions">
             <app-button type="submit" [disabled]="!isAdmin()">Save Settings</app-button>
           </div>
@@ -403,7 +420,8 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
       line-height: 1.4;
     }
     input,
-    select {
+    select,
+    textarea {
       border: 1px solid var(--border-soft);
       border-radius: 12px;
       padding: .52rem .6rem;
@@ -421,6 +439,17 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
       margin: 0;
       font-size: .9rem;
       color: var(--text-main);
+    }
+    .section-note {
+      margin: -.1rem 0 .15rem;
+      font-size: .77rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+    textarea {
+      min-height: 132px;
+      resize: vertical;
+      font: inherit;
     }
     .actions { display: flex; justify-content: flex-end; }
     @media (max-width: 980px) {
@@ -505,6 +534,9 @@ export class SettingsPageComponent implements OnInit {
     mibUsdAccountNumber: [''],
     invoiceOwnerName: ['', Validators.pattern(NAME_REGEX)],
     invoiceOwnerIdCard: [''],
+    quotationEmailBodyTemplate: ['', [Validators.required, Validators.maxLength(4000)]],
+    invoiceEmailBodyTemplate: ['', [Validators.required, Validators.maxLength(4000)]],
+    purchaseOrderEmailBodyTemplate: ['', [Validators.required, Validators.maxLength(4000)]],
     logoUrl: [SettingsPageComponent.defaultInvoiceLogoUrl, Validators.maxLength(400)],
     companyStampUrl: ['', Validators.maxLength(400)],
     companySignatureUrl: ['', Validators.maxLength(400)]

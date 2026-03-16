@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Settings.Dtos;
+using MyDhathuru.Domain.Constants;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Persistence;
@@ -77,6 +78,15 @@ public class SettingsService : ISettingsService
         settings.MibUsdAccountNumber = request.MibUsdAccountNumber?.Trim() ?? string.Empty;
         settings.InvoiceOwnerName = request.InvoiceOwnerName?.Trim() ?? string.Empty;
         settings.InvoiceOwnerIdCard = request.InvoiceOwnerIdCard?.Trim() ?? string.Empty;
+        settings.QuotationEmailBodyTemplate = string.IsNullOrWhiteSpace(request.QuotationEmailBodyTemplate)
+            ? DocumentEmailTemplateDefaults.Quotation
+            : request.QuotationEmailBodyTemplate.Trim();
+        settings.InvoiceEmailBodyTemplate = string.IsNullOrWhiteSpace(request.InvoiceEmailBodyTemplate)
+            ? DocumentEmailTemplateDefaults.Invoice
+            : request.InvoiceEmailBodyTemplate.Trim();
+        settings.PurchaseOrderEmailBodyTemplate = string.IsNullOrWhiteSpace(request.PurchaseOrderEmailBodyTemplate)
+            ? DocumentEmailTemplateDefaults.PurchaseOrder
+            : request.PurchaseOrderEmailBodyTemplate.Trim();
         settings.LogoUrl = string.IsNullOrWhiteSpace(request.LogoUrl) ? DefaultInvoiceLogoUrl : request.LogoUrl.Trim();
         settings.CompanyStampUrl = string.IsNullOrWhiteSpace(request.CompanyStampUrl) ? null : request.CompanyStampUrl.Trim();
         settings.CompanySignatureUrl = string.IsNullOrWhiteSpace(request.CompanySignatureUrl) ? null : request.CompanySignatureUrl.Trim();
@@ -156,6 +166,9 @@ public class SettingsService : ISettingsService
             MibUsdAccountNumber = settings.MibUsdAccountNumber,
             InvoiceOwnerName = settings.InvoiceOwnerName,
             InvoiceOwnerIdCard = settings.InvoiceOwnerIdCard,
+            QuotationEmailBodyTemplate = string.IsNullOrWhiteSpace(settings.QuotationEmailBodyTemplate) ? DocumentEmailTemplateDefaults.Quotation : settings.QuotationEmailBodyTemplate,
+            InvoiceEmailBodyTemplate = string.IsNullOrWhiteSpace(settings.InvoiceEmailBodyTemplate) ? DocumentEmailTemplateDefaults.Invoice : settings.InvoiceEmailBodyTemplate,
+            PurchaseOrderEmailBodyTemplate = string.IsNullOrWhiteSpace(settings.PurchaseOrderEmailBodyTemplate) ? DocumentEmailTemplateDefaults.PurchaseOrder : settings.PurchaseOrderEmailBodyTemplate,
             LogoUrl = string.IsNullOrWhiteSpace(settings.LogoUrl) ? DefaultInvoiceLogoUrl : settings.LogoUrl,
             CompanyStampUrl = settings.CompanyStampUrl,
             CompanySignatureUrl = settings.CompanySignatureUrl

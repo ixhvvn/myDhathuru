@@ -1,4 +1,5 @@
 using MyDhathuru.Domain.Common;
+using MyDhathuru.Domain.Enums;
 
 namespace MyDhathuru.Domain.Entities;
 
@@ -16,6 +17,10 @@ public class PurchaseOrder : TenantEntity
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal GrandTotal { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; } = DocumentEmailStatus.Pending;
+    public DateTimeOffset? LastEmailedAt { get; set; }
+    public string? LastEmailedTo { get; set; }
+    public string? LastEmailedCc { get; set; }
     public string? Notes { get; set; }
     public ICollection<PurchaseOrderItem> Items { get; set; } = new List<PurchaseOrderItem>();
 }

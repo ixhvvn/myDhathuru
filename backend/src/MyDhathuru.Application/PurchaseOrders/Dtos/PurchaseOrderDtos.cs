@@ -1,4 +1,5 @@
 using MyDhathuru.Application.Common.Models;
+using MyDhathuru.Domain.Enums;
 
 namespace MyDhathuru.Application.PurchaseOrders.Dtos;
 
@@ -36,6 +37,8 @@ public class PurchaseOrderListItemDto
     public decimal Amount { get; set; }
     public DateOnly DateIssued { get; set; }
     public DateOnly RequiredDate { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
 }
 
 public class PurchaseOrderDetailDto
@@ -56,6 +59,8 @@ public class PurchaseOrderDetailDto
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal GrandTotal { get; set; }
+    public DocumentEmailStatus EmailStatus { get; set; }
+    public DateTimeOffset? LastEmailedAt { get; set; }
     public string? Notes { get; set; }
     public List<PurchaseOrderItemDto> Items { get; set; } = new();
 }
@@ -74,4 +79,10 @@ public class CreatePurchaseOrderRequest
 
 public class UpdatePurchaseOrderRequest : CreatePurchaseOrderRequest
 {
+}
+
+public class SendPurchaseOrderEmailRequest
+{
+    public string? CcEmail { get; set; }
+    public string? Body { get; set; }
 }

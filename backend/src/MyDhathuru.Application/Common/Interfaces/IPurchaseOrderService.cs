@@ -10,5 +10,6 @@ public interface IPurchaseOrderService
     Task<PurchaseOrderDetailDto> CreateAsync(CreatePurchaseOrderRequest request, CancellationToken cancellationToken = default);
     Task<PurchaseOrderDetailDto> UpdateAsync(Guid id, UpdatePurchaseOrderRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task SendEmailAsync(Guid id, SendPurchaseOrderEmailRequest request, CancellationToken cancellationToken = default);
     Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default);
 }

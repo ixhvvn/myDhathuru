@@ -71,6 +71,13 @@ public class QuotesController : BaseApiController
         return SuccessMessage("Quotation deleted.");
     }
 
+    [HttpPost("{id:guid}/email")]
+    public async Task<ActionResult<ApiResponse<object>>> SendEmail(Guid id, [FromBody] SendQuotationEmailRequest request, CancellationToken cancellationToken)
+    {
+        await _quotationService.SendEmailAsync(id, request, cancellationToken);
+        return SuccessMessage("Quotation emailed.");
+    }
+
     [HttpGet("{id:guid}/export")]
     public async Task<IActionResult> Export(Guid id, CancellationToken cancellationToken)
     {

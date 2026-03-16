@@ -18,6 +18,16 @@ public interface INotificationService
         string? fromName,
         string? replyToEmail,
         CancellationToken cancellationToken = default);
+    Task SendDocumentEmailAsync(
+        string toEmail,
+        string? ccEmail,
+        string subject,
+        string body,
+        byte[] pdfBytes,
+        string attachmentFileName,
+        string? fromName,
+        string? replyToEmail,
+        CancellationToken cancellationToken = default);
     Task SendBugReportAsync(
         string reporterName,
         string? reporterEmail,

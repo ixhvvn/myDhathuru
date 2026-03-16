@@ -6,6 +6,7 @@ using MyDhathuru.Application.PurchaseOrders.Dtos;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
 using MyDhathuru.Infrastructure.Extensions;
+using MyDhathuru.Infrastructure.Helpers;
 using MyDhathuru.Infrastructure.Persistence;
 using MyDhathuru.Infrastructure.Security;
 
@@ -16,17 +17,20 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentNumberService _documentNumberService;
     private readonly IPdfExportService _pdfExportService;
+    private readonly INotificationService _notificationService;
     private readonly ICurrentTenantService _currentTenantService;
 
     public PurchaseOrderService(
         ApplicationDbContext dbContext,
         IDocumentNumberService documentNumberService,
         IPdfExportService pdfExportService,
+        INotificationService notificationService,
         ICurrentTenantService currentTenantService)
     {
         _dbContext = dbContext;
         _documentNumberService = documentNumberService;
         _pdfExportService = pdfExportService;
+        _notificationService = notificationService;
         _currentTenantService = currentTenantService;
     }
 
@@ -58,7 +62,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                 Currency = x.Currency,
                 Amount = x.GrandTotal,
                 DateIssued = x.DateIssued,
-                RequiredDate = x.RequiredDate
+                RequiredDate = x.RequiredDate,
+                EmailStatus = x.EmailStatus,
+                LastEmailedAt = x.LastEmailedAt
             })
             .ToPagedResultAsync(query, cancellationToken);
     }
@@ -147,6 +153,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         purchaseOrder.Currency = NormalizeCurrency(request.Currency, settings.DefaultCurrency);
         purchaseOrder.TaxRate = ResolveTaxRate(request.TaxRate, settings);
         purchaseOrder.Notes = request.Notes?.Trim();
+        ResetEmailStatus(purchaseOrder);
 
         foreach (var item in purchaseOrder.Items.ToList())
         {
@@ -182,14 +189,55 @@ public class PurchaseOrderService : IPurchaseOrderService
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task SendEmailAsync(Guid id, SendPurchaseOrderEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        var purchaseOrder = await _dbContext.PurchaseOrders
+            .Include(x => x.Supplier)
+            .Include(x => x.CourierVessel)
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Purchase order not found.");
+
+        var recipientEmail = purchaseOrder.Supplier.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            throw new AppException("Supplier email is required before sending this purchase order.");
+        }
+
+        var settings = await GetTenantSettingsAsync(cancellationToken);
+        var body = DocumentEmailTemplateHelper.RenderPurchaseOrder(
+            string.IsNullOrWhiteSpace(request.Body) ? settings.PurchaseOrderEmailBodyTemplate : request.Body,
+            settings.CompanyName);
+        var ccEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
+        var subject = $"PO {purchaseOrder.PurchaseOrderNo} from {settings.CompanyName}";
+        var pdfBytes = BuildPurchaseOrderPdf(MapPurchaseOrder(purchaseOrder), settings);
+
+        await _notificationService.SendDocumentEmailAsync(
+            recipientEmail,
+            ccEmail,
+            subject,
+            body,
+            pdfBytes,
+            $"{purchaseOrder.PurchaseOrderNo}.pdf",
+            settings.CompanyName,
+            settings.CompanyEmail,
+            cancellationToken);
+
+        purchaseOrder.EmailStatus = DocumentEmailStatus.Emailed;
+        purchaseOrder.LastEmailedAt = DateTimeOffset.UtcNow;
+        purchaseOrder.LastEmailedTo = recipientEmail;
+        purchaseOrder.LastEmailedCc = ccEmail;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<byte[]> GeneratePdfAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var purchaseOrder = await GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Purchase order not found.");
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
-        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
-        return _pdfExportService.BuildPurchaseOrderPdf(purchaseOrder, settings.CompanyName, companyInfo, settings.LogoUrl, settings.IsTaxApplicable);
+        return BuildPurchaseOrderPdf(purchaseOrder, settings);
     }
 
     private static List<PurchaseOrderItem> BuildPurchaseOrderItems(IEnumerable<PurchaseOrderItemInputDto> items, Guid? purchaseOrderId = null)
@@ -242,6 +290,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             TaxRate = purchaseOrder.TaxRate,
             TaxAmount = purchaseOrder.TaxAmount,
             GrandTotal = purchaseOrder.GrandTotal,
+            EmailStatus = purchaseOrder.EmailStatus,
+            LastEmailedAt = purchaseOrder.LastEmailedAt,
             Notes = purchaseOrder.Notes,
             Items = purchaseOrder.Items.OrderBy(x => x.CreatedAt).Select(item => new PurchaseOrderItemDto
             {
@@ -273,5 +323,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         return parsed.ToString().ToUpperInvariant();
+    }
+
+    private static void ResetEmailStatus(PurchaseOrder purchaseOrder)
+    {
+        purchaseOrder.EmailStatus = DocumentEmailStatus.Pending;
+        purchaseOrder.LastEmailedAt = null;
+        purchaseOrder.LastEmailedTo = null;
+        purchaseOrder.LastEmailedCc = null;
+    }
+
+    private byte[] BuildPurchaseOrderPdf(PurchaseOrderDetailDto purchaseOrder, TenantSettings settings)
+    {
+        var companyInfo = settings.BuildCompanyInfo(includeBusinessRegistration: true);
+        return _pdfExportService.BuildPurchaseOrderPdf(purchaseOrder, settings.CompanyName, companyInfo, settings.LogoUrl, settings.IsTaxApplicable);
     }
 }

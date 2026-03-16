@@ -34,6 +34,9 @@ public class TenantSettingsDto
     public string MibUsdAccountNumber { get; set; } = string.Empty;
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
+    public string QuotationEmailBodyTemplate { get; set; } = string.Empty;
+    public string InvoiceEmailBodyTemplate { get; set; } = string.Empty;
+    public string PurchaseOrderEmailBodyTemplate { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
     public string? CompanyStampUrl { get; set; }
     public string? CompanySignatureUrl { get; set; }
@@ -73,6 +76,9 @@ public class UpdateTenantSettingsRequest
     public string MibUsdAccountNumber { get; set; } = string.Empty;
     public string InvoiceOwnerName { get; set; } = string.Empty;
     public string InvoiceOwnerIdCard { get; set; } = string.Empty;
+    public string QuotationEmailBodyTemplate { get; set; } = string.Empty;
+    public string InvoiceEmailBodyTemplate { get; set; } = string.Empty;
+    public string PurchaseOrderEmailBodyTemplate { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
     public string? CompanyStampUrl { get; set; }
     public string? CompanySignatureUrl { get; set; }
