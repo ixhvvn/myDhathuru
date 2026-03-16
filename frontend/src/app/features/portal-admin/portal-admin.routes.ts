@@ -16,6 +16,7 @@ import { PortalAdminBillingSettingsPageComponent } from './billing/portal-admin-
 import { PortalAdminBillingStatementsPageComponent } from './billing/portal-admin-billing-statements-page.component';
 import { PortalAdminBusinessesPageComponent } from './businesses/portal-admin-businesses-page.component';
 import { PortalAdminDashboardPageComponent } from './dashboard/portal-admin-dashboard-page.component';
+import { PortalAdminEmailServicePageComponent } from './email-service/portal-admin-email-service-page.component';
 import { PortalAdminSettingsPageComponent } from './settings/portal-admin-settings-page.component';
 import { PortalAdminSignupRequestsPageComponent } from './signup-requests/portal-admin-signup-requests-page.component';
 import { PortalAdminUsersPageComponent } from './users/portal-admin-users-page.component';
@@ -41,6 +42,7 @@ export const portalAdminRoutes: Routes = [
       { path: 'signup-requests', component: PortalAdminSignupRequestsPageComponent },
       { path: 'businesses', component: PortalAdminBusinessesPageComponent },
       { path: 'business-users', component: PortalAdminUsersPageComponent },
+      { path: 'email-service', component: PortalAdminEmailServicePageComponent },
       { path: 'account-controls', component: PortalAdminAccountControlsPageComponent },
       { path: 'billing', component: PortalAdminBillingDashboardPageComponent },
       { path: 'billing/dashboard', redirectTo: 'billing', pathMatch: 'full' },

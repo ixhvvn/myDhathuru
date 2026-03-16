@@ -29,6 +29,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<SignupRequest> SignupRequests => Set<SignupRequest>();
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
     public DbSet<AdminBillingSettings> AdminBillingSettings => Set<AdminBillingSettings>();
+    public DbSet<AdminEmailCampaign> AdminEmailCampaigns => Set<AdminEmailCampaign>();
+    public DbSet<AdminEmailCampaignRecipient> AdminEmailCampaignRecipients => Set<AdminEmailCampaignRecipient>();
     public DbSet<BusinessCustomRate> BusinessCustomRates => Set<BusinessCustomRate>();
     public DbSet<AdminInvoice> AdminInvoices => Set<AdminInvoice>();
     public DbSet<AdminInvoiceLineItem> AdminInvoiceLineItems => Set<AdminInvoiceLineItem>();
@@ -155,6 +157,28 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.LogoUrl).HasMaxLength(400);
             entity.Property(x => x.EmailFromName).HasMaxLength(120);
             entity.Property(x => x.ReplyToEmail).HasMaxLength(200);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<AdminEmailCampaign>(entity =>
+        {
+            entity.HasIndex(x => x.SentAt);
+            entity.HasIndex(x => x.SentByUserId);
+            entity.Property(x => x.AudienceMode).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.Subject).HasMaxLength(250);
+            entity.Property(x => x.Body).HasMaxLength(5000);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<AdminEmailCampaignRecipient>(entity =>
+        {
+            entity.HasIndex(x => new { x.AdminEmailCampaignId, x.AttemptedAt });
+            entity.HasIndex(x => new { x.TenantId, x.AttemptedAt });
+            entity.Property(x => x.CompanyName).HasMaxLength(200);
+            entity.Property(x => x.ToEmail).HasMaxLength(200);
+            entity.Property(x => x.CcEmails).HasMaxLength(2000);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(1200);
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 

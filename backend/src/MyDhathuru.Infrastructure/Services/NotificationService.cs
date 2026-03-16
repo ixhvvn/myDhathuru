@@ -166,6 +166,30 @@ public class NotificationService : INotificationService
             cancellationToken);
     }
 
+    public async Task SendPortalAdminAnnouncementAsync(
+        string toEmail,
+        IReadOnlyCollection<string> ccEmails,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!HasValidSmtpConfiguration())
+        {
+            _logger.LogWarning("SMTP configuration is incomplete. Portal admin announcement email cannot be sent.");
+            throw new AppException("Announcement email is not configured.");
+        }
+
+        var htmlBody = BuildEditableDocumentBody(body);
+        await SendAsync(
+            toEmail,
+            ccEmails,
+            subject,
+            htmlBody,
+            cancellationToken);
+    }
+
     public async Task SendBugReportAsync(
         string reporterName,
         string? reporterEmail,
@@ -263,6 +287,16 @@ public class NotificationService : INotificationService
 
     private async Task SendAsync(string recipientEmail, string subject, string bodyHtml, CancellationToken cancellationToken)
     {
+        await SendAsync(recipientEmail, Array.Empty<string>(), subject, bodyHtml, cancellationToken);
+    }
+
+    private async Task SendAsync(
+        string recipientEmail,
+        IReadOnlyCollection<string> ccEmails,
+        string subject,
+        string bodyHtml,
+        CancellationToken cancellationToken)
+    {
         var fromEmail = string.IsNullOrWhiteSpace(_smtpOptions.FromEmail)
             ? _smtpOptions.Username
             : _smtpOptions.FromEmail;
@@ -277,6 +311,10 @@ public class NotificationService : INotificationService
                 IsBodyHtml = true
             };
             message.To.Add(recipientEmail);
+            foreach (var ccEmail in ccEmails.Where(email => !string.IsNullOrWhiteSpace(email)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                message.CC.Add(ccEmail.Trim());
+            }
 
             using var smtpClient = new SmtpClient(_smtpOptions.Host, _smtpOptions.Port)
             {

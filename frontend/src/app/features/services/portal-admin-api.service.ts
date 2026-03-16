@@ -22,6 +22,9 @@ import {
   PortalAdminBusinessListItem,
   PortalAdminBusinessUser,
   PortalAdminDashboard,
+  PortalAdminEmailBusinessOption,
+  PortalAdminEmailCampaign,
+  PortalAdminEmailCampaignSendResult,
   SignupRequestCounts,
   SignupRequestDetail,
   SignupRequestListItem
@@ -92,6 +95,25 @@ export class PortalAdminApiService {
 
   getAuditLogs(params: Record<string, unknown>): Observable<PagedResult<PortalAdminAuditLog>> {
     return this.api.get<PagedResult<PortalAdminAuditLog>>('portal-admin/audit-logs', params);
+  }
+
+  getEmailServiceBusinessOptions(): Observable<PortalAdminEmailBusinessOption[]> {
+    return this.api.get<PortalAdminEmailBusinessOption[]>('portal-admin/email-service/business-options');
+  }
+
+  getEmailServiceCampaigns(params: Record<string, unknown>): Observable<PagedResult<PortalAdminEmailCampaign>> {
+    return this.api.get<PagedResult<PortalAdminEmailCampaign>>('portal-admin/email-service/campaigns', params);
+  }
+
+  sendEmailServiceCampaign(payload: {
+    audienceMode: 'AllBusinesses' | 'SelectedBusinesses';
+    tenantIds: string[];
+    subject: string;
+    body: string;
+    ccAdminUsers: boolean;
+    includeDisabledBusinesses: boolean;
+  }): Observable<PortalAdminEmailCampaignSendResult> {
+    return this.api.post<PortalAdminEmailCampaignSendResult>('portal-admin/email-service/campaigns/send', payload);
   }
 
   getBillingDashboard(): Observable<PortalAdminBillingDashboard> {

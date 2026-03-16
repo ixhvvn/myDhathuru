@@ -3,12 +3,12 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
 import { Subscription, filter, finalize } from 'rxjs';
-import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
-import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
 import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns';
+import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
+import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 
 @Component({
   selector: 'app-login-page',
@@ -23,12 +23,12 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
 
       <app-card class="auth-card">
         <div class="auth-head">
-          <span class="eyebrow">Secure Access</span>
-          <h2>{{ mode() === 'forgot' ? 'Reset your password' : 'Welcome Back' }}</h2>
-          <p>{{ mode() === 'forgot' ? 'Enter your account email to receive a secure reset link.' : 'Login, create your account, or request a password reset link.' }}</p>
+          <span class="eyebrow">{{ authEyebrow() }}</span>
+          <h2>{{ authHeading() }}</h2>
+          <p>{{ authSubheading() }}</p>
         </div>
 
-        <div *ngIf="mode() !== 'forgot'" class="tab-strip" role="tablist" aria-label="Authentication tabs">
+        <div *ngIf="mode() !== 'forgot' && !signupSubmitted()" class="tab-strip" role="tablist" aria-label="Authentication tabs">
           <button [class.active]="mode() === 'login'" (click)="setMode('login')">Login</button>
           <button [class.active]="mode() === 'signup'" (click)="setMode('signup')">Signup</button>
         </div>
@@ -54,7 +54,24 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
             <button type="button" class="forgot-link" (click)="setMode('forgot')">Forgot password?</button>
           </form>
 
-          <form *ngIf="mode() === 'signup'" [formGroup]="signupForm" (ngSubmit)="signup()" class="auth-form in">
+          <div *ngIf="mode() === 'signup' && signupSubmitted()" class="signup-success in">
+            <div class="success-badge" aria-hidden="true">
+              <span class="success-ring"></span>
+              <span class="success-check">✓</span>
+            </div>
+
+            <div class="success-copy">
+              <strong>Your request has been submitted for approval.</strong>
+              <p>Portal admin will review your business details before access is activated. Once approved, you can sign in using your company email or the admin user email you submitted.</p>
+            </div>
+
+            <div class="success-actions">
+              <app-button type="button" [fullWidth]="true" (clicked)="setMode('login')">Back to Login</app-button>
+              <button type="button" class="forgot-back" (click)="openNewSignupRequest()">Submit another request</button>
+            </div>
+          </div>
+
+          <form *ngIf="mode() === 'signup' && !signupSubmitted()" [formGroup]="signupForm" (ngSubmit)="signup()" class="auth-form in">
             <label>Company Name <input formControlName="companyName"></label>
             <small *ngIf="signupForm.controls.companyName.touched && signupForm.controls.companyName.hasError('pattern')">Company name must not contain numbers.</small>
 
@@ -115,6 +132,7 @@ import { NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns
 export class LoginPageComponent implements OnInit, OnDestroy {
   readonly mode = signal<'login' | 'signup' | 'forgot'>('login');
   readonly loading = signal(false);
+  readonly signupSubmitted = signal(false);
   readonly showLoginPassword = signal(false);
   readonly showSignupPassword = signal(false);
   readonly showSignupConfirmPassword = signal(false);
@@ -157,6 +175,34 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     this.routeSubscription?.unsubscribe();
   }
 
+  authEyebrow(): string {
+    return this.mode() === 'signup' && this.signupSubmitted() ? 'Request Submitted' : 'Secure Access';
+  }
+
+  authHeading(): string {
+    if (this.mode() === 'forgot') {
+      return 'Reset your password';
+    }
+
+    if (this.mode() === 'signup' && this.signupSubmitted()) {
+      return 'Signup Request Submitted';
+    }
+
+    return 'Welcome Back';
+  }
+
+  authSubheading(): string {
+    if (this.mode() === 'forgot') {
+      return 'Enter your account email to receive a secure reset link.';
+    }
+
+    if (this.mode() === 'signup' && this.signupSubmitted()) {
+      return 'Your request has been submitted for approval. Portal admin will review your details before activating access.';
+    }
+
+    return 'Login, create your account, or request a password reset link.';
+  }
+
   setMode(mode: 'login' | 'signup' | 'forgot'): void {
     const targetUrl = mode === 'forgot'
       ? '/forgot-password'
@@ -170,6 +216,13 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     }
 
     this.mode.set(mode);
+    this.signupSubmitted.set(false);
+  }
+
+  openNewSignupRequest(): void {
+    this.signupForm.reset();
+    this.signupSubmitted.set(false);
+    this.router.navigateByUrl('/login?mode=signup');
   }
 
   login(): void {
@@ -210,8 +263,8 @@ export class LoginPageComponent implements OnInit, OnDestroy {
       .subscribe({
         next: () => {
           this.toast.success('Signup request has been sent to portal admin.');
-          this.setMode('login');
           this.signupForm.reset();
+          this.router.navigateByUrl('/login?mode=signup&submitted=1');
         },
         error: (error) => this.toast.error(this.readError(error, 'Signup failed.'))
       });
@@ -241,22 +294,29 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     const [pathname, query] = url.split('?');
     if (pathname.includes('/forgot-password')) {
       this.mode.set('forgot');
+      this.signupSubmitted.set(false);
       return;
     }
 
     if (query) {
       const params = new URLSearchParams(query);
       const requestedMode = params.get('mode');
+      const submitted = params.get('submitted') === '1';
+
       if (requestedMode === 'signup') {
         this.mode.set('signup');
+        this.signupSubmitted.set(submitted);
         return;
       }
+
       if (requestedMode === 'forgot') {
         this.mode.set('forgot');
+        this.signupSubmitted.set(false);
         return;
       }
     }
 
     this.mode.set('login');
+    this.signupSubmitted.set(false);
   }
 }

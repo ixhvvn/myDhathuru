@@ -812,6 +812,69 @@ body section.modal textarea {
   animation: formIn .24s ease both;
 }
 
+.auth-shell .signup-success {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  text-align: center;
+  padding: .45rem 0 .15rem;
+  animation: formIn .24s ease both;
+}
+
+.auth-shell .success-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.96), rgba(232, 250, 239, .94));
+  box-shadow: 0 18px 34px rgba(86, 170, 116, .18);
+}
+
+.auth-shell .success-ring {
+  position: absolute;
+  inset: 8px;
+  border-radius: inherit;
+  border: 1px solid rgba(95, 192, 126, .26);
+  background: linear-gradient(145deg, rgba(227, 248, 233, .96), rgba(214, 244, 223, .88));
+}
+
+.auth-shell .success-check {
+  position: relative;
+  z-index: 1;
+  color: #2fa55f;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.auth-shell .success-copy {
+  display: grid;
+  gap: .4rem;
+  max-width: 420px;
+}
+
+.auth-shell .success-copy strong {
+  color: #28456e;
+  font-family: var(--font-heading);
+  font-size: 1.14rem;
+  line-height: 1.2;
+}
+
+.auth-shell .success-copy p {
+  margin: 0;
+  color: #61759e;
+  font-size: .92rem;
+  line-height: 1.55;
+}
+
+.auth-shell .success-actions {
+  width: 100%;
+  display: grid;
+  gap: .72rem;
+}
+
 .auth-shell label {
   display: grid;
   gap: .24rem;

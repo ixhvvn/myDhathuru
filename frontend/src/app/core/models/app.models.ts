@@ -1395,6 +1395,49 @@ export interface PortalAdminBillingBusinessOption {
   vesselCount: number;
 }
 
+export type PortalAdminEmailAudienceMode = 'AllBusinesses' | 'SelectedBusinesses';
+export type PortalAdminEmailRecipientStatus = 'Sent' | 'Failed';
+
+export interface PortalAdminEmailBusinessOption {
+  tenantId: string;
+  companyName: string;
+  companyEmail: string;
+  status: BusinessAccountStatus;
+  activeAdminCount: number;
+  primaryAdminName?: string;
+  primaryAdminEmail?: string;
+}
+
+export interface PortalAdminEmailCampaign {
+  id: string;
+  subject: string;
+  audienceMode: PortalAdminEmailAudienceMode;
+  ccAdminUsers: boolean;
+  includeDisabledBusinesses: boolean;
+  requestedCompanyCount: number;
+  sentCompanyCount: number;
+  failedCompanyCount: number;
+  sentAt: string;
+  sentByName?: string;
+}
+
+export interface PortalAdminEmailCampaignSendCompanyResult {
+  tenantId: string;
+  companyName: string;
+  toEmail: string;
+  ccAdminCount: number;
+  status: PortalAdminEmailRecipientStatus;
+  errorMessage?: string;
+}
+
+export interface PortalAdminEmailCampaignSendResult {
+  campaignId: string;
+  requestedCompanyCount: number;
+  sentCompanyCount: number;
+  failedCompanyCount: number;
+  results: PortalAdminEmailCampaignSendCompanyResult[];
+}
+
 export interface PortalAdminBillingInvoiceListItem {
   id: string;
   invoiceNumber: string;

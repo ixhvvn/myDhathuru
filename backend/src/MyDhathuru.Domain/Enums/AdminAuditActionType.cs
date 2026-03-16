@@ -16,5 +16,6 @@ public enum AdminAuditActionType
     BillingCustomRateCreated = 12,
     BillingCustomRateUpdated = 13,
     BillingCustomRateDeleted = 14,
-    BillingInvoicesReset = 15
+    BillingInvoicesReset = 15,
+    EmailCampaignSent = 16
 }

@@ -547,6 +547,11 @@ export class PortalAdminShellComponent implements OnInit, OnDestroy {
       iconPaths: ['M16 21v-1.5a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3V21', 'M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7', 'M17 11a2.5 2.5 0 1 0 0-5', 'M20 21v-1.2a2.8 2.8 0 0 0-2.1-2.7']
     },
     {
+      path: '/portal-admin/email-service',
+      label: 'Email Service',
+      iconPaths: ['M4 7h16v10H4z', 'M4 8l8 6 8-6', 'M8 17h8']
+    },
+    {
       path: '/portal-admin/billing',
       label: 'Billing',
       iconPaths: ['M4 20h16', 'M7 20V11', 'M12 20V7', 'M17 20V14']

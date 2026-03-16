@@ -93,6 +93,28 @@ public class PortalAdminAuditLogQueryValidator : AbstractValidator<PortalAdminAu
     }
 }
 
+public class PortalAdminEmailCampaignQueryValidator : AbstractValidator<PortalAdminEmailCampaignQuery>
+{
+    public PortalAdminEmailCampaignQueryValidator()
+    {
+        RuleFor(x => x.PageNumber).GreaterThan(0);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+    }
+}
+
+public class PortalAdminSendEmailCampaignRequestValidator : AbstractValidator<PortalAdminSendEmailCampaignRequest>
+{
+    public PortalAdminSendEmailCampaignRequestValidator()
+    {
+        RuleFor(x => x.Subject).NotEmpty().MaximumLength(250);
+        RuleFor(x => x.Body).NotEmpty().MaximumLength(5000);
+        RuleForEach(x => x.TenantIds).NotEmpty();
+        RuleFor(x => x)
+            .Must(x => x.AudienceMode != Domain.Enums.AdminEmailAudienceMode.SelectedBusinesses || x.TenantIds.Count > 0)
+            .WithMessage("Select at least one business when sending to selected businesses.");
+    }
+}
+
 public class PortalAdminChangePasswordRequestValidator : AbstractValidator<PortalAdminChangePasswordRequest>
 {
     public PortalAdminChangePasswordRequestValidator()

@@ -28,6 +28,12 @@ public interface INotificationService
         string? fromName,
         string? replyToEmail,
         CancellationToken cancellationToken = default);
+    Task SendPortalAdminAnnouncementAsync(
+        string toEmail,
+        IReadOnlyCollection<string> ccEmails,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default);
     Task SendBugReportAsync(
         string reporterName,
         string? reporterEmail,

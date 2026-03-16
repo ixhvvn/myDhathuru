@@ -355,14 +355,11 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       line-height: 1.3;
     }
     .actions-cell {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: .32rem;
-      justify-content: center;
-      align-items: center;
-      white-space: normal;
-    }
-    .actions-cell app-button { flex: 0 0 auto; }
+       text-align: center;
+       vertical-align: middle;
+       white-space: nowrap;
+     }
+    .actions-cell app-button { display: inline-flex; }
     :host ::ng-deep .actions-cell app-button .app-btn {
       min-height: 30px;
       padding: .34rem .56rem;
