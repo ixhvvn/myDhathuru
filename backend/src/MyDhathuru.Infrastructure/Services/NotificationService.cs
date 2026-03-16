@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Net.Mime;
 using System.Text.Encodings.Web;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyDhathuru.Application.Common.Exceptions;
@@ -390,15 +391,47 @@ public class NotificationService : INotificationService
 
     private static string BuildEditableDocumentBody(string body)
     {
-        var encoded = HtmlEncoder.Default
-            .Encode(body.Trim())
-            .Replace("\r\n", "<br />")
-            .Replace("\n", "<br />");
+        var normalizedBody = body
+            .Replace("\r\n", "\n")
+            .Replace("\r", "\n")
+            .Trim();
+
+        normalizedBody = Regex.Replace(
+            normalizedBody,
+            @"(^|\n)(Thanks and regards,)\s+([^\n]+)(?=\n|$)",
+            "$1$2\n$3",
+            RegexOptions.IgnoreCase);
+
+        normalizedBody = Regex.Replace(
+            normalizedBody,
+            @"(^|\n)(Thanks & regards,)\s+([^\n]+)(?=\n|$)",
+            "$1$2\n$3",
+            RegexOptions.IgnoreCase);
+
+        var paragraphs = Regex
+            .Split(normalizedBody, @"\n\s*\n")
+            .Where(paragraph => !string.IsNullOrWhiteSpace(paragraph))
+            .Select(paragraph =>
+            {
+                var encodedParagraph = HtmlEncoder.Default
+                    .Encode(paragraph.Trim())
+                    .Replace("\n", "<br />");
+
+                return $@"<p style=""margin:0 0 16px;color:#42557f;line-height:1.7;"">{encodedParagraph}</p>";
+            })
+            .ToList();
+
+        if (paragraphs.Count == 0)
+        {
+            paragraphs.Add(@"<p style=""margin:0;color:#42557f;line-height:1.7;""></p>");
+        }
+
+        var formattedBody = string.Join(string.Empty, paragraphs);
 
         return $@"
 <div style=""font-family:Segoe UI,Arial,sans-serif;background:#f5f8ff;padding:24px;"">
   <div style=""max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d9e4fb;border-radius:14px;padding:24px;"">
-    <div style=""margin:0;color:#42557f;line-height:1.7;white-space:normal;"">{encoded}</div>
+    <div style=""margin:0;color:#42557f;line-height:1.7;white-space:normal;"">{formattedBody}</div>
   </div>
 </div>";
     }
