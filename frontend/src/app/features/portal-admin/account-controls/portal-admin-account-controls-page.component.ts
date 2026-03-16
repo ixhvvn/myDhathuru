@@ -115,6 +115,13 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
                       variant="success"
                       (clicked)="enableBusiness(row)">Enable</app-button>
                   </div>
+                  <div class="control-row control-row--delete">
+                    <app-button
+                      class="action-btn action-btn--delete"
+                      size="sm"
+                      variant="danger"
+                      (clicked)="openDeleteModal(row)">Delete Business</app-button>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -137,7 +144,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       </div>
     </app-card>
 
-    <div class="modal-backdrop" *ngIf="detail() || editDetail() || disableTarget()"></div>
+    <div class="modal-backdrop" *ngIf="detail() || editDetail() || disableTarget() || deleteTarget()"></div>
 
     <section class="modal" *ngIf="detail() as selected">
       <h2>Business Account Details</h2>
@@ -202,6 +209,28 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
         <div class="modal-actions">
           <app-button type="button" variant="secondary" (clicked)="disableTarget.set(null)">Cancel</app-button>
           <app-button type="submit" variant="danger" [loading]="actionLoading()">Disable</app-button>
+        </div>
+      </form>
+    </section>
+
+    <section class="modal modal--danger" *ngIf="deleteTarget() as selected">
+      <h2>Permanently Delete Business</h2>
+      <p>This removes <strong>{{ selected.companyName }}</strong>, its users, settings, documents, payroll, billing data, and related records from the database.</p>
+      <div class="warning-box">
+        <strong>Type the business name to continue:</strong>
+        <span>{{ selected.companyName }}</span>
+      </div>
+      <form [formGroup]="deleteForm" (ngSubmit)="confirmPermanentDelete(selected)">
+        <label>
+          Business name confirmation
+          <input type="text" formControlName="companyNameConfirmation" placeholder="Enter the exact business name">
+        </label>
+        <small class="error" *ngIf="deleteForm.controls.companyNameConfirmation.touched && deleteForm.controls.companyNameConfirmation.hasError('required')">
+          Business name confirmation is required.
+        </small>
+        <div class="modal-actions">
+          <app-button type="button" variant="secondary" (clicked)="closeDeleteModal()">Cancel</app-button>
+          <app-button type="submit" variant="danger" [loading]="actionLoading()">Delete Permanently</app-button>
         </div>
       </form>
     </section>
@@ -370,6 +399,9 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     .control-row--state {
       align-items: center;
     }
+    .control-row--delete {
+      justify-content: flex-end;
+    }
     .actions-cell app-button {
       flex: 0 0 auto;
     }
@@ -407,6 +439,12 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     :host ::ng-deep .actions-cell .action-btn--enable .app-btn {
       background: linear-gradient(135deg, #56ba91, #419d77);
       box-shadow: 0 8px 16px rgba(68, 160, 123, .18);
+    }
+    :host ::ng-deep .actions-cell .action-btn--delete .app-btn {
+      min-width: 140px;
+      background: linear-gradient(135deg, #d95b77, #b63b57);
+      box-shadow: 0 10px 20px rgba(182, 59, 87, .24);
+      font-weight: 700;
     }
     :host ::ng-deep .actions-cell app-button .app-btn:not(:disabled):hover {
       transform: translateY(-1px);
@@ -457,6 +495,32 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       margin: 0 0 .56rem;
       color: #5f739d;
       font-size: .86rem;
+    }
+    .modal--danger {
+      border-color: #f0c0cc;
+      background: linear-gradient(180deg, #fff9fb 0%, #fff 100%);
+    }
+    .warning-box {
+      display: grid;
+      gap: .18rem;
+      margin-bottom: .7rem;
+      padding: .62rem .7rem;
+      border-radius: 12px;
+      border: 1px solid #f0c8d2;
+      background: linear-gradient(135deg, rgba(255, 233, 239, .88), rgba(255, 246, 248, .98));
+      color: #8d3e57;
+    }
+    .warning-box strong {
+      font-size: .79rem;
+      font-family: var(--font-heading);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .warning-box span {
+      color: #2f4269;
+      font-family: var(--font-heading);
+      font-size: .95rem;
+      font-weight: 700;
     }
     dl {
       margin: 0;
@@ -539,6 +603,7 @@ export class PortalAdminAccountControlsPageComponent {
   readonly detail = signal<PortalAdminBusinessDetail | null>(null);
   readonly editDetail = signal<PortalAdminBusinessDetail | null>(null);
   readonly disableTarget = signal<PortalAdminBusinessListItem | null>(null);
+  readonly deleteTarget = signal<PortalAdminBusinessListItem | null>(null);
   readonly page = signal(1);
   readonly pageSize = signal(10);
   readonly totalCount = signal(0);
@@ -552,6 +617,10 @@ export class PortalAdminAccountControlsPageComponent {
 
   readonly disableForm = this.fb.nonNullable.group({
     reason: ['', [Validators.maxLength(300)]]
+  });
+
+  readonly deleteForm = this.fb.nonNullable.group({
+    companyNameConfirmation: ['', [Validators.required, Validators.maxLength(200)]]
   });
 
   readonly editForm = this.fb.nonNullable.group({
@@ -639,6 +708,19 @@ export class PortalAdminAccountControlsPageComponent {
     this.disableTarget.set(row);
   }
 
+  openDeleteModal(row: PortalAdminBusinessListItem): void {
+    this.deleteForm.reset({ companyNameConfirmation: '' });
+    this.deleteTarget.set(row);
+  }
+
+  closeDeleteModal(): void {
+    if (this.actionLoading()) {
+      return;
+    }
+
+    this.deleteTarget.set(null);
+  }
+
   confirmDisable(tenantId: string): void {
     this.actionLoading.set(true);
     this.api.disableBusiness(tenantId, this.disableForm.getRawValue().reason)
@@ -650,6 +732,36 @@ export class PortalAdminAccountControlsPageComponent {
           this.load();
         },
         error: (error) => this.toast.error(extractApiError(error, 'Unable to disable business account.'))
+      });
+  }
+
+  confirmPermanentDelete(row: PortalAdminBusinessListItem): void {
+    if (this.deleteForm.invalid) {
+      this.deleteForm.markAllAsTouched();
+      return;
+    }
+
+    const confirmation = this.deleteForm.controls.companyNameConfirmation.value.trim();
+    if (confirmation.localeCompare(row.companyName.trim(), undefined, { sensitivity: 'accent' }) !== 0) {
+      this.toast.error('Business name confirmation does not match.');
+      return;
+    }
+
+    this.actionLoading.set(true);
+    this.api.deleteBusinessPermanently(row.tenantId, confirmation)
+      .pipe(finalize(() => this.actionLoading.set(false)))
+      .subscribe({
+        next: () => {
+          this.toast.success('Business account permanently deleted.');
+          this.deleteTarget.set(null);
+
+          if (this.rows().length === 1 && this.page() > 1) {
+            this.page.set(this.page() - 1);
+          }
+
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to permanently delete business account.'))
       });
   }
 

@@ -274,7 +274,42 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
             <app-button type="submit">Change Password</app-button>
           </div>
         </form>
+
+        <div class="danger-zone" *ngIf="isAdmin(); else deleteDataAccessNote">
+          <div class="danger-copy">
+            <h4>Delete Data</h4>
+            <p>
+              Remove all business records from this portal and reset the workspace to a newly-signed-up state.
+              Login access, company profile, and settings stay in place.
+            </p>
+          </div>
+          <app-button variant="danger" (clicked)="openDeleteDataDialog()">Delete Data</app-button>
+        </div>
+        <ng-template #deleteDataAccessNote>
+          <p class="access-note subtle">Only admin users can delete portal data.</p>
+        </ng-template>
       </app-card>
+    </div>
+
+    <div class="modal-overlay" *ngIf="deleteDataDialogOpen()">
+      <div class="modal-card">
+        <h3>Delete Business Data</h3>
+        <p>
+          This clears customers, suppliers, vessels, delivery notes, quotations, invoices, purchase records,
+          payroll, expenses, reports data, and document numbering. Login access and business settings remain.
+        </p>
+        <form [formGroup]="deleteDataForm" class="form-grid" (ngSubmit)="deleteData()" novalidate>
+          <label>
+            Confirm with your password
+            <input type="password" formControlName="password" autocomplete="current-password" placeholder="Enter your current password">
+            <small class="field-error" *ngIf="deleteDataForm.controls.password.touched && deleteDataForm.controls.password.hasError('required')">Password is required.</small>
+          </label>
+          <div class="modal-actions">
+            <app-button variant="secondary" (clicked)="closeDeleteDataDialog()">Cancel</app-button>
+            <app-button type="submit" variant="danger" [loading]="deletingData()">Delete Data</app-button>
+          </div>
+        </form>
+      </div>
     </div>
   `,
   styles: `
@@ -452,6 +487,71 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
       font: inherit;
     }
     .actions { display: flex; justify-content: flex-end; }
+    .danger-zone {
+      margin-top: 1rem;
+      border: 1px solid rgba(213, 123, 144, .35);
+      border-radius: 16px;
+      padding: .9rem;
+      background: linear-gradient(160deg, rgba(255, 246, 249, .95), rgba(255, 239, 244, .86));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .9rem;
+    }
+    .danger-copy {
+      display: grid;
+      gap: .28rem;
+    }
+    .danger-copy h4 {
+      margin: 0;
+      font-size: .94rem;
+      color: #8a2948;
+    }
+    .danger-copy p {
+      margin: 0;
+      font-size: .79rem;
+      line-height: 1.5;
+      color: #89516a;
+    }
+    .subtle {
+      margin-top: 1rem;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(32, 42, 73, .42);
+      backdrop-filter: blur(5px);
+      display: grid;
+      place-items: center;
+      z-index: 1100;
+      padding: 1rem;
+    }
+    .modal-card {
+      width: min(460px, 100%);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, .86);
+      background: linear-gradient(165deg, rgba(255,255,255,.97), rgba(246, 249, 255, .95));
+      box-shadow: 0 28px 60px rgba(28, 40, 72, .28);
+      padding: 1.1rem;
+      display: grid;
+      gap: .8rem;
+    }
+    .modal-card h3 {
+      margin: 0;
+      color: var(--text-main);
+    }
+    .modal-card p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: .82rem;
+      line-height: 1.55;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: .65rem;
+      padding-top: .25rem;
+    }
     @media (max-width: 980px) {
       .grid {
         grid-template-columns: 1fr;
@@ -471,6 +571,16 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
         justify-content: stretch;
       }
       .actions app-button {
+        width: 100%;
+      }
+      .danger-zone {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .modal-actions {
+        flex-direction: column;
+      }
+      .modal-actions app-button {
         width: 100%;
       }
     }
@@ -547,6 +657,13 @@ export class SettingsPageComponent implements OnInit {
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
     confirmPassword: ['', Validators.required]
   });
+
+  readonly deleteDataForm = this.fb.nonNullable.group({
+    password: ['', Validators.required]
+  });
+
+  readonly deleteDataDialogOpen = signal(false);
+  readonly deletingData = signal(false);
 
   ngOnInit(): void {
     this.settingsForm.controls.isTaxApplicable.valueChanges.subscribe((isTaxApplicable) => {
@@ -758,6 +875,50 @@ export class SettingsPageComponent implements OnInit {
       },
       error: (error) => this.toast.error(this.readError(error, 'Unable to change password.'))
     });
+  }
+
+  openDeleteDataDialog(): void {
+    if (!this.isAdmin()) {
+      this.toast.error('Only admin users can delete portal data.');
+      return;
+    }
+
+    this.deleteDataForm.reset({ password: '' });
+    this.deleteDataDialogOpen.set(true);
+  }
+
+  closeDeleteDataDialog(): void {
+    if (this.deletingData()) {
+      return;
+    }
+
+    this.deleteDataDialogOpen.set(false);
+    this.deleteDataForm.reset({ password: '' });
+  }
+
+  deleteData(): void {
+    if (!this.isAdmin()) {
+      this.toast.error('Only admin users can delete portal data.');
+      return;
+    }
+
+    if (this.deleteDataForm.invalid) {
+      this.deleteDataForm.markAllAsTouched();
+      this.toast.error('Please enter your current password.');
+      return;
+    }
+
+    this.deletingData.set(true);
+    this.api.deleteTenantData(this.deleteDataForm.controls.password.value)
+      .pipe(finalize(() => this.deletingData.set(false)))
+      .subscribe({
+        next: () => {
+          this.deleteDataDialogOpen.set(false);
+          this.deleteDataForm.reset({ password: '' });
+          this.toast.success('All business data was deleted. The workspace has been reset.');
+        },
+        error: (error) => this.toast.error(this.readError(error, 'Unable to delete business data.'))
+      });
   }
 
   private readError(error: unknown, fallback: string): string {

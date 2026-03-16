@@ -15,6 +15,7 @@ public interface IPortalAdminService
     Task<PortalAdminBusinessDetailDto> GetBusinessByIdAsync(Guid tenantId, CancellationToken cancellationToken = default);
     Task DisableBusinessAsync(Guid tenantId, PortalAdminSetBusinessStatusRequest request, CancellationToken cancellationToken = default);
     Task EnableBusinessAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task DeleteBusinessPermanentlyAsync(Guid tenantId, PortalAdminDeleteBusinessRequest request, CancellationToken cancellationToken = default);
     Task UpdateBusinessLoginDetailsAsync(Guid tenantId, PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken = default);
     Task SendBusinessPasswordResetLinkAsync(Guid tenantId, PortalAdminSendResetLinkRequest request, CancellationToken cancellationToken = default);
     Task<PagedResult<PortalAdminBusinessUserDto>> GetBusinessUsersAsync(PortalAdminBusinessUsersQuery query, CancellationToken cancellationToken = default);

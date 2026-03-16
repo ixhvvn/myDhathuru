@@ -62,6 +62,14 @@ public class PortalAdminSetBusinessStatusRequestValidator : AbstractValidator<Po
     }
 }
 
+public class PortalAdminDeleteBusinessRequestValidator : AbstractValidator<PortalAdminDeleteBusinessRequest>
+{
+    public PortalAdminDeleteBusinessRequestValidator()
+    {
+        RuleFor(x => x.CompanyNameConfirmation).NotEmpty().MaximumLength(200);
+    }
+}
+
 public class PortalAdminSendResetLinkRequestValidator : AbstractValidator<PortalAdminSendResetLinkRequest>
 {
     public PortalAdminSendResetLinkRequestValidator()
