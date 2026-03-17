@@ -95,7 +95,9 @@ type AdminNavItem = {
       display: grid;
       grid-template-columns: 300px 1fr;
       gap: 1rem;
+      height: 100dvh;
       min-height: 100dvh;
+      max-height: 100dvh;
       padding: 1rem;
       overflow: hidden;
       background:
@@ -380,13 +382,22 @@ type AdminNavItem = {
       background: linear-gradient(165deg, rgba(255,255,255,.84), rgba(247,250,255,.76));
       box-shadow: var(--shadow-soft);
       padding: 1rem;
-      overflow: auto;
+      height: calc(100dvh - 2rem);
+      max-height: calc(100dvh - 2rem);
       min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
     @media (max-width: 980px) {
       .admin-shell {
-        display: block;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
         padding: .7rem;
+        gap: .7rem;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
       }
       .mobile-topbar {
         display: flex;
@@ -496,8 +507,10 @@ type AdminNavItem = {
         pointer-events: auto;
       }
       .content {
-        margin-top: .7rem;
         padding: .82rem .75rem;
+        height: auto;
+        max-height: none;
+        min-height: 0;
       }
     }
     @media (max-width: 560px) {
