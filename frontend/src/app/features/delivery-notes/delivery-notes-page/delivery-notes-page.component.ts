@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { finalize, firstValueFrom } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
@@ -684,6 +685,7 @@ export class DeliveryNotesPageComponent implements OnInit {
   private readonly api = inject(PortalApiService);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
 
   @ViewChild('poAttachmentInput')
   private poAttachmentInput?: ElementRef<HTMLInputElement>;
@@ -724,6 +726,11 @@ export class DeliveryNotesPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const initialSearch = this.route.snapshot.queryParamMap.get('search')?.trim();
+    if (initialSearch) {
+      this.search.set(initialSearch);
+    }
+
     this.reload();
     this.loadLookup();
   }

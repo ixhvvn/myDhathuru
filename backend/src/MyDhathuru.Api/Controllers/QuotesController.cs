@@ -57,9 +57,12 @@ public class QuotesController : BaseApiController
     public async Task<ActionResult<ApiResponse<QuotationConversionResultDto>>> ConvertToSale(Guid id, CancellationToken cancellationToken)
     {
         var result = await _quotationService.ConvertToSaleAsync(id, cancellationToken);
+        var targetLabel = result.TargetType == "DeliveryNote"
+            ? "delivery note"
+            : "sales invoice";
         var message = result.AlreadyConverted
-            ? "Quotation already converted to sales invoice."
-            : "Quotation converted to sales invoice.";
+            ? $"Quotation already converted to {targetLabel}."
+            : $"Quotation converted to {targetLabel}.";
         return OkResponse(result, message);
     }
 

@@ -471,6 +471,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(x => new { x.TenantId, x.DeliveryNoteNo }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.Date });
+            entity.HasIndex(x => x.QuotationId).IsUnique();
             entity.Property(x => x.DeliveryNoteNo).HasMaxLength(50);
             entity.Property(x => x.PoNumber).HasMaxLength(100);
             entity.Property(x => x.PoAttachmentFileName).HasMaxLength(260);
@@ -484,6 +485,10 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Invoice)
                 .WithOne(x => x.DeliveryNote)
                 .HasForeignKey<Invoice>(x => x.DeliveryNoteId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Quotation)
+                .WithOne(x => x.ConvertedDeliveryNote)
+                .HasForeignKey<DeliveryNote>(x => x.QuotationId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 

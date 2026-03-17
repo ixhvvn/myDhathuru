@@ -37,6 +37,8 @@ public class QuotationListItemDto
     public decimal Amount { get; set; }
     public DateOnly DateIssued { get; set; }
     public DateOnly ValidUntil { get; set; }
+    public Guid? ConvertedDeliveryNoteId { get; set; }
+    public string? ConvertedDeliveryNoteNo { get; set; }
     public Guid? ConvertedInvoiceId { get; set; }
     public string? ConvertedInvoiceNo { get; set; }
     public DocumentEmailStatus EmailStatus { get; set; }
@@ -65,6 +67,8 @@ public class QuotationDetailDto
     public DocumentEmailStatus EmailStatus { get; set; }
     public DateTimeOffset? LastEmailedAt { get; set; }
     public string? Notes { get; set; }
+    public Guid? ConvertedDeliveryNoteId { get; set; }
+    public string? ConvertedDeliveryNoteNo { get; set; }
     public Guid? ConvertedInvoiceId { get; set; }
     public string? ConvertedInvoiceNo { get; set; }
     public List<QuotationItemDto> Items { get; set; } = new();
@@ -72,8 +76,9 @@ public class QuotationDetailDto
 
 public class QuotationConversionResultDto
 {
-    public Guid InvoiceId { get; set; }
-    public string InvoiceNo { get; set; } = string.Empty;
+    public Guid DocumentId { get; set; }
+    public string DocumentNo { get; set; } = string.Empty;
+    public string TargetType { get; set; } = string.Empty;
     public bool AlreadyConverted { get; set; }
 }
 

@@ -63,6 +63,8 @@ public class QuotationService : IQuotationService
                 Amount = x.GrandTotal,
                 DateIssued = x.DateIssued,
                 ValidUntil = x.ValidUntil,
+                ConvertedDeliveryNoteId = x.ConvertedDeliveryNote != null ? x.ConvertedDeliveryNote.Id : null,
+                ConvertedDeliveryNoteNo = x.ConvertedDeliveryNote != null ? x.ConvertedDeliveryNote.DeliveryNoteNo : null,
                 ConvertedInvoiceId = x.ConvertedInvoice != null ? x.ConvertedInvoice.Id : null,
                 ConvertedInvoiceNo = x.ConvertedInvoice != null ? x.ConvertedInvoice.InvoiceNo : null,
                 EmailStatus = x.EmailStatus,
@@ -77,6 +79,7 @@ public class QuotationService : IQuotationService
             .AsNoTracking()
             .Include(x => x.Customer)
             .Include(x => x.CourierVessel)
+            .Include(x => x.ConvertedDeliveryNote)
             .Include(x => x.ConvertedInvoice)
             .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -178,57 +181,71 @@ public class QuotationService : IQuotationService
     {
         var quotation = await _dbContext.Quotations
             .Include(x => x.Items)
+            .Include(x => x.ConvertedDeliveryNote)
             .Include(x => x.ConvertedInvoice)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Quotation not found.");
+
+        if (quotation.ConvertedDeliveryNote is not null)
+        {
+            return new QuotationConversionResultDto
+            {
+                DocumentId = quotation.ConvertedDeliveryNote.Id,
+                DocumentNo = quotation.ConvertedDeliveryNote.DeliveryNoteNo,
+                TargetType = "DeliveryNote",
+                AlreadyConverted = true
+            };
+        }
 
         if (quotation.ConvertedInvoice is not null)
         {
             return new QuotationConversionResultDto
             {
-                InvoiceId = quotation.ConvertedInvoice.Id,
-                InvoiceNo = quotation.ConvertedInvoice.InvoiceNo,
+                DocumentId = quotation.ConvertedInvoice.Id,
+                DocumentNo = quotation.ConvertedInvoice.InvoiceNo,
+                TargetType = "Invoice",
                 AlreadyConverted = true
             };
         }
 
         var settings = await GetTenantSettingsAsync(cancellationToken);
         var conversionDate = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var invoiceNo = await _documentNumberService.GenerateAsync(DocumentType.Invoice, conversionDate, cancellationToken);
+        var deliveryNoteNo = await _documentNumberService.GenerateAsync(DocumentType.DeliveryNote, conversionDate, cancellationToken);
 
-        var invoice = new Invoice
+        var deliveryNote = new DeliveryNote
         {
-            InvoiceNo = invoiceNo,
+            DeliveryNoteNo = deliveryNoteNo,
             CustomerId = quotation.CustomerId,
             QuotationId = quotation.Id,
-            CourierVesselId = quotation.CourierVesselId,
+            VesselId = quotation.CourierVesselId,
             PoNumber = quotation.PoNumber,
-            DateIssued = conversionDate,
-            DateDue = conversionDate.AddDays(settings.DefaultDueDays),
+            Date = conversionDate,
             Currency = NormalizeCurrency(quotation.Currency, settings.DefaultCurrency),
-            TaxRate = ResolveTaxRate(quotation.TaxRate, settings),
+            VesselPaymentFee = 0m,
             Notes = quotation.Notes?.Trim()
         };
 
         foreach (var item in quotation.Items.OrderBy(x => x.CreatedAt))
         {
-            invoice.Items.Add(new InvoiceItem
+            deliveryNote.Items.Add(new DeliveryNoteItem
             {
-                Description = item.Description,
+                Details = item.Description,
                 Qty = item.Qty,
                 Rate = item.Rate,
-                Total = item.Total
+                Total = item.Total,
+                CashPayment = 0m,
+                VesselPayment = 0m
             });
         }
 
-        RecalculateInvoice(invoice);
-        _dbContext.Invoices.Add(invoice);
+        _dbContext.DeliveryNotes.Add(deliveryNote);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new QuotationConversionResultDto
         {
-            InvoiceId = invoice.Id,
-            InvoiceNo = invoice.InvoiceNo,
+            DocumentId = deliveryNote.Id,
+            DocumentNo = deliveryNote.DeliveryNoteNo,
+            TargetType = "DeliveryNote",
             AlreadyConverted = false
         };
     }
@@ -258,6 +275,7 @@ public class QuotationService : IQuotationService
         var quotation = await _dbContext.Quotations
             .Include(x => x.Customer)
             .Include(x => x.CourierVessel)
+            .Include(x => x.ConvertedDeliveryNote)
             .Include(x => x.ConvertedInvoice)
             .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -359,6 +377,8 @@ public class QuotationService : IQuotationService
             EmailStatus = quotation.EmailStatus,
             LastEmailedAt = quotation.LastEmailedAt,
             Notes = quotation.Notes,
+            ConvertedDeliveryNoteId = quotation.ConvertedDeliveryNote?.Id,
+            ConvertedDeliveryNoteNo = quotation.ConvertedDeliveryNote?.DeliveryNoteNo,
             ConvertedInvoiceId = quotation.ConvertedInvoice?.Id,
             ConvertedInvoiceNo = quotation.ConvertedInvoice?.InvoiceNo,
             Items = quotation.Items.OrderBy(x => x.CreatedAt).Select(item => new QuotationItemDto
@@ -407,13 +427,4 @@ public class QuotationService : IQuotationService
         return _pdfExportService.BuildQuotationPdf(quotation, settings.CompanyName, companyInfo, settings.LogoUrl, settings.IsTaxApplicable);
     }
 
-    private static void RecalculateInvoice(Invoice invoice)
-    {
-        invoice.Subtotal = Math.Round(invoice.Items.Sum(x => x.Total), 2, MidpointRounding.AwayFromZero);
-        invoice.TaxAmount = Math.Round(invoice.Subtotal * invoice.TaxRate, 2, MidpointRounding.AwayFromZero);
-        invoice.GrandTotal = Math.Round(invoice.Subtotal + invoice.TaxAmount, 2, MidpointRounding.AwayFromZero);
-        invoice.AmountPaid = 0;
-        invoice.Balance = invoice.GrandTotal;
-        invoice.PaymentStatus = PaymentStatus.Unpaid;
-    }
 }

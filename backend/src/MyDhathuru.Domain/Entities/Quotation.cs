@@ -23,6 +23,7 @@ public class Quotation : TenantEntity
     public string? LastEmailedTo { get; set; }
     public string? LastEmailedCc { get; set; }
     public string? Notes { get; set; }
+    public DeliveryNote? ConvertedDeliveryNote { get; set; }
     public Invoice? ConvertedInvoice { get; set; }
     public ICollection<QuotationItem> Items { get; set; } = new List<QuotationItem>();
 }

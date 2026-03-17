@@ -12,6 +12,8 @@ public class DeliveryNote : TenantEntity
     public DateOnly Date { get; set; }
     public Guid CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
+    public Guid? QuotationId { get; set; }
+    public Quotation? Quotation { get; set; }
     public Guid? VesselId { get; set; }
     public Vessel? Vessel { get; set; }
     public decimal VesselPaymentFee { get; set; }

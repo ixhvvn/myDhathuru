@@ -286,6 +286,7 @@ public class DeliveryNoteService : IDeliveryNoteService
         {
             InvoiceNo = invoiceNo,
             CustomerId = note.CustomerId,
+            QuotationId = note.QuotationId,
             DeliveryNoteId = note.Id,
             CourierVesselId = note.VesselId,
             PoNumber = note.PoNumber,

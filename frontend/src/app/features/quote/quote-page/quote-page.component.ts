@@ -131,9 +131,9 @@ type DatePreset =
               <app-button size="sm" variant="secondary" (clicked)="edit(quote)">Edit</app-button>
               <app-button
                 size="sm"
-                [variant]="quote.convertedInvoiceId ? 'secondary' : 'primary'"
+                [variant]="quote.convertedDeliveryNoteId || quote.convertedInvoiceId ? 'secondary' : 'primary'"
                 (clicked)="handleSaleAction(quote)">
-                {{ quote.convertedInvoiceId ? 'View Sale' : 'Convert to Sale' }}
+                {{ quote.convertedDeliveryNoteId ? 'View Delivery Note' : (quote.convertedInvoiceId ? 'View Sale' : 'Create Delivery Note') }}
               </app-button>
               <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(quote)">Delete</app-button>
               <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(quote)">Email</app-button>
@@ -238,7 +238,8 @@ type DatePreset =
         <p><strong>Contact:</strong> {{ detail()?.customerPhone || '-' }} | {{ detail()?.customerEmail || '-' }}</p>
         <p><strong>Courier:</strong> {{ detail()?.courierName || '-' }}</p>
         <p><strong>PO No:</strong> {{ detail()?.poNumber || '-' }}</p>
-        <p><strong>Converted Sale:</strong> {{ detail()?.convertedInvoiceNo || 'Not converted yet' }}</p>
+        <p><strong>Converted Delivery Note:</strong> {{ detail()?.convertedDeliveryNoteNo || 'Not converted yet' }}</p>
+        <p *ngIf="detail()?.convertedInvoiceNo"><strong>Issued Invoice:</strong> {{ detail()?.convertedInvoiceNo }}</p>
         <p><strong>Currency:</strong> {{ detail()?.currency }}</p>
         <p><strong>Issued:</strong> {{ detail()?.dateIssued }} | <strong>Valid Until:</strong> {{ detail()?.validUntil }}</p>
         <p *ngIf="taxApplicable()"><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>GST:</strong> {{ detail()?.taxAmount || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
@@ -249,6 +250,7 @@ type DatePreset =
           <div *ngFor="let item of detail()?.items">{{ item.description }} - {{ item.qty }} x {{ item.rate | appCurrency: (detail()?.currency || 'MVR') }} = {{ item.total || 0 | appCurrency: (detail()?.currency || 'MVR') }}</div>
         </div>
         <div class="form-actions">
+          <app-button *ngIf="detail()?.convertedDeliveryNoteNo" variant="secondary" (clicked)="openDeliveryNotes(detail()?.convertedDeliveryNoteNo || '')">Open Delivery Note</app-button>
           <app-button *ngIf="detail()?.convertedInvoiceNo" variant="secondary" (clicked)="openSaleHistory(detail()?.convertedInvoiceNo || '')">Open Sale</app-button>
           <app-button variant="secondary" (clicked)="detail.set(null)">Close</app-button>
         </div>
@@ -733,6 +735,11 @@ export class QuotePageComponent implements OnInit {
   }
 
   handleSaleAction(quote: QuotationListItem): void {
+    if (quote.convertedDeliveryNoteNo) {
+      this.openDeliveryNotes(quote.convertedDeliveryNoteNo);
+      return;
+    }
+
     if (quote.convertedInvoiceNo) {
       this.openSaleHistory(quote.convertedInvoiceNo);
       return;
@@ -740,9 +747,10 @@ export class QuotePageComponent implements OnInit {
 
     this.api.convertQuoteToSale(quote.id).subscribe({
       next: (result) => {
+        const targetLabel = result.targetType === 'DeliveryNote' ? 'delivery note' : 'sale';
         const message = result.alreadyConverted
-          ? `Quotation already converted. Opening sale ${result.invoiceNo}.`
-          : `Quotation converted to sale ${result.invoiceNo}.`;
+          ? `Quotation already converted. Opening ${targetLabel} ${result.documentNo}.`
+          : `Quotation converted to ${targetLabel} ${result.documentNo}.`;
         this.toast.success(message);
         this.reload();
         if (this.detail()?.id === quote.id) {
@@ -750,9 +758,15 @@ export class QuotePageComponent implements OnInit {
             next: (detail) => this.detail.set(detail)
           });
         }
-        this.openSaleHistory(result.invoiceNo);
+
+        if (result.targetType === 'DeliveryNote') {
+          this.openDeliveryNotes(result.documentNo);
+          return;
+        }
+
+        this.openSaleHistory(result.documentNo);
       },
-      error: (error) => this.toast.error(this.readError(error, 'Unable to convert quotation to sale.'))
+      error: (error) => this.toast.error(this.readError(error, 'Unable to create a delivery note from this quotation.'))
     });
   }
 
@@ -915,6 +929,12 @@ export class QuotePageComponent implements OnInit {
       sessionStorage.setItem(QuotePageComponent.salesHistorySearchKey, invoiceNo);
     }
     void this.router.navigate(['/app/sales-history']);
+  }
+
+  openDeliveryNotes(deliveryNoteNo: string): void {
+    void this.router.navigate(['/app/delivery-notes'], {
+      queryParams: { search: deliveryNoteNo }
+    });
   }
 
   private createItemForm(item?: { description?: string; qty?: number; rate?: number }) {

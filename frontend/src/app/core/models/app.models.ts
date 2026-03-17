@@ -686,6 +686,8 @@ export interface QuotationItem {
 export interface Quotation {
   id: string;
   quotationNo: string;
+  convertedDeliveryNoteId?: string;
+  convertedDeliveryNoteNo?: string;
   convertedInvoiceId?: string;
   convertedInvoiceNo?: string;
   poNumber?: string;
@@ -712,6 +714,8 @@ export interface Quotation {
 export interface QuotationListItem {
   id: string;
   quotationNo: string;
+  convertedDeliveryNoteId?: string;
+  convertedDeliveryNoteNo?: string;
   convertedInvoiceId?: string;
   convertedInvoiceNo?: string;
   customer: string;
@@ -726,8 +730,9 @@ export interface QuotationListItem {
 }
 
 export interface QuotationConversionResult {
-  invoiceId: string;
-  invoiceNo: string;
+  documentId: string;
+  documentNo: string;
+  targetType: 'DeliveryNote' | 'Invoice';
   alreadyConverted: boolean;
 }
 

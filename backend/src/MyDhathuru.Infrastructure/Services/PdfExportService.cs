@@ -1304,7 +1304,7 @@ public class PdfExportService : IPdfExportService
                                 {
                                     info.Spacing(4);
                                     info.Item().Text("Quotation Terms").Bold().FontSize(10.4f).FontColor(Ink);
-                                    info.Item().Text("This quotation is valid until the date shown above and may be converted into an invoice after approval.")
+                                    info.Item().Text("This quotation is valid until the date shown above and may be converted into a delivery note after approval.")
                                         .FontColor(Muted);
                                     if (!isTaxApplicable)
                                     {
