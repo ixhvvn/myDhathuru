@@ -51,6 +51,7 @@ import {
   SalesAdjustmentRecord,
   Staff,
   StaffConductDetail,
+  StaffConductDhivehiExport,
   StaffConductListItem,
   StaffConductStaffOption,
   StaffConductSummary,
@@ -654,6 +655,22 @@ export class PortalApiService {
 
   exportStaffConductFormExcel(id: string): Observable<Blob> {
     return this.api.getFile(`staff-conduct/${id}/export/excel`);
+  }
+
+  getStaffConductDhivehiExport(id: string): Observable<StaffConductDhivehiExport> {
+    return this.api.get<StaffConductDhivehiExport>(`staff-conduct/${id}/export/dhivehi`);
+  }
+
+  saveStaffConductDhivehiExport(id: string, payload: unknown): Observable<StaffConductDhivehiExport> {
+    return this.api.put<StaffConductDhivehiExport>(`staff-conduct/${id}/export/dhivehi`, payload);
+  }
+
+  generateStaffConductDhivehiPdf(id: string): Observable<Blob> {
+    return this.api.postFile(`staff-conduct/${id}/export/dhivehi/pdf`, {});
+  }
+
+  downloadSavedStaffConductDhivehiPdf(id: string): Observable<Blob> {
+    return this.api.getFile(`staff-conduct/${id}/export/dhivehi/pdf`);
   }
 
   exportStaffConductSummaryPdf(params: Record<string, unknown>): Observable<Blob> {

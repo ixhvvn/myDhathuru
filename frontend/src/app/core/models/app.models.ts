@@ -1196,6 +1196,44 @@ export interface StaffConductDetail extends StaffConductListItem {
   acknowledgedDate?: string;
   employeeRemarks?: string;
   resolutionNotes?: string;
+  hasDhivehiContent: boolean;
+  hasSavedDhivehiPdf: boolean;
+  isSavedDhivehiPdfStale: boolean;
+  dhivehiPdfFileName?: string;
+  dhivehiPdfUpdatedAt?: string;
+}
+
+export interface StaffConductDhivehiExport {
+  formId: string;
+  formNumber: string;
+  formType: StaffConductFormType;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  designation?: string;
+  workSite?: string;
+  issueDate: string;
+  incidentDate: string;
+  subject: string;
+  incidentDetails: string;
+  actionTaken: string;
+  requiredImprovement?: string;
+  employeeRemarks?: string;
+  resolutionNotes?: string;
+  acknowledgementSource: string;
+  subjectDv?: string;
+  incidentDetailsDv?: string;
+  actionTakenDv?: string;
+  requiredImprovementDv?: string;
+  employeeRemarksDv?: string;
+  acknowledgementDv?: string;
+  resolutionNotesDv?: string;
+  hasDhivehiContent: boolean;
+  hasSavedPdf: boolean;
+  isSavedPdfStale: boolean;
+  savedPdfFileName?: string;
+  savedPdfUpdatedAt?: string;
+  missingRequiredFields: string[];
 }
 
 export interface TenantSettings {

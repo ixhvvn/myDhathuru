@@ -78,6 +78,36 @@ public class StaffConductController : BaseApiController
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"staff-conduct-{id}.xlsx");
     }
 
+    [HttpGet("{id:guid}/export/dhivehi")]
+    public async Task<ActionResult<ApiResponse<StaffConductDhivehiExportDto>>> GetDhivehiExport(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _staffConductService.GetDhivehiExportAsync(id, cancellationToken);
+        return OkResponse(result);
+    }
+
+    [HttpPut("{id:guid}/export/dhivehi")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<ActionResult<ApiResponse<StaffConductDhivehiExportDto>>> SaveDhivehiExport(Guid id, [FromBody] UpsertStaffConductDhivehiExportRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _staffConductService.SaveDhivehiExportAsync(id, request, cancellationToken);
+        return OkResponse(result, "Dhivehi export content saved.");
+    }
+
+    [HttpPost("{id:guid}/export/dhivehi/pdf")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GenerateDhivehiPdf(Guid id, CancellationToken cancellationToken)
+    {
+        var file = await _staffConductService.GenerateDhivehiPdfAsync(id, cancellationToken);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [HttpGet("{id:guid}/export/dhivehi/pdf")]
+    public async Task<IActionResult> DownloadSavedDhivehiPdf(Guid id, CancellationToken cancellationToken)
+    {
+        var file = await _staffConductService.DownloadSavedDhivehiPdfAsync(id, cancellationToken);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
     [HttpGet("export/pdf")]
     public async Task<IActionResult> ExportSummaryPdf([FromQuery] StaffConductListQuery query, CancellationToken cancellationToken)
     {

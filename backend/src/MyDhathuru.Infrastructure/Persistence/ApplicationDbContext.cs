@@ -73,6 +73,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<PayrollEntry> PayrollEntries => Set<PayrollEntry>();
     public DbSet<SalarySlip> SalarySlips => Set<SalarySlip>();
     public DbSet<StaffConductForm> StaffConductForms => Set<StaffConductForm>();
+    public DbSet<StaffConductExportDocument> StaffConductExportDocuments => Set<StaffConductExportDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -836,6 +837,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.WitnessedBy).HasMaxLength(150);
             entity.Property(x => x.EmployeeRemarks).HasMaxLength(1000);
             entity.Property(x => x.ResolutionNotes).HasMaxLength(1000);
+            entity.Property(x => x.SubjectDv).HasMaxLength(200);
+            entity.Property(x => x.IncidentDetailsDv).HasMaxLength(2000);
+            entity.Property(x => x.ActionTakenDv).HasMaxLength(1000);
+            entity.Property(x => x.RequiredImprovementDv).HasMaxLength(1000);
+            entity.Property(x => x.EmployeeRemarksDv).HasMaxLength(1000);
+            entity.Property(x => x.AcknowledgementDv).HasMaxLength(1000);
+            entity.Property(x => x.ResolutionNotesDv).HasMaxLength(1000);
             entity.Property(x => x.StaffCodeSnapshot).HasMaxLength(40);
             entity.Property(x => x.StaffNameSnapshot).HasMaxLength(200);
             entity.Property(x => x.DesignationSnapshot).HasMaxLength(120);
@@ -845,6 +853,21 @@ public class ApplicationDbContext : DbContext
                 .WithMany(x => x.ConductForms)
                 .HasForeignKey(x => x.StaffId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StaffConductExportDocument>(entity =>
+        {
+            entity.HasIndex(x => new { x.TenantId, x.StaffConductFormId, x.Language }).IsUnique();
+            entity.Property(x => x.FormType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Language).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.FileName).HasMaxLength(260);
+            entity.Property(x => x.ContentType).HasMaxLength(150);
+            entity.Property(x => x.ContentHash).HasMaxLength(128);
+            entity.Property(x => x.FileSizeBytes).HasColumnType("bigint");
+            entity.HasOne(x => x.StaffConductForm)
+                .WithMany(x => x.ExportDocuments)
+                .HasForeignKey(x => x.StaffConductFormId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         ApplyTenantFilters(modelBuilder);

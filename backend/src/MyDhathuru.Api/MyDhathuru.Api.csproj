@@ -25,4 +25,8 @@
     <ProjectReference Include="..\MyDhathuru.Infrastructure\MyDhathuru.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Assets\Fonts\**\*.*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

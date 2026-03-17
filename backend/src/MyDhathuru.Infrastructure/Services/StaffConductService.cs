@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using MyDhathuru.Application.Common.Exceptions;
@@ -13,6 +14,8 @@ namespace MyDhathuru.Infrastructure.Services;
 
 public class StaffConductService : IStaffConductService
 {
+    private const string PdfContentType = "application/pdf";
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentNumberService _documentNumberService;
     private readonly IPdfExportService _pdfExportService;
@@ -67,12 +70,9 @@ public class StaffConductService : IStaffConductService
 
     public async Task<StaffConductDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var entity = await _dbContext.StaffConductForms
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new NotFoundException("Disciplinary / warning form not found.");
-
-        return MapDetail(entity);
+        var entity = await GetStaffConductFormAsync(id, asTracking: false, cancellationToken);
+        var savedPdf = await GetSavedDhivehiPdfAsync(id, asTracking: false, cancellationToken);
+        return MapDetail(entity, savedPdf);
     }
 
     public async Task<StaffConductDetailDto> CreateAsync(CreateStaffConductFormRequest request, CancellationToken cancellationToken = default)
@@ -132,9 +132,7 @@ public class StaffConductService : IStaffConductService
 
     public async Task<StaffConductDetailDto> UpdateAsync(Guid id, UpdateStaffConductFormRequest request, CancellationToken cancellationToken = default)
     {
-        var entity = await _dbContext.StaffConductForms.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new NotFoundException("Disciplinary / warning form not found.");
-
+        var entity = await GetStaffConductFormAsync(id, asTracking: true, cancellationToken);
         var staff = await _dbContext.Staff.FirstOrDefaultAsync(x => x.Id == request.StaffId, cancellationToken)
             ?? throw new NotFoundException("Staff not found.");
 
@@ -192,6 +190,115 @@ public class StaffConductService : IStaffConductService
         return BuildDetailExcel(detail, settings.CompanyName, settings.BuildCompanyInfo());
     }
 
+    public async Task<StaffConductDhivehiExportDto> GetDhivehiExportAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await GetStaffConductFormAsync(id, asTracking: false, cancellationToken);
+        var savedPdf = await GetSavedDhivehiPdfAsync(id, asTracking: false, cancellationToken);
+        return BuildDhivehiExportDto(entity, savedPdf);
+    }
+
+    public async Task<StaffConductDhivehiExportDto> SaveDhivehiExportAsync(Guid id, UpsertStaffConductDhivehiExportRequest request, CancellationToken cancellationToken = default)
+    {
+        var entity = await GetStaffConductFormAsync(id, asTracking: true, cancellationToken);
+
+        entity.SubjectDv = NormalizeOptional(request.SubjectDv);
+        entity.IncidentDetailsDv = NormalizeOptional(request.IncidentDetailsDv);
+        entity.ActionTakenDv = NormalizeOptional(request.ActionTakenDv);
+        entity.RequiredImprovementDv = NormalizeOptional(request.RequiredImprovementDv);
+        entity.EmployeeRemarksDv = NormalizeOptional(request.EmployeeRemarksDv);
+        entity.AcknowledgementDv = NormalizeOptional(request.AcknowledgementDv);
+        entity.ResolutionNotesDv = NormalizeOptional(request.ResolutionNotesDv);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _auditLogService.LogAsync(
+            BusinessAuditActionType.StaffConductDhivehiSaved,
+            nameof(StaffConductForm),
+            entity.Id.ToString(),
+            entity.FormNumber,
+            new
+            {
+                entity.FormType,
+                HasDhivehiContent = HasDhivehiContent(entity),
+                MissingRequiredFields = GetMissingRequiredDhivehiFields(entity)
+            },
+            cancellationToken);
+
+        var savedPdf = await GetSavedDhivehiPdfAsync(id, asTracking: false, cancellationToken);
+        return BuildDhivehiExportDto(entity, savedPdf);
+    }
+
+    public async Task<StaffConductExportFileDto> GenerateDhivehiPdfAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await GetStaffConductFormAsync(id, asTracking: true, cancellationToken);
+        var missingRequiredFields = GetMissingRequiredDhivehiFields(entity);
+        if (missingRequiredFields.Count > 0)
+        {
+            throw new AppException($"Dhivehi export content is incomplete. Please complete: {string.Join(", ", missingRequiredFields)}.");
+        }
+
+        var settings = await GetTenantSettingsAsync(cancellationToken);
+        var existingDocument = await GetSavedDhivehiPdfAsync(id, asTracking: true, cancellationToken);
+        var detail = MapDetail(entity, existingDocument);
+        var dhivehiExport = BuildDhivehiExportDto(entity, existingDocument);
+        var pdfBytes = _pdfExportService.BuildStaffConductFormDhivehiPdf(detail, dhivehiExport, settings.CompanyName, settings.BuildCompanyInfo(), settings.LogoUrl);
+        var fileName = BuildDhivehiPdfFileName(entity);
+
+        var document = existingDocument ?? new StaffConductExportDocument
+        {
+            StaffConductFormId = entity.Id,
+            FormType = entity.FormType,
+            Language = StaffConductExportLanguage.Dhivehi
+        };
+
+        document.FormType = entity.FormType;
+        document.FileName = fileName;
+        document.ContentType = PdfContentType;
+        document.FileSizeBytes = pdfBytes.LongLength;
+        document.Content = pdfBytes;
+        document.ContentHash = ComputeContentHash(pdfBytes);
+
+        if (existingDocument is null)
+        {
+            _dbContext.StaffConductExportDocuments.Add(document);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _auditLogService.LogAsync(
+            BusinessAuditActionType.StaffConductDhivehiPdfGenerated,
+            nameof(StaffConductForm),
+            entity.Id.ToString(),
+            entity.FormNumber,
+            new
+            {
+                entity.FormType,
+                document.FileName,
+                document.FileSizeBytes
+            },
+            cancellationToken);
+
+        return new StaffConductExportFileDto
+        {
+            FileName = fileName,
+            ContentType = PdfContentType,
+            Content = pdfBytes
+        };
+    }
+
+    public async Task<StaffConductExportFileDto> DownloadSavedDhivehiPdfAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var document = await GetSavedDhivehiPdfAsync(id, asTracking: false, cancellationToken)
+            ?? throw new NotFoundException("Saved Dhivehi PDF not found.");
+
+        return new StaffConductExportFileDto
+        {
+            FileName = document.FileName,
+            ContentType = string.IsNullOrWhiteSpace(document.ContentType) ? PdfContentType : document.ContentType,
+            Content = document.Content
+        };
+    }
+
     public async Task<byte[]> ExportSummaryPdfAsync(StaffConductListQuery query, CancellationToken cancellationToken = default)
     {
         var rows = await GetFilteredListItemsAsync(query, cancellationToken);
@@ -206,6 +313,27 @@ public class StaffConductService : IStaffConductService
         var summary = BuildSummary(rows.Select(MapEntityFromListItem).ToList());
         var settings = await GetTenantSettingsAsync(cancellationToken);
         return BuildSummaryExcel(rows, summary, query, settings.CompanyName, settings.BuildCompanyInfo());
+    }
+
+    private async Task<StaffConductForm> GetStaffConductFormAsync(Guid id, bool asTracking, CancellationToken cancellationToken)
+    {
+        var query = asTracking
+            ? _dbContext.StaffConductForms
+            : _dbContext.StaffConductForms.AsNoTracking();
+
+        return await query.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Disciplinary / warning form not found.");
+    }
+
+    private async Task<StaffConductExportDocument?> GetSavedDhivehiPdfAsync(Guid formId, bool asTracking, CancellationToken cancellationToken)
+    {
+        var query = asTracking
+            ? _dbContext.StaffConductExportDocuments
+            : _dbContext.StaffConductExportDocuments.AsNoTracking();
+
+        return await query.FirstOrDefaultAsync(
+            x => x.StaffConductFormId == formId && x.Language == StaffConductExportLanguage.Dhivehi,
+            cancellationToken);
     }
 
     private async Task<List<StaffConductListItemDto>> GetFilteredListItemsAsync(StaffConductListQuery query, CancellationToken cancellationToken)
@@ -317,7 +445,7 @@ public class StaffConductService : IStaffConductService
         };
     }
 
-    private static StaffConductDetailDto MapDetail(StaffConductForm entity)
+    private static StaffConductDetailDto MapDetail(StaffConductForm entity, StaffConductExportDocument? savedDhivehiPdf)
     {
         return new StaffConductDetailDto
         {
@@ -345,8 +473,117 @@ public class StaffConductService : IStaffConductService
             AcknowledgedDate = entity.AcknowledgedDate,
             EmployeeRemarks = entity.EmployeeRemarks,
             ResolutionNotes = entity.ResolutionNotes,
-            ResolvedDate = entity.ResolvedDate
+            ResolvedDate = entity.ResolvedDate,
+            HasDhivehiContent = HasDhivehiContent(entity),
+            HasSavedDhivehiPdf = savedDhivehiPdf is not null,
+            IsSavedDhivehiPdfStale = IsSavedPdfStale(entity, savedDhivehiPdf),
+            DhivehiPdfFileName = savedDhivehiPdf?.FileName,
+            DhivehiPdfUpdatedAt = savedDhivehiPdf?.UpdatedAt ?? savedDhivehiPdf?.CreatedAt
         };
+    }
+
+    private static StaffConductDhivehiExportDto BuildDhivehiExportDto(StaffConductForm entity, StaffConductExportDocument? savedDhivehiPdf)
+    {
+        return new StaffConductDhivehiExportDto
+        {
+            FormId = entity.Id,
+            FormNumber = entity.FormNumber,
+            FormType = entity.FormType,
+            StaffId = entity.StaffId,
+            StaffCode = entity.StaffCodeSnapshot,
+            StaffName = entity.StaffNameSnapshot,
+            Designation = entity.DesignationSnapshot,
+            WorkSite = entity.WorkSiteSnapshot,
+            IssueDate = entity.IssueDate,
+            IncidentDate = entity.IncidentDate,
+            Subject = entity.Subject,
+            IncidentDetails = entity.IncidentDetails,
+            ActionTaken = entity.ActionTaken,
+            RequiredImprovement = entity.RequiredImprovement,
+            EmployeeRemarks = entity.EmployeeRemarks,
+            ResolutionNotes = entity.ResolutionNotes,
+            AcknowledgementSource = BuildAcknowledgementSource(entity),
+            SubjectDv = entity.SubjectDv,
+            IncidentDetailsDv = entity.IncidentDetailsDv,
+            ActionTakenDv = entity.ActionTakenDv,
+            RequiredImprovementDv = entity.RequiredImprovementDv,
+            EmployeeRemarksDv = entity.EmployeeRemarksDv,
+            AcknowledgementDv = entity.AcknowledgementDv,
+            ResolutionNotesDv = entity.ResolutionNotesDv,
+            HasDhivehiContent = HasDhivehiContent(entity),
+            HasSavedPdf = savedDhivehiPdf is not null,
+            IsSavedPdfStale = IsSavedPdfStale(entity, savedDhivehiPdf),
+            SavedPdfFileName = savedDhivehiPdf?.FileName,
+            SavedPdfUpdatedAt = savedDhivehiPdf?.UpdatedAt ?? savedDhivehiPdf?.CreatedAt,
+            MissingRequiredFields = GetMissingRequiredDhivehiFields(entity)
+        };
+    }
+
+    private static IReadOnlyList<string> GetMissingRequiredDhivehiFields(StaffConductForm entity)
+    {
+        var missing = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(entity.Subject) && string.IsNullOrWhiteSpace(entity.SubjectDv))
+        {
+            missing.Add("Subject");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entity.IncidentDetails) && string.IsNullOrWhiteSpace(entity.IncidentDetailsDv))
+        {
+            missing.Add("Incident Details");
+        }
+
+        if (!string.IsNullOrWhiteSpace(entity.ActionTaken) && string.IsNullOrWhiteSpace(entity.ActionTakenDv))
+        {
+            missing.Add("Action Taken");
+        }
+
+        return missing;
+    }
+
+    private static bool HasDhivehiContent(StaffConductForm entity)
+    {
+        return !string.IsNullOrWhiteSpace(entity.SubjectDv)
+            || !string.IsNullOrWhiteSpace(entity.IncidentDetailsDv)
+            || !string.IsNullOrWhiteSpace(entity.ActionTakenDv)
+            || !string.IsNullOrWhiteSpace(entity.RequiredImprovementDv)
+            || !string.IsNullOrWhiteSpace(entity.EmployeeRemarksDv)
+            || !string.IsNullOrWhiteSpace(entity.AcknowledgementDv)
+            || !string.IsNullOrWhiteSpace(entity.ResolutionNotesDv);
+    }
+
+    private static bool IsSavedPdfStale(StaffConductForm entity, StaffConductExportDocument? savedDhivehiPdf)
+    {
+        if (savedDhivehiPdf is null)
+        {
+            return false;
+        }
+
+        var formTimestamp = entity.UpdatedAt ?? entity.CreatedAt;
+        var documentTimestamp = savedDhivehiPdf.UpdatedAt ?? savedDhivehiPdf.CreatedAt;
+        return formTimestamp > documentTimestamp;
+    }
+
+    private static string BuildAcknowledgementSource(StaffConductForm entity)
+    {
+        if (!entity.IsAcknowledgedByStaff)
+        {
+            return "This form is pending staff acknowledgement.";
+        }
+
+        return entity.AcknowledgedDate.HasValue
+            ? $"This form has been acknowledged by the staff member on {entity.AcknowledgedDate.Value:yyyy-MM-dd}."
+            : "This form has been acknowledged by the staff member.";
+    }
+
+    private static string BuildDhivehiPdfFileName(StaffConductForm entity)
+    {
+        return $"{entity.FormNumber}-dhivehi.pdf";
+    }
+
+    private static string ComputeContentHash(byte[] content)
+    {
+        return Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
     }
 
     private static void ApplyStaffSnapshot(StaffConductForm entity, Staff staff)

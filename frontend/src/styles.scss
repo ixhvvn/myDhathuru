@@ -272,6 +272,51 @@ body .overlay {
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* Centered prompt drawers should stay scrollable instead of clipping tall forms. */
+body div.drawer {
+  display: grid !important;
+  place-items: center !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: clamp(1rem, 2.5vh, 1.5rem) 1rem !important;
+  align-content: center;
+}
+
+body div.drawer app-card {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+body div.drawer app-card .card {
+  max-height: calc(100dvh - 2rem);
+  overflow: auto !important;
+}
+
+/* Side drawers need a fixed, full-height card so their body section can scroll. */
+body aside.drawer {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+}
+
+body aside.drawer app-card.drawer-card {
+  display: block;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+}
+
+body aside.drawer app-card.drawer-card .card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden !important;
+}
+
 body div.drawer app-card .card,
 body aside.drawer app-card .card,
 body .overlay .dialog,
@@ -307,6 +352,43 @@ body section.modal input,
 body section.modal select,
 body section.modal textarea {
   background: #fff !important;
+}
+
+/* Full-height Dhivehi editor dialog so the content area scrolls cleanly. */
+body section.dhivehi-dialog app-card.dialog-card {
+  display: block;
+  height: calc(100dvh - 1.4rem);
+  max-height: calc(100dvh - 1.4rem);
+}
+
+body section.dhivehi-dialog app-card.dialog-card .card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
+}
+
+@media (max-width: 900px), (max-height: 860px) {
+  body div.drawer {
+    place-items: start center !important;
+    align-content: start;
+  }
+}
+
+@media (max-width: 640px) {
+  body div.drawer {
+    padding: .7rem .45rem calc(.8rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  body div.drawer app-card .card {
+    max-height: calc(100dvh - .9rem);
+  }
+
+  body section.dhivehi-dialog app-card.dialog-card {
+    height: calc(100dvh - .6rem);
+    max-height: calc(100dvh - .6rem);
+  }
 }
 
 /* Premium Auth Experience */

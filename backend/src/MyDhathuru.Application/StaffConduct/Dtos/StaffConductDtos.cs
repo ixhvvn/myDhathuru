@@ -62,6 +62,11 @@ public class StaffConductDetailDto : StaffConductListItemDto
     public DateOnly? AcknowledgedDate { get; set; }
     public string? EmployeeRemarks { get; set; }
     public string? ResolutionNotes { get; set; }
+    public bool HasDhivehiContent { get; set; }
+    public bool HasSavedDhivehiPdf { get; set; }
+    public bool IsSavedDhivehiPdfStale { get; set; }
+    public string? DhivehiPdfFileName { get; set; }
+    public DateTimeOffset? DhivehiPdfUpdatedAt { get; set; }
 }
 
 public class CreateStaffConductFormRequest
@@ -88,4 +93,56 @@ public class CreateStaffConductFormRequest
 
 public class UpdateStaffConductFormRequest : CreateStaffConductFormRequest
 {
+}
+
+public class StaffConductDhivehiExportDto
+{
+    public Guid FormId { get; set; }
+    public string FormNumber { get; set; } = string.Empty;
+    public StaffConductFormType FormType { get; set; }
+    public Guid StaffId { get; set; }
+    public string StaffCode { get; set; } = string.Empty;
+    public string StaffName { get; set; } = string.Empty;
+    public string? Designation { get; set; }
+    public string? WorkSite { get; set; }
+    public DateOnly IssueDate { get; set; }
+    public DateOnly IncidentDate { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string IncidentDetails { get; set; } = string.Empty;
+    public string ActionTaken { get; set; } = string.Empty;
+    public string? RequiredImprovement { get; set; }
+    public string? EmployeeRemarks { get; set; }
+    public string? ResolutionNotes { get; set; }
+    public string AcknowledgementSource { get; set; } = string.Empty;
+    public string? SubjectDv { get; set; }
+    public string? IncidentDetailsDv { get; set; }
+    public string? ActionTakenDv { get; set; }
+    public string? RequiredImprovementDv { get; set; }
+    public string? EmployeeRemarksDv { get; set; }
+    public string? AcknowledgementDv { get; set; }
+    public string? ResolutionNotesDv { get; set; }
+    public bool HasDhivehiContent { get; set; }
+    public bool HasSavedPdf { get; set; }
+    public bool IsSavedPdfStale { get; set; }
+    public string? SavedPdfFileName { get; set; }
+    public DateTimeOffset? SavedPdfUpdatedAt { get; set; }
+    public IReadOnlyList<string> MissingRequiredFields { get; set; } = Array.Empty<string>();
+}
+
+public class UpsertStaffConductDhivehiExportRequest
+{
+    public string? SubjectDv { get; set; }
+    public string? IncidentDetailsDv { get; set; }
+    public string? ActionTakenDv { get; set; }
+    public string? RequiredImprovementDv { get; set; }
+    public string? EmployeeRemarksDv { get; set; }
+    public string? AcknowledgementDv { get; set; }
+    public string? ResolutionNotesDv { get; set; }
+}
+
+public class StaffConductExportFileDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/pdf";
+    public byte[] Content { get; set; } = Array.Empty<byte>();
 }

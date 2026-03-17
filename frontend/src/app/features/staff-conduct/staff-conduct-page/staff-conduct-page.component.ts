@@ -1,10 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { finalize, map, switchMap } from 'rxjs';
 import {
   PagedResult,
   StaffConductDetail,
+  StaffConductDhivehiExport,
   StaffConductFormType,
   StaffConductListItem,
   StaffConductSeverity,
@@ -35,404 +36,8 @@ type ExportFormat = 'pdf' | 'excel';
     AppDataTableComponent,
     AppPageHeaderComponent
   ],
-  template: `
-    <section class="staff-conduct-page">
-      <app-page-header
-        title="Disciplinary & Warning"
-        subtitle="Create, review, and export staff warning and disciplinary forms directly from the live payroll staff master.">
-      </app-page-header>
-
-      <div class="summary-grid">
-        <app-card class="summary-card summary-card-all"><span>Total Forms</span><strong>{{ summary().totalForms }}</strong><small>All matching records</small></app-card>
-        <app-card class="summary-card summary-card-warning"><span>Warnings</span><strong>{{ summary().warningCount }}</strong><small>Staff warning forms</small></app-card>
-        <app-card class="summary-card summary-card-discipline"><span>Disciplinary</span><strong>{{ summary().disciplinaryCount }}</strong><small>Escalated HR forms</small></app-card>
-        <app-card class="summary-card summary-card-open"><span>Open</span><strong>{{ summary().openCount }}</strong><small>Awaiting closure</small></app-card>
-        <app-card class="summary-card summary-card-ack"><span>Acknowledged</span><strong>{{ summary().acknowledgedCount }}</strong><small>Staff acknowledged</small></app-card>
-        <app-card class="summary-card summary-card-resolved"><span>Resolved</span><strong>{{ summary().resolvedCount }}</strong><small>Closed records</small></app-card>
-      </div>
-
-      <app-card class="filters-card">
-        <div class="toolbar-row">
-          <div>
-            <h3>Form Register</h3>
-            <p>Filter staff conduct records, export the current register, or issue a new form.</p>
-            <small class="toolbar-note">Use the row PDF or Excel buttons, or open a form, to export one staff record instead of the full summary.</small>
-          </div>
-
-          <div class="toolbar-actions">
-            <app-button variant="secondary" [loading]="summaryExportLoading() === 'excel'" [disabled]="busy()" (clicked)="exportSummary('excel')">Export Excel</app-button>
-            <app-button variant="secondary" [loading]="summaryExportLoading() === 'pdf'" [disabled]="busy()" (clicked)="exportSummary('pdf')">Export PDF</app-button>
-            <app-button *ngIf="isAdmin()" variant="secondary" [disabled]="busy()" (clicked)="openCreate('Warning')">New Warning</app-button>
-            <app-button *ngIf="isAdmin()" [disabled]="busy()" (clicked)="openCreate('Disciplinary')">New Disciplinary</app-button>
-          </div>
-        </div>
-
-        <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="applyFilters()">
-          <label>
-            Search
-            <input formControlName="search" placeholder="Form no., staff, subject, issued by">
-          </label>
-
-          <label>
-            Staff
-            <select formControlName="staffId">
-              <option value="">All staff</option>
-              <option *ngFor="let staff of staffOptions()" [value]="staff.id">{{ staff.staffId }} - {{ staff.staffName }}</option>
-            </select>
-          </label>
-
-          <label>
-            Form Type
-            <select formControlName="formType">
-              <option value="">All types</option>
-              <option *ngFor="let option of formTypeOptions" [value]="option">{{ option }}</option>
-            </select>
-          </label>
-
-          <label>
-            Status
-            <select formControlName="status">
-              <option value="">All statuses</option>
-              <option *ngFor="let option of statusOptions" [value]="option">{{ option }}</option>
-            </select>
-          </label>
-
-          <label>
-            From
-            <input type="date" formControlName="dateFrom">
-          </label>
-
-          <label>
-            To
-            <input type="date" formControlName="dateTo">
-          </label>
-
-          <div class="filter-actions">
-            <app-button type="submit" [loading]="listLoading()" [disabled]="busy()">Generate</app-button>
-            <app-button type="button" variant="secondary" [disabled]="busy()" (clicked)="resetFilters()">Reset</app-button>
-          </div>
-        </form>
-      </app-card>
-
-      <app-card class="list-card">
-        <div class="list-head">
-          <div>
-            <h3>Staff Conduct List</h3>
-            <p>{{ pageSummary() }}</p>
-          </div>
-          <div class="meta-chip" *ngIf="page() as current">Page {{ current.pageNumber }} of {{ current.totalPages || 1 }}</div>
-        </div>
-
-        <app-data-table [hasData]="(page()?.items?.length || 0) > 0" emptyTitle="No forms found" emptyDescription="Create a warning or disciplinary form to start building the conduct register.">
-          <thead>
-            <tr>
-              <th>Form No</th>
-              <th>Type</th>
-              <th>Issue Date</th>
-              <th>Staff</th>
-              <th>Subject</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Issued By</th>
-              <th>Follow Up</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of page()?.items">
-              <td>{{ item.formNumber }}</td>
-              <td><span class="pill" [ngClass]="typePillClass(item.formType)">{{ item.formType }}</span></td>
-              <td>{{ item.issueDate | date: 'yyyy-MM-dd' }}</td>
-              <td><div class="stack"><strong>{{ item.staffCode }} - {{ item.staffName }}</strong><span>{{ item.designation || '-' }} | {{ item.workSite || '-' }}</span></div></td>
-              <td><div class="subject-cell"><strong>{{ item.subject }}</strong><small>Incident {{ item.incidentDate | date: 'yyyy-MM-dd' }}</small></div></td>
-              <td>{{ item.severity }}</td>
-              <td><span class="pill" [ngClass]="statusPillClass(item.status)">{{ item.status }}</span></td>
-              <td>{{ item.issuedBy }}</td>
-              <td>{{ item.followUpDate ? (item.followUpDate | date: 'yyyy-MM-dd') : '-' }}</td>
-              <td class="row-actions">
-                <div class="row-action-group">
-                  <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="openView(item)">View</app-button>
-                  <app-button *ngIf="isAdmin()" size="sm" variant="secondary" [disabled]="busy()" (clicked)="openEdit(item)">Edit</app-button>
-                  <app-button size="sm" variant="secondary" [loading]="rowExportKey() === exportKey(item.id, 'pdf')" [disabled]="busyExcept(item.id, 'pdf')" (clicked)="exportSingle(item, 'pdf')">PDF</app-button>
-                  <app-button size="sm" variant="secondary" [loading]="rowExportKey() === exportKey(item.id, 'excel')" [disabled]="busyExcept(item.id, 'excel')" (clicked)="exportSingle(item, 'excel')">Excel</app-button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </app-data-table>
-
-        <div class="pager" *ngIf="page() as current">
-          <span>Total {{ current.totalCount }} record{{ current.totalCount === 1 ? '' : 's' }}</span>
-          <div class="pager-actions">
-            <app-button size="sm" variant="secondary" [disabled]="listLoading() || current.pageNumber <= 1" (clicked)="changePage(current.pageNumber - 1)">Previous</app-button>
-            <app-button size="sm" variant="secondary" [disabled]="listLoading() || current.pageNumber >= (current.totalPages || 1)" (clicked)="changePage(current.pageNumber + 1)">Next</app-button>
-          </div>
-        </div>
-      </app-card>
-    </section>
-
-    <div class="drawer-backdrop" *ngIf="drawerMode()" (click)="closeDrawer()"></div>
-
-    <aside class="drawer" *ngIf="drawerMode()">
-      <app-card class="drawer-card">
-        <ng-container [ngSwitch]="drawerMode()">
-          <ng-container *ngSwitchCase="'view'">
-            <div class="drawer-shell">
-              <div class="drawer-head">
-                <div>
-                  <h3>{{ selectedDetail()?.formType }} Form</h3>
-                  <p>{{ selectedDetail()?.formNumber }}</p>
-                </div>
-                <div class="drawer-actions">
-                  <app-button variant="secondary" size="sm" [loading]="detailExportLoading() === 'excel'" [disabled]="busy()" (clicked)="exportDetailFromDrawer('excel')">Export Excel</app-button>
-                  <app-button variant="secondary" size="sm" [loading]="detailExportLoading() === 'pdf'" [disabled]="busy()" (clicked)="exportDetailFromDrawer('pdf')">Export PDF</app-button>
-                  <app-button *ngIf="isAdmin()" size="sm" [disabled]="busy()" (clicked)="editSelected()">Edit</app-button>
-                  <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="closeDrawer()">Close</app-button>
-                </div>
-              </div>
-
-              <div class="drawer-body">
-                <div class="drawer-loading" *ngIf="detailLoading()">Loading form...</div>
-
-                <ng-container *ngIf="!detailLoading() && selectedDetail() as detail">
-                  <div class="detail-grid">
-                    <article><span>Staff</span><strong>{{ detail.staffCode }} - {{ detail.staffName }}</strong><small>{{ detail.designation || '-' }} | {{ detail.workSite || '-' }}</small></article>
-                    <article><span>Status</span><strong>{{ detail.status }}</strong><small>Severity {{ detail.severity }}</small></article>
-                    <article><span>Issue Date</span><strong>{{ detail.issueDate | date: 'yyyy-MM-dd' }}</strong><small>Incident {{ detail.incidentDate | date: 'yyyy-MM-dd' }}</small></article>
-                    <article><span>Issued By</span><strong>{{ detail.issuedBy }}</strong><small>Witnessed by {{ detail.witnessedBy || '-' }}</small></article>
-                  </div>
-
-                  <div class="detail-panels">
-                    <section><h4>Subject</h4><p>{{ detail.subject }}</p></section>
-                    <section><h4>Incident Details</h4><p>{{ detail.incidentDetails }}</p></section>
-                    <section><h4>Action Taken</h4><p>{{ detail.actionTaken }}</p></section>
-                    <section><h4>Required Improvement</h4><p>{{ detail.requiredImprovement || '-' }}</p></section>
-                    <section><h4>Employee Remarks</h4><p>{{ detail.employeeRemarks || '-' }}</p></section>
-                    <section><h4>Resolution</h4><p>{{ detail.resolutionNotes || '-' }}</p></section>
-                  </div>
-
-                  <div class="detail-footer">
-                    <div><span>Acknowledged</span><strong>{{ detail.isAcknowledgedByStaff ? 'Yes' : 'No' }}</strong><small>{{ detail.acknowledgedDate ? (detail.acknowledgedDate | date: 'yyyy-MM-dd') : 'No acknowledgement date' }}</small></div>
-                    <div><span>Follow Up</span><strong>{{ detail.followUpDate ? (detail.followUpDate | date: 'yyyy-MM-dd') : '-' }}</strong><small>Resolved {{ detail.resolvedDate ? (detail.resolvedDate | date: 'yyyy-MM-dd') : 'Not resolved' }}</small></div>
-                  </div>
-                </ng-container>
-              </div>
-            </div>
-          </ng-container>
-
-          <ng-container *ngSwitchDefault>
-            <form class="drawer-shell drawer-form" [formGroup]="form" (ngSubmit)="saveForm()">
-              <div class="drawer-head">
-                <div>
-                  <h3>{{ drawerMode() === 'edit' ? 'Edit Form' : 'Create Form' }}</h3>
-                  <p>{{ drawerMode() === 'edit' ? selectedDetail()?.formNumber : 'Issue a new warning or disciplinary record.' }}</p>
-                </div>
-                <app-button type="button" size="sm" variant="secondary" [disabled]="saveLoading()" (clicked)="closeDrawer()">Close</app-button>
-              </div>
-
-              <div class="drawer-body">
-                <div class="form-grid">
-                  <div class="two-col">
-                    <label>
-                      Form Type
-                      <select formControlName="formType"><option *ngFor="let option of formTypeOptions" [value]="option">{{ option }}</option></select>
-                    </label>
-                    <label>
-                      Staff
-                      <select formControlName="staffId"><option value="">Select staff</option><option *ngFor="let staff of staffOptions()" [value]="staff.id">{{ staff.staffId }} - {{ staff.staffName }}</option></select>
-                      <small class="field-error" *ngIf="showError('staffId', 'required')">Staff is required.</small>
-                    </label>
-                  </div>
-
-                  <div class="two-col">
-                    <label>
-                      Issue Date
-                      <input type="date" formControlName="issueDate">
-                      <small class="field-error" *ngIf="showError('issueDate', 'required')">Issue date is required.</small>
-                    </label>
-                    <label>
-                      Incident Date
-                      <input type="date" formControlName="incidentDate">
-                      <small class="field-error" *ngIf="showError('incidentDate', 'required')">Incident date is required.</small>
-                    </label>
-                  </div>
-
-                  <label>
-                    Subject
-                    <input formControlName="subject" maxlength="160" placeholder="Short summary of the conduct issue">
-                    <small class="field-error" *ngIf="showError('subject', 'required')">Subject is required.</small>
-                  </label>
-
-                  <div class="two-col">
-                    <label>
-                      Severity
-                      <select formControlName="severity"><option *ngFor="let option of severityOptions" [value]="option">{{ option }}</option></select>
-                    </label>
-                    <label>
-                      Status
-                      <select formControlName="status"><option *ngFor="let option of statusOptions" [value]="option">{{ option }}</option></select>
-                    </label>
-                  </div>
-
-                  <div class="two-col">
-                    <label>
-                      Issued By
-                      <input formControlName="issuedBy" maxlength="120" placeholder="Supervisor or manager name">
-                      <small class="field-error" *ngIf="showError('issuedBy', 'required')">Issued by is required.</small>
-                    </label>
-                    <label>
-                      Witnessed By
-                      <input formControlName="witnessedBy" maxlength="120" placeholder="Optional witness">
-                    </label>
-                  </div>
-
-                  <label>
-                    Incident Details
-                    <textarea formControlName="incidentDetails" rows="4" maxlength="4000" placeholder="Describe the incident in full"></textarea>
-                    <small class="field-error" *ngIf="showError('incidentDetails', 'required')">Incident details are required.</small>
-                  </label>
-
-                  <label>
-                    Action Taken
-                    <textarea formControlName="actionTaken" rows="3" maxlength="2000" placeholder="Explain the action, sanction, or next step"></textarea>
-                    <small class="field-error" *ngIf="showError('actionTaken', 'required')">Action taken is required.</small>
-                  </label>
-
-                  <label>
-                    Required Improvement
-                    <textarea formControlName="requiredImprovement" rows="3" maxlength="2000" placeholder="Expected improvement or follow-up requirements"></textarea>
-                  </label>
-
-                  <div class="two-col">
-                    <label>
-                      Follow Up Date
-                      <input type="date" formControlName="followUpDate">
-                    </label>
-                    <label class="checkbox-field">
-                      <input type="checkbox" formControlName="isAcknowledgedByStaff">
-                      <span>Staff acknowledged this form</span>
-                    </label>
-                  </div>
-
-                  <div class="two-col">
-                    <label>
-                      Acknowledged Date
-                      <input type="date" formControlName="acknowledgedDate">
-                    </label>
-                    <label>
-                      Resolved Date
-                      <input type="date" formControlName="resolvedDate">
-                    </label>
-                  </div>
-
-                  <label>
-                    Employee Remarks
-                    <textarea formControlName="employeeRemarks" rows="3" maxlength="2000" placeholder="Optional remarks from the staff member"></textarea>
-                  </label>
-
-                  <label>
-                    Resolution Notes
-                    <textarea formControlName="resolutionNotes" rows="3" maxlength="2000" placeholder="Optional closure notes"></textarea>
-                  </label>
-                </div>
-              </div>
-
-              <div class="drawer-foot">
-                <app-button type="button" variant="secondary" [disabled]="saveLoading()" (clicked)="closeDrawer()">Cancel</app-button>
-                <app-button type="submit" [loading]="saveLoading()" [disabled]="detailLoading()">{{ drawerMode() === 'edit' ? 'Save Changes' : 'Create Form' }}</app-button>
-              </div>
-            </form>
-          </ng-container>
-        </ng-container>
-      </app-card>
-    </aside>
-  `,
-  styles: `
-    .staff-conduct-page { display: grid; gap: 1rem; }
-    .summary-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .85rem; }
-    .summary-card { --card-padding: 1rem; --card-shadow: 0 16px 32px rgba(81, 104, 170, .1); display: grid; gap: .18rem; }
-    .summary-card span, .summary-card small { color: #6780ab; }
-    .summary-card span { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-    .summary-card strong { font-size: 1.8rem; color: #2c4168; font-family: var(--font-heading); }
-    .summary-card small { font-size: .82rem; }
-    .summary-card-all { --card-bg: linear-gradient(145deg, rgba(240,244,255,.95), rgba(229,243,255,.84)); }
-    .summary-card-warning { --card-bg: linear-gradient(145deg, rgba(255,246,231,.96), rgba(255,239,214,.86)); }
-    .summary-card-discipline { --card-bg: linear-gradient(145deg, rgba(252,236,242,.96), rgba(247,223,233,.86)); }
-    .summary-card-open { --card-bg: linear-gradient(145deg, rgba(238,242,255,.96), rgba(226,236,255,.86)); }
-    .summary-card-ack { --card-bg: linear-gradient(145deg, rgba(234,248,241,.96), rgba(222,242,232,.86)); }
-    .summary-card-resolved { --card-bg: linear-gradient(145deg, rgba(234,244,255,.96), rgba(221,238,255,.86)); }
-    .filters-card, .list-card { --card-padding: 1rem; display: grid; gap: 1rem; }
-    .toolbar-row, .list-head, .drawer-head, .pager { display: flex; justify-content: space-between; align-items: flex-start; gap: .9rem; flex-wrap: wrap; }
-    .toolbar-row h3, .list-head h3, .drawer-head h3 { margin: 0; font-size: 1.08rem; font-family: var(--font-heading); color: #30466f; }
-    .toolbar-row p, .list-head p, .drawer-head p { margin: .25rem 0 0; color: #7188af; font-size: .9rem; }
-    .toolbar-note { display: block; margin-top: .38rem; color: #5f77a3; font-size: .79rem; line-height: 1.45; }
-    .toolbar-actions, .drawer-actions, .filter-actions, .pager-actions, .row-action-group { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; }
-    .filters-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .85rem; align-items: end; }
-    .filters-grid label, .form-grid label { display: grid; gap: .38rem; font-size: .84rem; font-weight: 600; color: #5b7098; }
-    .filters-grid input, .filters-grid select, .form-grid input, .form-grid select, .form-grid textarea { width: 100%; border-radius: 13px; border: 1px solid #d8e2f7; background: rgba(255,255,255,.92); padding: .72rem .82rem; color: #33496f; font: inherit; outline: none; transition: border-color .18s ease, box-shadow .18s ease; }
-    .filters-grid input:focus, .filters-grid select:focus, .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus { border-color: #7e90f6; box-shadow: 0 0 0 4px rgba(120, 141, 239, .12); }
-    .filter-actions { justify-content: flex-end; min-height: 46px; }
-    .meta-chip { padding: .45rem .72rem; border-radius: 999px; border: 1px solid #d6e1fa; background: linear-gradient(135deg, #f5f8ff, #edf4ff); color: #5a6f99; font-size: .82rem; font-weight: 700; }
-    .stack, .subject-cell { display: grid; gap: .12rem; white-space: normal; }
-    .stack strong, .subject-cell strong { color: #30456c; }
-    .stack span, .subject-cell small { color: #7288af; font-size: .8rem; }
-    .pill { display: inline-flex; align-items: center; justify-content: center; padding: .34rem .62rem; border-radius: 999px; font-size: .75rem; font-weight: 700; border: 1px solid transparent; }
-    .pill-warning { background: rgba(248, 183, 91, .16); color: #b77106; border-color: rgba(235, 165, 63, .32); }
-    .pill-disciplinary { background: rgba(226, 126, 156, .16); color: #b14d6c; border-color: rgba(226, 126, 156, .3); }
-    .pill-open { background: rgba(121, 139, 239, .14); color: #5368ca; border-color: rgba(121, 139, 239, .28); }
-    .pill-acknowledged { background: rgba(245, 188, 84, .16); color: #b88017; border-color: rgba(245, 188, 84, .32); }
-    .pill-resolved { background: rgba(88, 185, 132, .16); color: #2d9a6a; border-color: rgba(88, 185, 132, .3); }
-    .row-actions { white-space: normal; min-width: 258px; }
-    .row-action-group { justify-content: flex-start; }
-    .pager { padding-top: .4rem; border-top: 1px solid #e6ecfa; color: #6277a1; font-size: .92rem; }
-    .drawer-backdrop { position: fixed; inset: 0; background: rgba(31, 44, 76, .28); backdrop-filter: blur(3px); z-index: 90; }
-    .drawer { position: fixed; inset: 0 0 0 auto; height: 100dvh; width: min(760px, 100vw); padding: .85rem; z-index: 91; overflow-y: auto; overscroll-behavior: contain; }
-    .drawer-card { --card-padding: 0; --card-overflow: hidden; height: calc(100dvh - 1.7rem); max-height: calc(100dvh - 1.7rem); }
-    .drawer-shell, .drawer-form { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-    .drawer-form { grid-template-rows: auto minmax(0, 1fr) auto; }
-    .drawer-head { padding: 1rem 1rem 0; }
-    .drawer-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 1rem 1rem; display: grid; gap: 1rem; align-content: start; }
-    .drawer-foot { display: flex; justify-content: flex-end; gap: .55rem; flex-wrap: wrap; padding: .85rem 1rem 1rem; border-top: 1px solid #e6ecfa; background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(245,249,255,.98)); }
-    .drawer-loading { padding: 1rem; border-radius: 14px; background: linear-gradient(145deg, rgba(243,247,255,.94), rgba(237,244,255,.86)); color: #6b81aa; font-weight: 600; }
-    .detail-grid, .detail-footer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
-    .detail-grid article, .detail-footer div, .detail-panels section { border: 1px solid #dce4f8; border-radius: 16px; background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(245,249,255,.86)); padding: .9rem; display: grid; gap: .22rem; }
-    .detail-grid span, .detail-footer span, .detail-panels h4 { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: #6880aa; margin: 0; }
-    .detail-grid strong, .detail-footer strong { font-size: 1rem; color: #31476f; }
-    .detail-grid small, .detail-footer small { color: #758bb1; }
-    .detail-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-    .detail-panels p { margin: 0; color: #40567f; line-height: 1.5; white-space: pre-wrap; }
-    .form-grid { display: grid; gap: .8rem; }
-    .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
-    .checkbox-field { display: flex !important; align-items: center; gap: .6rem; min-height: 48px; }
-    .checkbox-field input { width: 18px; height: 18px; padding: 0; box-shadow: none; }
-    .checkbox-field span { font-weight: 600; color: #425980; }
-    .field-error { color: #c45373; font-size: .75rem; font-weight: 600; }
-    @media (max-width: 1400px) {
-      .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .filters-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .detail-grid, .detail-footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 980px) {
-      .summary-grid, .filters-grid, .detail-panels, .detail-grid, .detail-footer, .two-col { grid-template-columns: 1fr; }
-      .drawer { width: 100vw; padding: .35rem; }
-      .drawer-card { --card-radius: 20px; height: calc(100dvh - .7rem); max-height: calc(100dvh - .7rem); }
-      .toolbar-actions, .filter-actions, .drawer-actions, .pager-actions, .row-action-group { width: 100%; }
-      .toolbar-actions app-button, .filter-actions app-button, .drawer-actions app-button, .drawer-foot app-button { flex: 1 1 180px; }
-      .drawer-head { padding: .9rem .9rem 0; }
-      .drawer-body { padding: 0 .9rem .9rem; }
-      .drawer-foot { padding: .8rem .9rem .9rem; }
-      .row-actions { min-width: 232px; }
-    }
-    @media (max-width: 640px) {
-      .filters-card, .list-card { --card-padding: .85rem; }
-      .summary-card { --card-padding: .85rem; }
-      .drawer { padding: 0; }
-      .drawer-card { --card-radius: 0; height: 100dvh; max-height: 100dvh; border-left: 0; border-right: 0; border-bottom: 0; }
-      .drawer-head { padding: .9rem .8rem 0; }
-      .drawer-body { padding: 0 .8rem .8rem; }
-      .drawer-foot { padding: .75rem .8rem calc(.8rem + env(safe-area-inset-bottom)); }
-    }
-  `
+  templateUrl: './staff-conduct-page.component.html',
+  styleUrls: ['./staff-conduct-page.component.scss']
 })
 export class StaffConductPageComponent implements OnInit {
   private readonly api = inject(PortalApiService);
@@ -451,19 +56,60 @@ export class StaffConductPageComponent implements OnInit {
   readonly summaryExportLoading = signal<ExportFormat | null>(null);
   readonly detailExportLoading = signal<ExportFormat | null>(null);
   readonly rowExportKey = signal<string | null>(null);
+  readonly exportTarget = signal<StaffConductDetail | null>(null);
+  readonly exportChoiceOpen = signal(false);
+  readonly exportChoiceEnglishLoading = signal(false);
+  readonly dhivehiExport = signal<StaffConductDhivehiExport | null>(null);
+  readonly dhivehiEditorOpen = signal(false);
+  readonly dhivehiLoading = signal(false);
+  readonly dhivehiSaveLoading = signal(false);
+  readonly dhivehiGenerateLoading = signal(false);
+  readonly dhivehiDownloadLoading = signal(false);
   readonly pageNumber = signal(1);
   readonly pageSize = 10;
   readonly formTypeOptions: StaffConductFormType[] = ['Warning', 'Disciplinary'];
   readonly severityOptions: StaffConductSeverity[] = ['Low', 'Medium', 'High', 'Critical'];
   readonly statusOptions: StaffConductStatus[] = ['Open', 'Acknowledged', 'Resolved'];
   readonly isAdmin = computed(() => this.authService.user()?.role === 'Admin');
-  readonly busy = computed(() => this.listLoading() || this.detailLoading() || this.saveLoading() || this.summaryExportLoading() !== null || this.detailExportLoading() !== null || this.rowExportKey() !== null);
+  readonly busy = computed(() =>
+    this.listLoading()
+    || this.detailLoading()
+    || this.saveLoading()
+    || this.summaryExportLoading() !== null
+    || this.detailExportLoading() !== null
+    || this.rowExportKey() !== null
+    || this.exportChoiceEnglishLoading()
+    || this.dhivehiLoading()
+    || this.dhivehiSaveLoading()
+    || this.dhivehiGenerateLoading()
+    || this.dhivehiDownloadLoading());
   readonly pageSummary = computed(() => {
     const current = this.page();
     if (!current) {
       return 'Loading conduct register...';
     }
+
     return `Showing ${current.items.length} form${current.items.length === 1 ? '' : 's'} on this page.`;
+  });
+  readonly exportChoiceLabel = computed(() => {
+    const target = this.exportTarget();
+    return target ? `${target.formNumber} · ${target.formType}` : 'PDF Export';
+  });
+  readonly dhivehiExportStatus = computed(() => {
+    const model = this.dhivehiExport();
+    if (!model) {
+      return '';
+    }
+
+    if (model.hasSavedPdf && model.isSavedPdfStale) {
+      return 'Saved PDF is out of date';
+    }
+
+    if (model.hasSavedPdf) {
+      return 'Saved PDF ready';
+    }
+
+    return model.hasDhivehiContent ? 'Dhivehi content saved' : 'Dhivehi content not prepared';
   });
 
   readonly filtersForm = this.formBuilder.group({
@@ -496,6 +142,16 @@ export class StaffConductPageComponent implements OnInit {
     resolvedDate: ['']
   });
 
+  readonly dhivehiForm = this.formBuilder.group({
+    subjectDv: ['', Validators.maxLength(200)],
+    incidentDetailsDv: ['', Validators.maxLength(2000)],
+    actionTakenDv: ['', Validators.maxLength(1000)],
+    requiredImprovementDv: ['', Validators.maxLength(1000)],
+    employeeRemarksDv: ['', Validators.maxLength(1000)],
+    acknowledgementDv: ['', Validators.maxLength(1000)],
+    resolutionNotesDv: ['', Validators.maxLength(1000)]
+  });
+
   ngOnInit(): void {
     this.loadStaffOptions();
     this.applyFilters();
@@ -514,6 +170,31 @@ export class StaffConductPageComponent implements OnInit {
       default:
         return 'pill-open';
     }
+  }
+
+  detailDhivehiStatus(detail: StaffConductDetail): string {
+    if (detail.hasSavedDhivehiPdf && detail.isSavedDhivehiPdfStale) {
+      return 'Saved PDF needs regeneration';
+    }
+
+    if (detail.hasSavedDhivehiPdf) {
+      return 'Saved PDF available';
+    }
+
+    return detail.hasDhivehiContent ? 'Dhivehi content saved' : 'Not prepared yet';
+  }
+
+  detailDhivehiNote(detail: StaffConductDetail): string {
+    if (detail.hasSavedDhivehiPdf) {
+      const filePart = detail.dhivehiPdfFileName ? `${detail.dhivehiPdfFileName}. ` : '';
+      return detail.isSavedDhivehiPdfStale
+        ? `${filePart}Regenerate after editing the Dhivehi content or the English source form.`
+        : `${filePart}Download the stored Dhivehi PDF directly any time.`;
+    }
+
+    return detail.hasDhivehiContent
+      ? 'Dhivehi text is saved. Generate the PDF once to store it for later downloads.'
+      : 'Prepare the Dhivehi version once and the generated PDF will be stored for later download.';
   }
 
   exportKey(id: string, format: ExportFormat): string {
@@ -540,9 +221,11 @@ export class StaffConductPageComponent implements OnInit {
     if (pageNumber < 1 || this.listLoading()) {
       return;
     }
+
     this.pageNumber.set(pageNumber);
     this.loadList();
   }
+
   openCreate(defaultType: StaffConductFormType): void {
     this.selectedDetail.set(null);
     this.form.reset({
@@ -577,6 +260,7 @@ export class StaffConductPageComponent implements OnInit {
     if (!this.isAdmin()) {
       return;
     }
+
     this.drawerMode.set('edit');
     this.loadDetail(item.id, true);
   }
@@ -586,6 +270,7 @@ export class StaffConductPageComponent implements OnInit {
     if (!detail || !this.isAdmin()) {
       return;
     }
+
     this.patchForm(detail);
     this.drawerMode.set('edit');
   }
@@ -594,15 +279,54 @@ export class StaffConductPageComponent implements OnInit {
     if (this.saveLoading()) {
       return;
     }
+
     this.drawerMode.set(null);
     this.detailLoading.set(false);
     this.detailExportLoading.set(null);
+  }
+
+  closeTransientPanels(): void {
+    if (this.dhivehiEditorOpen()) {
+      this.closeDhivehiEditor();
+      return;
+    }
+
+    this.closeExportChoice();
+  }
+
+  closeExportChoice(): void {
+    if (this.exportChoiceEnglishLoading() || this.dhivehiLoading()) {
+      return;
+    }
+
+    this.exportChoiceOpen.set(false);
+    this.exportTarget.set(null);
+  }
+
+  closeDhivehiEditor(): void {
+    if (this.dhivehiSaveLoading() || this.dhivehiGenerateLoading() || this.dhivehiDownloadLoading()) {
+      return;
+    }
+
+    this.dhivehiEditorOpen.set(false);
+    this.dhivehiExport.set(null);
+    this.exportTarget.set(null);
+    this.dhivehiForm.reset({
+      subjectDv: '',
+      incidentDetailsDv: '',
+      actionTakenDv: '',
+      requiredImprovementDv: '',
+      employeeRemarksDv: '',
+      acknowledgementDv: '',
+      resolutionNotesDv: ''
+    });
   }
 
   saveForm(): void {
     if (!this.isAdmin()) {
       return;
     }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -632,9 +356,11 @@ export class StaffConductPageComponent implements OnInit {
     if (this.busy()) {
       return;
     }
+
     const request = format === 'excel'
       ? this.api.exportStaffConductSummaryExcel(this.buildQueryParams(false))
       : this.api.exportStaffConductSummaryPdf(this.buildQueryParams(false));
+
     this.summaryExportLoading.set(format);
     request.pipe(finalize(() => this.summaryExportLoading.set(null))).subscribe({
       next: (blob) => {
@@ -646,40 +372,176 @@ export class StaffConductPageComponent implements OnInit {
   }
 
   exportSingle(item: StaffConductListItem, format: ExportFormat): void {
-    if (this.busy()) {
+    if (format === 'excel') {
+      this.exportExcelFromRow(item);
       return;
     }
-    const key = this.exportKey(item.id, format);
-    const request = format === 'excel' ? this.api.exportStaffConductFormExcel(item.id) : this.api.exportStaffConductFormPdf(item.id);
-    this.rowExportKey.set(key);
-    request.pipe(finalize(() => this.rowExportKey.set(null))).subscribe({
-      next: (blob) => {
-        this.download(blob, `${item.formNumber}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-        this.toast.success(`${item.formNumber} exported to ${format.toUpperCase()}.`);
-      },
-      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${item.formNumber}.`))
-    });
+
+    this.openExportChoiceFor(item);
   }
 
   exportDetailFromDrawer(format: ExportFormat): void {
-    const detail = this.selectedDetail();
-    if (!detail || this.busy()) {
+    if (format === 'excel') {
+      this.exportExcelFromDrawer();
       return;
     }
-    const request = format === 'excel' ? this.api.exportStaffConductFormExcel(detail.id) : this.api.exportStaffConductFormPdf(detail.id);
-    this.detailExportLoading.set(format);
-    request.pipe(finalize(() => this.detailExportLoading.set(null))).subscribe({
-      next: (blob) => {
-        this.download(blob, `${detail.formNumber}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-        this.toast.success(`${detail.formNumber} exported to ${format.toUpperCase()}.`);
+
+    this.downloadEnglishPdfFromDrawer();
+  }
+
+  openExportChoiceFor(item: StaffConductListItem | StaffConductDetail): void {
+    if (this.busy()) {
+      return;
+    }
+
+    if (this.isDetail(item)) {
+      this.exportTarget.set(item);
+      this.exportChoiceOpen.set(true);
+      return;
+    }
+
+    const current = this.selectedDetail();
+    if (current && current.id === item.id) {
+      this.exportTarget.set(current);
+      this.exportChoiceOpen.set(true);
+      return;
+    }
+
+    const key = this.exportKey(item.id, 'pdf');
+    this.rowExportKey.set(key);
+    this.api.getStaffConductFormById(item.id).pipe(finalize(() => this.rowExportKey.set(null))).subscribe({
+      next: (detail) => {
+        this.exportTarget.set(detail);
+        this.exportChoiceOpen.set(true);
       },
-      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${detail.formNumber}.`))
+      error: (error) => this.toast.error(extractApiError(error, 'Unable to load the form for export.'))
     });
+  }
+
+  downloadEnglishPdfFromChoice(): void {
+    const target = this.exportTarget();
+    if (!target || this.exportChoiceEnglishLoading()) {
+      return;
+    }
+
+    this.exportChoiceEnglishLoading.set(true);
+    this.api.exportStaffConductFormPdf(target.id).pipe(finalize(() => this.exportChoiceEnglishLoading.set(false))).subscribe({
+      next: (blob) => {
+        this.download(blob, `${target.formNumber}.pdf`);
+        this.toast.success(`${target.formNumber} exported to PDF.`);
+        if (this.exportChoiceOpen()) {
+          this.closeExportChoice();
+        }
+      },
+      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${target.formNumber}.`))
+    });
+  }
+
+  prepareDhivehiExportFromChoice(): void {
+    const target = this.exportTarget();
+    if (!target) {
+      return;
+    }
+
+    if (!this.isAdmin()) {
+      this.downloadSavedDhivehiPdf(target.id, target.dhivehiPdfFileName ?? `${target.formNumber}-dhivehi.pdf`, target.formNumber);
+      return;
+    }
+
+    this.loadDhivehiExport(target.id, target);
+  }
+
+  prepareDhivehiExportFromDetail(): void {
+    const detail = this.selectedDetail();
+    if (!detail || !this.isAdmin()) {
+      return;
+    }
+
+    this.loadDhivehiExport(detail.id, detail);
+  }
+
+  saveDhivehiContent(): void {
+    const model = this.dhivehiExport();
+    if (!model || this.dhivehiForm.invalid) {
+      this.dhivehiForm.markAllAsTouched();
+      return;
+    }
+
+    this.dhivehiSaveLoading.set(true);
+    this.api.saveStaffConductDhivehiExport(model.formId, this.buildDhivehiPayload())
+      .pipe(finalize(() => this.dhivehiSaveLoading.set(false)))
+      .subscribe({
+        next: (saved) => {
+          this.applyDhivehiExport(saved);
+          this.refreshDetailSnapshots(model.formId);
+          this.toast.success('Dhivehi export content saved.');
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to save Dhivehi export content.'))
+      });
+  }
+
+  generateDhivehiPdf(): void {
+    const model = this.dhivehiExport();
+    if (!model || this.dhivehiForm.invalid) {
+      this.dhivehiForm.markAllAsTouched();
+      return;
+    }
+
+    const fileName = model.savedPdfFileName || `${model.formNumber}-dhivehi.pdf`;
+    this.dhivehiGenerateLoading.set(true);
+    this.api.saveStaffConductDhivehiExport(model.formId, this.buildDhivehiPayload()).pipe(
+      map((saved) => {
+        this.applyDhivehiExport(saved);
+        return saved;
+      }),
+      switchMap((saved) => this.api.generateStaffConductDhivehiPdf(saved.formId).pipe(map((blob) => ({ blob, formId: saved.formId, fileName })))),
+      switchMap((result) => this.api.getStaffConductDhivehiExport(result.formId).pipe(map((updated) => ({ ...result, updated })))),
+      finalize(() => this.dhivehiGenerateLoading.set(false))
+    ).subscribe({
+      next: ({ blob, updated, fileName: resolvedName }) => {
+        this.applyDhivehiExport(updated);
+        this.refreshDetailSnapshots(updated.formId);
+        this.download(blob, updated.savedPdfFileName || resolvedName);
+        this.toast.success('Dhivehi PDF generated and saved.');
+      },
+      error: (error) => this.toast.error(extractApiError(error, 'Unable to generate the Dhivehi PDF.'))
+    });
+  }
+
+  downloadSavedDhivehiPdfFromChoice(): void {
+    const target = this.exportTarget();
+    if (!target) {
+      return;
+    }
+
+    this.downloadSavedDhivehiPdf(target.id, target.dhivehiPdfFileName ?? `${target.formNumber}-dhivehi.pdf`, target.formNumber, () => this.closeExportChoice());
+  }
+
+  downloadSavedDhivehiPdfFromDetail(): void {
+    const detail = this.selectedDetail();
+    if (!detail) {
+      return;
+    }
+
+    this.downloadSavedDhivehiPdf(detail.id, detail.dhivehiPdfFileName ?? `${detail.formNumber}-dhivehi.pdf`, detail.formNumber);
+  }
+
+  downloadSavedDhivehiPdfFromEditor(): void {
+    const model = this.dhivehiExport();
+    if (!model) {
+      return;
+    }
+
+    this.downloadSavedDhivehiPdf(model.formId, model.savedPdfFileName ?? `${model.formNumber}-dhivehi.pdf`, model.formNumber);
   }
 
   showError(controlName: string, errorCode: string): boolean {
     const control = this.form.get(controlName);
     return !!control && control.touched && control.hasError(errorCode);
+  }
+
+  private isDetail(value: StaffConductListItem | StaffConductDetail): value is StaffConductDetail {
+    return 'incidentDetails' in value;
   }
 
   private loadStaffOptions(): void {
@@ -718,6 +580,94 @@ export class StaffConductPageComponent implements OnInit {
         this.toast.error(extractApiError(error, 'Unable to load form details.'));
         this.closeDrawer();
       }
+    });
+  }
+
+  private loadDhivehiExport(formId: string, target: StaffConductDetail): void {
+    this.dhivehiLoading.set(true);
+    this.exportTarget.set(target);
+    this.api.getStaffConductDhivehiExport(formId).pipe(finalize(() => this.dhivehiLoading.set(false))).subscribe({
+      next: (model) => {
+        this.applyDhivehiExport(model);
+        this.exportChoiceOpen.set(false);
+        this.dhivehiEditorOpen.set(true);
+      },
+      error: (error) => this.toast.error(extractApiError(error, 'Unable to load the Dhivehi export form.'))
+    });
+  }
+
+  private applyDhivehiExport(model: StaffConductDhivehiExport): void {
+    this.dhivehiExport.set(model);
+    this.dhivehiForm.reset({
+      subjectDv: model.subjectDv ?? '',
+      incidentDetailsDv: model.incidentDetailsDv ?? '',
+      actionTakenDv: model.actionTakenDv ?? '',
+      requiredImprovementDv: model.requiredImprovementDv ?? '',
+      employeeRemarksDv: model.employeeRemarksDv ?? '',
+      acknowledgementDv: model.acknowledgementDv ?? '',
+      resolutionNotesDv: model.resolutionNotesDv ?? ''
+    });
+  }
+
+  private refreshDetailSnapshots(formId: string): void {
+    this.api.getStaffConductFormById(formId).subscribe({
+      next: (detail) => {
+        if (this.selectedDetail()?.id === formId) {
+          this.selectedDetail.set(detail);
+        }
+
+        if (this.exportTarget()?.id === formId) {
+          this.exportTarget.set(detail);
+        }
+      }
+    });
+  }
+
+  private exportExcelFromRow(item: StaffConductListItem): void {
+    if (this.busy()) {
+      return;
+    }
+
+    const key = this.exportKey(item.id, 'excel');
+    this.rowExportKey.set(key);
+    this.api.exportStaffConductFormExcel(item.id).pipe(finalize(() => this.rowExportKey.set(null))).subscribe({
+      next: (blob) => {
+        this.download(blob, `${item.formNumber}.xlsx`);
+        this.toast.success(`${item.formNumber} exported to EXCEL.`);
+      },
+      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${item.formNumber}.`))
+    });
+  }
+
+  private exportExcelFromDrawer(): void {
+    const detail = this.selectedDetail();
+    if (!detail || this.busy()) {
+      return;
+    }
+
+    this.detailExportLoading.set('excel');
+    this.api.exportStaffConductFormExcel(detail.id).pipe(finalize(() => this.detailExportLoading.set(null))).subscribe({
+      next: (blob) => {
+        this.download(blob, `${detail.formNumber}.xlsx`);
+        this.toast.success(`${detail.formNumber} exported to EXCEL.`);
+      },
+      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${detail.formNumber}.`))
+    });
+  }
+
+  private downloadEnglishPdfFromDrawer(): void {
+    const detail = this.selectedDetail();
+    if (!detail || this.busy()) {
+      return;
+    }
+
+    this.detailExportLoading.set('pdf');
+    this.api.exportStaffConductFormPdf(detail.id).pipe(finalize(() => this.detailExportLoading.set(null))).subscribe({
+      next: (blob) => {
+        this.download(blob, `${detail.formNumber}.pdf`);
+        this.toast.success(`${detail.formNumber} exported to PDF.`);
+      },
+      error: (error) => this.toast.error(extractApiError(error, `Failed to export ${detail.formNumber}.`))
     });
   }
 
@@ -782,6 +732,35 @@ export class StaffConductPageComponent implements OnInit {
       resolutionNotes: this.normalizeString(raw.resolutionNotes),
       resolvedDate: raw.status === 'Resolved' ? this.normalizeDate(raw.resolvedDate) : null
     };
+  }
+
+  private buildDhivehiPayload(): Record<string, unknown> {
+    const raw = this.dhivehiForm.getRawValue();
+    return {
+      subjectDv: this.normalizeString(raw.subjectDv),
+      incidentDetailsDv: this.normalizeString(raw.incidentDetailsDv),
+      actionTakenDv: this.normalizeString(raw.actionTakenDv),
+      requiredImprovementDv: this.normalizeString(raw.requiredImprovementDv),
+      employeeRemarksDv: this.normalizeString(raw.employeeRemarksDv),
+      acknowledgementDv: this.normalizeString(raw.acknowledgementDv),
+      resolutionNotesDv: this.normalizeString(raw.resolutionNotesDv)
+    };
+  }
+
+  private downloadSavedDhivehiPdf(formId: string, fileName: string, formNumber: string, afterSuccess?: () => void): void {
+    if (this.dhivehiDownloadLoading()) {
+      return;
+    }
+
+    this.dhivehiDownloadLoading.set(true);
+    this.api.downloadSavedStaffConductDhivehiPdf(formId).pipe(finalize(() => this.dhivehiDownloadLoading.set(false))).subscribe({
+      next: (blob) => {
+        this.download(blob, fileName);
+        this.toast.success(`${formNumber} Dhivehi PDF downloaded.`);
+        afterSuccess?.();
+      },
+      error: (error) => this.toast.error(extractApiError(error, `Failed to download the saved Dhivehi PDF for ${formNumber}.`))
+    });
   }
 
   private normalizeString(value: string | null | undefined): string | null {

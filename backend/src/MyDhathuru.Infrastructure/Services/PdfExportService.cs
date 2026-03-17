@@ -25,9 +25,13 @@ public class PdfExportService : IPdfExportService
 {
     private static readonly TimeSpan MaldivesOffset = TimeSpan.FromHours(5);
     private const int MaxPortalAdminLogoBytes = 5 * 1024 * 1024;
+    private const string FarumaFontFamily = "Faruma";
     private const string DefaultAppLogoFileName = "logo.svg";
     private const string DefaultInvoiceLogoFileName = "logo-name.svg";
     private static readonly HttpClient LogoHttpClient = new() { Timeout = TimeSpan.FromSeconds(6) };
+    private static readonly object FarumaFontSync = new();
+    private static bool FarumaFontRegistrationAttempted;
+    private static bool FarumaFontRegistered;
 
     private readonly IWebHostEnvironment _hostEnvironment;
     private readonly ILogger<PdfExportService> _logger;
@@ -4568,6 +4572,298 @@ public class PdfExportService : IPdfExportService
             .GeneratePdf();
     }
 
+    public byte[] BuildStaffConductFormDhivehiPdf(
+        StaffConductDetailDto sourceModel,
+        StaffConductDhivehiExportDto dhivehiModel,
+        string companyName,
+        string companyInfo,
+        string? logoUrl)
+    {
+        const string Ink = "#283B63";
+        const string Muted = "#697DA7";
+        const string Border = "#D8E2F4";
+        const string Panel = "#F7FAFF";
+        const string Accent = "#6F7FF5";
+        const string WarningFill = "#FFF6E7";
+        const string DisciplineFill = "#FCECF2";
+        const string GoodFill = "#EAF8F1";
+        const string OpenFill = "#EEF2FF";
+
+        static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        static string DateValue(DateOnly? value) => value?.ToString("yyyy-MM-dd") ?? "-";
+        static string LabelForType(StaffConductFormType value) => value == StaffConductFormType.Warning ? "Warning Form" : "Disciplinary Form";
+        static string DetailBackground(StaffConductFormType value) => value == StaffConductFormType.Warning ? WarningFill : DisciplineFill;
+        static string StatusBackground(StaffConductStatus value) => value switch
+        {
+            StaffConductStatus.Resolved => GoodFill,
+            StaffConductStatus.Acknowledged => "#FFF4DE",
+            _ => OpenFill
+        };
+
+        var farumaAvailable = EnsureFarumaFontRegistered();
+        var logoAsset = ResolveTenantInvoiceLogo(logoUrl);
+        var generatedAt = DateTimeOffset.UtcNow.ToOffset(MaldivesOffset);
+        var formLabel = $"{LabelForType(sourceModel.FormType)} - Dhivehi Export";
+
+        string BuildNarrative(string? dhivehiValue, string? englishFallback)
+        {
+            return !string.IsNullOrWhiteSpace(dhivehiValue) ? dhivehiValue.Trim() : Safe(englishFallback);
+        }
+
+        void MetaLine(IContainer container, string label, string value)
+        {
+            container.Row(row =>
+            {
+                row.ConstantItem(118).Text(label).SemiBold().FontColor(Muted);
+                row.RelativeItem().Text(value).FontColor(Ink);
+            });
+        }
+
+        void DhivehiNarrativeCard(IContainer container, string title, string dhivehiLabel, string englishReference, string content, string background)
+        {
+            container
+                .Border(1).BorderColor(Border)
+                .Background(background)
+                .CornerRadius(14)
+                .Padding(10)
+                .Column(column =>
+                {
+                    column.Spacing(6);
+                    column.Item().Text(title).Bold().FontSize(10.2f).FontColor(Ink);
+                    column.Item().AlignRight().Text(text =>
+                    {
+                        text.DefaultTextStyle(style =>
+                        {
+                            var next = style.SemiBold().FontSize(9.6f).FontColor(Muted).DirectionFromRightToLeft();
+                            return farumaAvailable ? next.FontFamily(FarumaFontFamily) : next;
+                        });
+                        text.Span(dhivehiLabel);
+                    });
+                    column.Item().Text($"English reference: {Safe(englishReference)}").FontSize(8.2f).FontColor(Muted);
+                    column.Item().Element(body =>
+                    {
+                        body
+                            .ContentFromRightToLeft()
+                            .AlignRight()
+                            .DefaultTextStyle(style =>
+                            {
+                                var next = style.FontSize(12f).FontColor(Ink).DirectionFromRightToLeft();
+                                return farumaAvailable ? next.FontFamily(FarumaFontFamily) : next;
+                            })
+                            .Text(content);
+                    });
+                });
+        }
+
+        return Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(22);
+                    page.DefaultTextStyle(x => x.FontSize(9.4f).FontColor(Ink));
+
+                    page.Header().Column(header =>
+                    {
+                        header.Spacing(8);
+                        header.Item().Row(row =>
+                        {
+                            row.Spacing(12);
+
+                            row.RelativeItem().Element(left =>
+                            {
+                                if (logoAsset?.HasValue == true)
+                                {
+                                    left.Row(brand =>
+                                    {
+                                        brand.Spacing(8);
+                                        brand.ConstantItem(60)
+                                            .Height(60)
+                                            .Border(1).BorderColor(Border)
+                                            .Background(Colors.White)
+                                            .CornerRadius(12)
+                                            .Padding(5)
+                                            .AlignCenter()
+                                            .AlignMiddle()
+                                            .Element(c => RenderLogo(c, logoAsset));
+                                        brand.RelativeItem().Column(text =>
+                                        {
+                                            text.Spacing(2);
+                                            text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                            text.Item().Text(formLabel).SemiBold().FontSize(10.6f).FontColor(Accent);
+                                            text.Item().Text(companyInfo).FontSize(8.4f).FontColor(Muted);
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    left.Column(text =>
+                                    {
+                                        text.Spacing(2);
+                                        text.Item().Text(companyName).Bold().FontSize(16).FontColor(Ink);
+                                        text.Item().Text(formLabel).SemiBold().FontSize(10.6f).FontColor(Accent);
+                                        text.Item().Text(companyInfo).FontSize(8.4f).FontColor(Muted);
+                                    });
+                                }
+                            });
+
+                            row.ConstantItem(232)
+                                .Border(1).BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(12)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(4);
+                                    meta.Item().AlignRight().Text("DHIVEHI PDF").Bold().FontSize(15).FontColor(Ink);
+                                    meta.Item().AlignRight().Text($"Form No: {Safe(sourceModel.FormNumber)}").SemiBold();
+                                    meta.Item().AlignRight().Text($"Issue Date: {sourceModel.IssueDate:yyyy-MM-dd}");
+                                    meta.Item().AlignRight().Text($"Incident Date: {sourceModel.IncidentDate:yyyy-MM-dd}");
+                                    meta.Item().AlignRight().Text($"Status: {sourceModel.Status}");
+                                });
+                        });
+
+                        header.Item()
+                            .Border(1).BorderColor(Border)
+                            .Background(DetailBackground(sourceModel.FormType))
+                            .CornerRadius(14)
+                            .Padding(10)
+                            .Column(subject =>
+                            {
+                                subject.Spacing(5);
+                                subject.Item().Text("Subject").SemiBold().FontColor(Muted);
+                                subject.Item().AlignRight().Text(text =>
+                                {
+                                    text.DefaultTextStyle(style =>
+                                    {
+                                        var next = style.SemiBold().FontSize(9.6f).FontColor(Muted).DirectionFromRightToLeft();
+                                        return farumaAvailable ? next.FontFamily(FarumaFontFamily) : next;
+                                    });
+                                    text.Span("ސަބްޖެކްޓް");
+                                });
+                                subject.Item().Text($"English reference: {Safe(sourceModel.Subject)}").FontSize(8.2f).FontColor(Muted);
+                                subject.Item().Element(body =>
+                                {
+                                    body
+                                        .ContentFromRightToLeft()
+                                        .AlignRight()
+                                        .DefaultTextStyle(style =>
+                                        {
+                                            var next = style.FontSize(14f).FontColor(Ink).DirectionFromRightToLeft();
+                                            return farumaAvailable ? next.FontFamily(FarumaFontFamily) : next;
+                                        })
+                                        .Text(BuildNarrative(dhivehiModel.SubjectDv, sourceModel.Subject));
+                                });
+                            });
+
+                        header.Item().LineHorizontal(1).LineColor(Border);
+                    });
+
+                    page.Content().Column(column =>
+                    {
+                        column.Spacing(12);
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+
+                            row.RelativeItem()
+                                .Border(1).BorderColor(Border)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(profile =>
+                                {
+                                    profile.Spacing(6);
+                                    profile.Item().Text("Staff Profile").Bold().FontSize(10.6f).FontColor(Ink);
+                                    profile.Item().Element(c => MetaLine(c, "Staff ID", Safe(sourceModel.StaffCode)));
+                                    profile.Item().Element(c => MetaLine(c, "Staff Name", Safe(sourceModel.StaffName)));
+                                    profile.Item().Element(c => MetaLine(c, "Designation", Safe(sourceModel.Designation)));
+                                    profile.Item().Element(c => MetaLine(c, "Work Site", Safe(sourceModel.WorkSite)));
+                                    profile.Item().Element(c => MetaLine(c, "ID Number", Safe(sourceModel.IdNumber)));
+                                });
+
+                            row.RelativeItem()
+                                .Border(1).BorderColor(Border)
+                                .Background(Panel)
+                                .CornerRadius(14)
+                                .Padding(10)
+                                .Column(meta =>
+                                {
+                                    meta.Spacing(6);
+                                    meta.Item().Text("Action Summary").Bold().FontSize(10.6f).FontColor(Ink);
+                                    meta.Item().Element(c => MetaLine(c, "Form Type", sourceModel.FormType.ToString()));
+                                    meta.Item().Element(c => MetaLine(c, "Severity", sourceModel.Severity.ToString()));
+                                    meta.Item().Element(c => MetaLine(c, "Issued By", Safe(sourceModel.IssuedBy)));
+                                    meta.Item().Element(c => MetaLine(c, "Witnessed By", Safe(sourceModel.WitnessedBy)));
+                                    meta.Item().Element(c => MetaLine(c, "Follow Up", DateValue(sourceModel.FollowUpDate)));
+                                });
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(c, "Incident Details", "ހާދިސާގެ ތަފްސީލް", sourceModel.IncidentDetails, BuildNarrative(dhivehiModel.IncidentDetailsDv, sourceModel.IncidentDetails), Colors.White));
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(c, "Action Taken", "ނެގި ފިޔަވަޅު", sourceModel.ActionTaken, BuildNarrative(dhivehiModel.ActionTakenDv, sourceModel.ActionTaken), Colors.White));
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(c, "Required Improvement", "ބޭނުންވާ އިސްލާހު", sourceModel.RequiredImprovement ?? "-", BuildNarrative(dhivehiModel.RequiredImprovementDv, sourceModel.RequiredImprovement), Colors.White));
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(c, "Employee Remarks", "މުވައްޒަފުގެ ރިމާކްސް", sourceModel.EmployeeRemarks ?? "-", BuildNarrative(dhivehiModel.EmployeeRemarksDv, sourceModel.EmployeeRemarks), Colors.White));
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(10);
+
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(
+                                c,
+                                "Acknowledgement",
+                                "އެކްނޮލެޖްމަންޓް",
+                                dhivehiModel.AcknowledgementSource,
+                                BuildNarrative(dhivehiModel.AcknowledgementDv, dhivehiModel.AcknowledgementSource),
+                                StatusBackground(sourceModel.Status)));
+
+                            row.RelativeItem().Element(c => DhivehiNarrativeCard(
+                                c,
+                                "Resolution Notes",
+                                "ނިންމުމުގެ ނޯޓްސް",
+                                sourceModel.ResolutionNotes ?? "-",
+                                BuildNarrative(dhivehiModel.ResolutionNotesDv, sourceModel.ResolutionNotes),
+                                StatusBackground(sourceModel.Status)));
+                        });
+                    });
+
+                    page.Footer().Column(footer =>
+                    {
+                        footer.Spacing(4);
+                        footer.Item().LineHorizontal(1).LineColor(Border);
+                        footer.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.Span("Generated by myDhathuru");
+                                text.Span(" | ");
+                                text.Span($"{generatedAt:yyyy-MM-dd HH:mm} MVT");
+                            });
+
+                            row.ConstantItem(72).AlignRight().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                                text.CurrentPageNumber();
+                                text.Span(" / ");
+                                text.TotalPages();
+                            });
+                        });
+                    });
+                });
+            })
+            .GeneratePdf();
+    }
+
     public byte[] BuildStaffConductSummaryPdf(IReadOnlyList<StaffConductListItemDto> rows, StaffConductSummaryDto summary, string companyName, string companyInfo, string? logoUrl, StaffConductListQuery query)
     {
         const string Ink = "#283B63";
@@ -5356,6 +5652,62 @@ public class PdfExportService : IPdfExportService
     {
         return
             $"Preset: {meta.DatePreset} | Range: {ToMaldivesTime(meta.RangeStartUtc):yyyy-MM-dd HH:mm} to {ToMaldivesTime(meta.RangeEndUtc):yyyy-MM-dd HH:mm} MVT | Customer: {meta.CustomerFilterLabel} | Generated: {ToMaldivesTime(meta.GeneratedAtUtc):yyyy-MM-dd HH:mm} MVT";
+    }
+
+    private bool EnsureFarumaFontRegistered()
+    {
+        if (FarumaFontRegistrationAttempted)
+        {
+            return FarumaFontRegistered;
+        }
+
+        lock (FarumaFontSync)
+        {
+            if (FarumaFontRegistrationAttempted)
+            {
+                return FarumaFontRegistered;
+            }
+
+            foreach (var candidatePath in GetFarumaFontCandidatePaths())
+            {
+                try
+                {
+                    var normalizedPath = Path.GetFullPath(candidatePath);
+                    if (!File.Exists(normalizedPath))
+                    {
+                        continue;
+                    }
+
+                    using var stream = File.OpenRead(normalizedPath);
+                    QuestPDF.Drawing.FontManager.RegisterFontWithCustomName(FarumaFontFamily, stream);
+                    FarumaFontRegistered = true;
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Unable to register Faruma font from {FontPath}.", candidatePath);
+                }
+            }
+
+            FarumaFontRegistrationAttempted = true;
+
+            if (!FarumaFontRegistered)
+            {
+                _logger.LogWarning("Faruma font was not found for Dhivehi staff-conduct exports. Falling back to the default QuestPDF font.");
+            }
+
+            return FarumaFontRegistered;
+        }
+    }
+
+    private IEnumerable<string> GetFarumaFontCandidatePaths()
+    {
+        yield return Path.Combine(_hostEnvironment.ContentRootPath, "Assets", "Fonts", "Faruma.ttf");
+        yield return Path.Combine(_hostEnvironment.ContentRootPath, "Assets", "Fonts", "faruma.ttf");
+        yield return Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts", "Faruma.ttf");
+        yield return Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts", "faruma.ttf");
+        yield return Path.Combine(_hostEnvironment.ContentRootPath, "..", "..", "..", "MyDhathuru.Api", "Assets", "Fonts", "Faruma.ttf");
+        yield return Path.Combine(_hostEnvironment.ContentRootPath, "..", "..", "..", "MyDhathuru.Api", "Assets", "Fonts", "faruma.ttf");
     }
 
     private LogoAsset? ResolvePortalAdminLogo(string? logoUrl)

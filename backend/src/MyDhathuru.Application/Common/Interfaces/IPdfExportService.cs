@@ -31,6 +31,7 @@ public interface IPdfExportService
     byte[] BuildPortalAdminInvoicePdf(PortalAdminBillingInvoiceDetailDto model, PortalAdminBillingSettingsDto settings);
     byte[] BuildExpenseLedgerPdf(IReadOnlyList<ExpenseLedgerRowDto> rows, ExpenseSummaryDto summary, string companyName, string companyInfo, string? logoUrl, ExpenseLedgerQuery query);
     byte[] BuildStaffConductFormPdf(StaffConductDetailDto model, string companyName, string companyInfo, string? logoUrl);
+    byte[] BuildStaffConductFormDhivehiPdf(StaffConductDetailDto sourceModel, StaffConductDhivehiExportDto dhivehiModel, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildStaffConductSummaryPdf(IReadOnlyList<StaffConductListItemDto> rows, StaffConductSummaryDto summary, string companyName, string companyInfo, string? logoUrl, StaffConductListQuery query);
     byte[] BuildMiraInputTaxStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);
     byte[] BuildMiraOutputTaxStatementPdf(MiraReportPreviewDto model, string companyName, string companyInfo, string? logoUrl);

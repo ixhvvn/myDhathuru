@@ -39,5 +39,7 @@ public enum BusinessAuditActionType
     OtherIncomeEntryDeleted = 35,
     BptAdjustmentCreated = 36,
     BptAdjustmentUpdated = 37,
-    BptAdjustmentDeleted = 38
+    BptAdjustmentDeleted = 38,
+    StaffConductDhivehiSaved = 39,
+    StaffConductDhivehiPdfGenerated = 40
 }

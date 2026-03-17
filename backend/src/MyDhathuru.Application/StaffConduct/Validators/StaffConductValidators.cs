@@ -38,3 +38,17 @@ public class StaffConductListQueryValidator : AbstractValidator<StaffConductList
             .When(x => x.DateFrom.HasValue && x.DateTo.HasValue);
     }
 }
+
+public class UpsertStaffConductDhivehiExportRequestValidator : AbstractValidator<UpsertStaffConductDhivehiExportRequest>
+{
+    public UpsertStaffConductDhivehiExportRequestValidator()
+    {
+        RuleFor(x => x.SubjectDv).MaximumLength(200);
+        RuleFor(x => x.IncidentDetailsDv).MaximumLength(2000);
+        RuleFor(x => x.ActionTakenDv).MaximumLength(1000);
+        RuleFor(x => x.RequiredImprovementDv).MaximumLength(1000);
+        RuleFor(x => x.EmployeeRemarksDv).MaximumLength(1000);
+        RuleFor(x => x.AcknowledgementDv).MaximumLength(1000);
+        RuleFor(x => x.ResolutionNotesDv).MaximumLength(1000);
+    }
+}

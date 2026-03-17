@@ -13,6 +13,10 @@ public interface IStaffConductService
     Task<StaffConductDetailDto> UpdateAsync(Guid id, UpdateStaffConductFormRequest request, CancellationToken cancellationToken = default);
     Task<byte[]> ExportPdfAsync(Guid id, CancellationToken cancellationToken = default);
     Task<byte[]> ExportExcelAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<StaffConductDhivehiExportDto> GetDhivehiExportAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<StaffConductDhivehiExportDto> SaveDhivehiExportAsync(Guid id, UpsertStaffConductDhivehiExportRequest request, CancellationToken cancellationToken = default);
+    Task<StaffConductExportFileDto> GenerateDhivehiPdfAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<StaffConductExportFileDto> DownloadSavedDhivehiPdfAsync(Guid id, CancellationToken cancellationToken = default);
     Task<byte[]> ExportSummaryPdfAsync(StaffConductListQuery query, CancellationToken cancellationToken = default);
     Task<byte[]> ExportSummaryExcelAsync(StaffConductListQuery query, CancellationToken cancellationToken = default);
 }

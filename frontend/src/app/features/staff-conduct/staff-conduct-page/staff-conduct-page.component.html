@@ -1,0 +1,435 @@
+<section class="staff-conduct-page">
+  <app-page-header
+    title="Disciplinary & Warning"
+    subtitle="Create, review, and export staff warning and disciplinary forms directly from the live payroll staff master.">
+  </app-page-header>
+
+  <div class="summary-grid">
+    <app-card class="summary-card summary-card-all"><span>Total Forms</span><strong>{{ summary().totalForms }}</strong><small>All matching records</small></app-card>
+    <app-card class="summary-card summary-card-warning"><span>Warnings</span><strong>{{ summary().warningCount }}</strong><small>Staff warning forms</small></app-card>
+    <app-card class="summary-card summary-card-discipline"><span>Disciplinary</span><strong>{{ summary().disciplinaryCount }}</strong><small>Escalated HR forms</small></app-card>
+    <app-card class="summary-card summary-card-open"><span>Open</span><strong>{{ summary().openCount }}</strong><small>Awaiting closure</small></app-card>
+    <app-card class="summary-card summary-card-ack"><span>Acknowledged</span><strong>{{ summary().acknowledgedCount }}</strong><small>Staff acknowledged</small></app-card>
+    <app-card class="summary-card summary-card-resolved"><span>Resolved</span><strong>{{ summary().resolvedCount }}</strong><small>Closed records</small></app-card>
+  </div>
+
+  <app-card class="filters-card">
+    <div class="toolbar-row">
+      <div>
+        <h3>Form Register</h3>
+        <p>Filter staff conduct records, export the current register, or issue a new form.</p>
+        <small class="toolbar-note">PDF export now lets you choose English or Dhivehi for each staff form. Excel stays in the current English format.</small>
+      </div>
+
+      <div class="toolbar-actions">
+        <app-button variant="secondary" [loading]="summaryExportLoading() === 'excel'" [disabled]="busy()" (clicked)="exportSummary('excel')">Export Excel</app-button>
+        <app-button variant="secondary" [loading]="summaryExportLoading() === 'pdf'" [disabled]="busy()" (clicked)="exportSummary('pdf')">Export PDF</app-button>
+        <app-button *ngIf="isAdmin()" variant="secondary" [disabled]="busy()" (clicked)="openCreate('Warning')">New Warning</app-button>
+        <app-button *ngIf="isAdmin()" [disabled]="busy()" (clicked)="openCreate('Disciplinary')">New Disciplinary</app-button>
+      </div>
+    </div>
+
+    <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="applyFilters()">
+      <label>
+        Search
+        <input formControlName="search" placeholder="Form no., staff, subject, issued by">
+      </label>
+
+      <label>
+        Staff
+        <select formControlName="staffId">
+          <option value="">All staff</option>
+          <option *ngFor="let staff of staffOptions()" [value]="staff.id">{{ staff.staffId }} - {{ staff.staffName }}</option>
+        </select>
+      </label>
+
+      <label>
+        Form Type
+        <select formControlName="formType">
+          <option value="">All types</option>
+          <option *ngFor="let option of formTypeOptions" [value]="option">{{ option }}</option>
+        </select>
+      </label>
+
+      <label>
+        Status
+        <select formControlName="status">
+          <option value="">All statuses</option>
+          <option *ngFor="let option of statusOptions" [value]="option">{{ option }}</option>
+        </select>
+      </label>
+
+      <label>
+        From
+        <input type="date" formControlName="dateFrom">
+      </label>
+
+      <label>
+        To
+        <input type="date" formControlName="dateTo">
+      </label>
+
+      <div class="filter-actions">
+        <app-button type="submit" [loading]="listLoading()" [disabled]="busy()">Generate</app-button>
+        <app-button type="button" variant="secondary" [disabled]="busy()" (clicked)="resetFilters()">Reset</app-button>
+      </div>
+    </form>
+  </app-card>
+
+  <app-card class="list-card">
+    <div class="list-head">
+      <div>
+        <h3>Staff Conduct List</h3>
+        <p>{{ pageSummary() }}</p>
+      </div>
+      <div class="meta-chip" *ngIf="page() as current">Page {{ current.pageNumber }} of {{ current.totalPages || 1 }}</div>
+    </div>
+
+    <app-data-table [hasData]="(page()?.items?.length || 0) > 0" emptyTitle="No forms found" emptyDescription="Create a warning or disciplinary form to start building the conduct register.">
+      <thead>
+        <tr>
+          <th>Form No</th>
+          <th>Type</th>
+          <th>Issue Date</th>
+          <th>Staff</th>
+          <th>Subject</th>
+          <th>Severity</th>
+          <th>Status</th>
+          <th>Issued By</th>
+          <th>Follow Up</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of page()?.items">
+          <td>{{ item.formNumber }}</td>
+          <td><span class="pill" [ngClass]="typePillClass(item.formType)">{{ item.formType }}</span></td>
+          <td>{{ item.issueDate | date: 'yyyy-MM-dd' }}</td>
+          <td><div class="stack"><strong>{{ item.staffCode }} - {{ item.staffName }}</strong><span>{{ item.designation || '-' }} | {{ item.workSite || '-' }}</span></div></td>
+          <td><div class="subject-cell"><strong>{{ item.subject }}</strong><small>Incident {{ item.incidentDate | date: 'yyyy-MM-dd' }}</small></div></td>
+          <td>{{ item.severity }}</td>
+          <td><span class="pill" [ngClass]="statusPillClass(item.status)">{{ item.status }}</span></td>
+          <td>{{ item.issuedBy }}</td>
+          <td>{{ item.followUpDate ? (item.followUpDate | date: 'yyyy-MM-dd') : '-' }}</td>
+          <td class="row-actions">
+            <div class="row-action-group">
+              <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="openView(item)">View</app-button>
+              <app-button *ngIf="isAdmin()" size="sm" variant="secondary" [disabled]="busy()" (clicked)="openEdit(item)">Edit</app-button>
+              <app-button size="sm" variant="secondary" [loading]="rowExportKey() === exportKey(item.id, 'pdf')" [disabled]="busyExcept(item.id, 'pdf')" (clicked)="exportSingle(item, 'pdf')">PDF</app-button>
+              <app-button size="sm" variant="secondary" [loading]="rowExportKey() === exportKey(item.id, 'excel')" [disabled]="busyExcept(item.id, 'excel')" (clicked)="exportSingle(item, 'excel')">Excel</app-button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </app-data-table>
+
+    <div class="pager" *ngIf="page() as current">
+      <span>Total {{ current.totalCount }} record{{ current.totalCount === 1 ? '' : 's' }}</span>
+      <div class="pager-actions">
+        <app-button size="sm" variant="secondary" [disabled]="listLoading() || current.pageNumber <= 1" (clicked)="changePage(current.pageNumber - 1)">Previous</app-button>
+        <app-button size="sm" variant="secondary" [disabled]="listLoading() || current.pageNumber >= (current.totalPages || 1)" (clicked)="changePage(current.pageNumber + 1)">Next</app-button>
+      </div>
+    </div>
+  </app-card>
+</section>
+
+<div class="drawer-backdrop" *ngIf="drawerMode()" (click)="closeDrawer()"></div>
+
+<aside class="drawer" *ngIf="drawerMode()">
+  <app-card class="drawer-card">
+    <ng-container [ngSwitch]="drawerMode()">
+      <ng-container *ngSwitchCase="'view'">
+        <div class="drawer-shell">
+          <div class="drawer-head">
+            <div>
+              <h3>{{ selectedDetail()?.formType }} Form</h3>
+              <p>{{ selectedDetail()?.formNumber }}</p>
+            </div>
+            <div class="drawer-actions">
+              <app-button variant="secondary" size="sm" [loading]="detailExportLoading() === 'excel'" [disabled]="busy()" (clicked)="exportDetailFromDrawer('excel')">Export Excel</app-button>
+              <app-button variant="secondary" size="sm" [loading]="detailExportLoading() === 'pdf'" [disabled]="busy()" (clicked)="exportDetailFromDrawer('pdf')">Download English PDF</app-button>
+              <app-button *ngIf="isAdmin()" size="sm" variant="secondary" [loading]="dhivehiLoading()" [disabled]="busy()" (clicked)="prepareDhivehiExportFromDetail()">Prepare/Edit Dhivehi Export</app-button>
+              <app-button *ngIf="selectedDetail()?.hasSavedDhivehiPdf" size="sm" variant="secondary" [loading]="dhivehiDownloadLoading()" [disabled]="busy()" (clicked)="downloadSavedDhivehiPdfFromDetail()">Download Dhivehi PDF</app-button>
+              <app-button *ngIf="isAdmin()" size="sm" [disabled]="busy()" (clicked)="editSelected()">Edit</app-button>
+              <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="closeDrawer()">Close</app-button>
+            </div>
+          </div>
+
+          <div class="drawer-body">
+            <div class="drawer-loading" *ngIf="detailLoading()">Loading form...</div>
+
+            <ng-container *ngIf="!detailLoading() && selectedDetail() as detail">
+              <div class="detail-grid">
+                <article><span>Staff</span><strong>{{ detail.staffCode }} - {{ detail.staffName }}</strong><small>{{ detail.designation || '-' }} | {{ detail.workSite || '-' }}</small></article>
+                <article><span>Status</span><strong>{{ detail.status }}</strong><small>Severity {{ detail.severity }}</small></article>
+                <article><span>Issue Date</span><strong>{{ detail.issueDate | date: 'yyyy-MM-dd' }}</strong><small>Incident {{ detail.incidentDate | date: 'yyyy-MM-dd' }}</small></article>
+                <article><span>Issued By</span><strong>{{ detail.issuedBy }}</strong><small>Witnessed by {{ detail.witnessedBy || '-' }}</small></article>
+              </div>
+
+              <div class="detail-panels">
+                <section><h4>Subject</h4><p>{{ detail.subject }}</p></section>
+                <section><h4>Incident Details</h4><p>{{ detail.incidentDetails }}</p></section>
+                <section><h4>Action Taken</h4><p>{{ detail.actionTaken }}</p></section>
+                <section><h4>Required Improvement</h4><p>{{ detail.requiredImprovement || '-' }}</p></section>
+                <section><h4>Employee Remarks</h4><p>{{ detail.employeeRemarks || '-' }}</p></section>
+                <section><h4>Resolution</h4><p>{{ detail.resolutionNotes || '-' }}</p></section>
+              </div>
+
+              <div class="detail-footer">
+                <div><span>Acknowledged</span><strong>{{ detail.isAcknowledgedByStaff ? 'Yes' : 'No' }}</strong><small>{{ detail.acknowledgedDate ? (detail.acknowledgedDate | date: 'yyyy-MM-dd') : 'No acknowledgement date' }}</small></div>
+                <div><span>Follow Up</span><strong>{{ detail.followUpDate ? (detail.followUpDate | date: 'yyyy-MM-dd') : '-' }}</strong><small>Resolved {{ detail.resolvedDate ? (detail.resolvedDate | date: 'yyyy-MM-dd') : 'Not resolved' }}</small></div>
+                <div><span>Dhivehi Export</span><strong>{{ detailDhivehiStatus(detail) }}</strong><small>{{ detailDhivehiNote(detail) }}</small></div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngSwitchDefault>
+        <form class="drawer-shell drawer-form" [formGroup]="form" (ngSubmit)="saveForm()">
+          <div class="drawer-head">
+            <div>
+              <h3>{{ drawerMode() === 'edit' ? 'Edit Form' : 'Create Form' }}</h3>
+              <p>{{ drawerMode() === 'edit' ? selectedDetail()?.formNumber : 'Issue a new warning or disciplinary record.' }}</p>
+            </div>
+            <app-button type="button" size="sm" variant="secondary" [disabled]="saveLoading()" (clicked)="closeDrawer()">Close</app-button>
+          </div>
+
+          <div class="drawer-body">
+            <div class="form-grid">
+              <div class="two-col">
+                <label>
+                  Form Type
+                  <select formControlName="formType"><option *ngFor="let option of formTypeOptions" [value]="option">{{ option }}</option></select>
+                </label>
+                <label>
+                  Staff
+                  <select formControlName="staffId"><option value="">Select staff</option><option *ngFor="let staff of staffOptions()" [value]="staff.id">{{ staff.staffId }} - {{ staff.staffName }}</option></select>
+                  <small class="field-error" *ngIf="showError('staffId', 'required')">Staff is required.</small>
+                </label>
+              </div>
+
+              <div class="two-col">
+                <label>
+                  Issue Date
+                  <input type="date" formControlName="issueDate">
+                  <small class="field-error" *ngIf="showError('issueDate', 'required')">Issue date is required.</small>
+                </label>
+                <label>
+                  Incident Date
+                  <input type="date" formControlName="incidentDate">
+                  <small class="field-error" *ngIf="showError('incidentDate', 'required')">Incident date is required.</small>
+                </label>
+              </div>
+
+              <label>
+                Subject
+                <input formControlName="subject" maxlength="160" placeholder="Short summary of the conduct issue">
+                <small class="field-error" *ngIf="showError('subject', 'required')">Subject is required.</small>
+              </label>
+
+              <div class="two-col">
+                <label>
+                  Severity
+                  <select formControlName="severity"><option *ngFor="let option of severityOptions" [value]="option">{{ option }}</option></select>
+                </label>
+                <label>
+                  Status
+                  <select formControlName="status"><option *ngFor="let option of statusOptions" [value]="option">{{ option }}</option></select>
+                </label>
+              </div>
+
+              <div class="two-col">
+                <label>
+                  Issued By
+                  <input formControlName="issuedBy" maxlength="120" placeholder="Supervisor or manager name">
+                  <small class="field-error" *ngIf="showError('issuedBy', 'required')">Issued by is required.</small>
+                </label>
+                <label>
+                  Witnessed By
+                  <input formControlName="witnessedBy" maxlength="120" placeholder="Optional witness">
+                </label>
+              </div>
+
+              <label>
+                Incident Details
+                <textarea formControlName="incidentDetails" rows="4" maxlength="4000" placeholder="Describe the incident in full"></textarea>
+                <small class="field-error" *ngIf="showError('incidentDetails', 'required')">Incident details are required.</small>
+              </label>
+
+              <label>
+                Action Taken
+                <textarea formControlName="actionTaken" rows="3" maxlength="2000" placeholder="Explain the action, sanction, or next step"></textarea>
+                <small class="field-error" *ngIf="showError('actionTaken', 'required')">Action taken is required.</small>
+              </label>
+
+              <label>
+                Required Improvement
+                <textarea formControlName="requiredImprovement" rows="3" maxlength="2000" placeholder="Expected improvement or follow-up requirements"></textarea>
+              </label>
+
+              <div class="two-col">
+                <label>
+                  Follow Up Date
+                  <input type="date" formControlName="followUpDate">
+                </label>
+                <label class="checkbox-field">
+                  <input type="checkbox" formControlName="isAcknowledgedByStaff">
+                  <span>Staff acknowledged this form</span>
+                </label>
+              </div>
+
+              <div class="two-col">
+                <label>
+                  Acknowledged Date
+                  <input type="date" formControlName="acknowledgedDate">
+                </label>
+                <label>
+                  Resolved Date
+                  <input type="date" formControlName="resolvedDate">
+                </label>
+              </div>
+
+              <label>
+                Employee Remarks
+                <textarea formControlName="employeeRemarks" rows="3" maxlength="2000" placeholder="Optional remarks from the staff member"></textarea>
+              </label>
+
+              <label>
+                Resolution Notes
+                <textarea formControlName="resolutionNotes" rows="3" maxlength="2000" placeholder="Optional closure notes"></textarea>
+              </label>
+            </div>
+          </div>
+
+          <div class="drawer-foot">
+            <app-button type="button" variant="secondary" [disabled]="saveLoading()" (clicked)="closeDrawer()">Cancel</app-button>
+            <app-button type="submit" [loading]="saveLoading()" [disabled]="detailLoading()">{{ drawerMode() === 'edit' ? 'Save Changes' : 'Create Form' }}</app-button>
+          </div>
+        </form>
+      </ng-container>
+    </ng-container>
+  </app-card>
+</aside>
+
+<div class="dialog-backdrop" *ngIf="exportChoiceOpen() || dhivehiEditorOpen()" (click)="closeTransientPanels()"></div>
+
+<section class="dialog export-dialog" *ngIf="exportChoiceOpen() && exportTarget() as target" (click)="$event.stopPropagation()">
+  <app-card class="dialog-card">
+    <div class="dialog-head">
+      <div>
+        <h3>Choose PDF Language</h3>
+        <p>{{ exportChoiceLabel() }}</p>
+      </div>
+      <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="closeExportChoice()">Close</app-button>
+    </div>
+
+    <div class="dialog-body">
+      <div class="export-choice-grid">
+        <article class="choice-card">
+          <span>English</span>
+          <strong>Export the current English PDF now</strong>
+          <p>Use the form exactly as it was created and download the PDF immediately.</p>
+          <app-button [loading]="exportChoiceEnglishLoading()" [disabled]="busy()" (clicked)="downloadEnglishPdfFromChoice()">Download English PDF</app-button>
+        </article>
+
+        <article class="choice-card choice-card-dhivehi">
+          <span>Dhivehi</span>
+          <strong>{{ isAdmin() ? 'Prepare, save, and export the Dhivehi PDF' : 'Download the saved Dhivehi PDF' }}</strong>
+          <p *ngIf="isAdmin()">Open the Dhivehi preparation workflow, save the typed content, and store the generated PDF for later download.</p>
+          <p *ngIf="!isAdmin() && target.hasSavedDhivehiPdf">A saved Dhivehi PDF is already available for this form.</p>
+          <p *ngIf="!isAdmin() && !target.hasSavedDhivehiPdf">A saved Dhivehi PDF is not available yet. Ask an admin to prepare it first.</p>
+          <app-button *ngIf="isAdmin()" [loading]="dhivehiLoading()" [disabled]="busy()" (clicked)="prepareDhivehiExportFromChoice()">Open Dhivehi Workflow</app-button>
+          <app-button *ngIf="!isAdmin() && target.hasSavedDhivehiPdf" [loading]="dhivehiDownloadLoading()" [disabled]="busy()" (clicked)="downloadSavedDhivehiPdfFromChoice()">Download Dhivehi PDF</app-button>
+        </article>
+      </div>
+    </div>
+  </app-card>
+</section>
+
+<section class="dialog dhivehi-dialog" *ngIf="dhivehiEditorOpen() && dhivehiExport() as model" (click)="$event.stopPropagation()">
+  <app-card class="dialog-card dhivehi-dialog-card">
+    <div class="dialog-head">
+      <div>
+        <h3>Dhivehi Export Preparation</h3>
+        <p>{{ model.formNumber }} · {{ model.formType }} · {{ model.staffCode }} - {{ model.staffName }}</p>
+      </div>
+      <app-button size="sm" variant="secondary" [disabled]="busy()" (clicked)="closeDhivehiEditor()">Close</app-button>
+    </div>
+
+    <div class="dialog-body">
+      <div class="status-panel" [class.status-panel-stale]="model.hasSavedPdf && model.isSavedPdfStale">
+        <div>
+          <span>Dhivehi Export Status</span>
+          <strong>{{ dhivehiExportStatus() }}</strong>
+          <small *ngIf="model.savedPdfUpdatedAt">Last saved PDF {{ model.savedPdfUpdatedAt | date: 'yyyy-MM-dd HH:mm' }}</small>
+        </div>
+        <small *ngIf="model.hasSavedPdf && model.isSavedPdfStale">The stored Dhivehi PDF is older than the latest saved content or English source form.</small>
+      </div>
+
+      <div class="missing-panel" *ngIf="model.missingRequiredFields.length > 0">
+        <strong>Required before PDF generation:</strong>
+        <span>{{ model.missingRequiredFields.join(', ') }}</span>
+      </div>
+
+      <div class="reference-grid">
+        <article class="meta-card">
+          <span>Metadata</span>
+          <strong>{{ model.formNumber }}</strong>
+          <small>Issue {{ model.issueDate | date: 'yyyy-MM-dd' }} · Incident {{ model.incidentDate | date: 'yyyy-MM-dd' }}</small>
+          <small>{{ model.designation || '-' }} · {{ model.workSite || '-' }}</small>
+        </article>
+
+        <article class="meta-card">
+          <span>English Source</span>
+          <strong>{{ model.formType }} form reference</strong>
+          <small>The English record stays as the main HR record. Type only the Dhivehi export content here.</small>
+        </article>
+      </div>
+
+      <form class="dhivehi-form-grid" [formGroup]="dhivehiForm">
+        <section class="reference-pair">
+          <div class="source-panel"><span>Subject (English)</span><p>{{ model.subject }}</p></div>
+          <label class="dv-panel">Subject (Dhivehi)<textarea rows="3" formControlName="subjectDv" placeholder="Type the subject in Dhivehi"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Incident Details (English)</span><p>{{ model.incidentDetails }}</p></div>
+          <label class="dv-panel">Incident Details (Dhivehi)<textarea rows="5" formControlName="incidentDetailsDv" placeholder="Type the incident details in Dhivehi"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Action Taken (English)</span><p>{{ model.actionTaken }}</p></div>
+          <label class="dv-panel">Action Taken (Dhivehi)<textarea rows="4" formControlName="actionTakenDv" placeholder="Type the action taken in Dhivehi"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Required Improvement (English)</span><p>{{ model.requiredImprovement || '-' }}</p></div>
+          <label class="dv-panel">Required Improvement (Dhivehi)<textarea rows="4" formControlName="requiredImprovementDv" placeholder="Optional Dhivehi improvement notes"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Employee Remarks (English)</span><p>{{ model.employeeRemarks || '-' }}</p></div>
+          <label class="dv-panel">Employee Remarks (Dhivehi)<textarea rows="4" formControlName="employeeRemarksDv" placeholder="Optional Dhivehi employee remarks"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Acknowledgement Reference (English)</span><p>{{ model.acknowledgementSource }}</p></div>
+          <label class="dv-panel">Acknowledgement (Dhivehi)<textarea rows="4" formControlName="acknowledgementDv" placeholder="Optional Dhivehi acknowledgement text"></textarea></label>
+        </section>
+
+        <section class="reference-pair">
+          <div class="source-panel"><span>Resolution Notes (English)</span><p>{{ model.resolutionNotes || '-' }}</p></div>
+          <label class="dv-panel">Resolution Notes (Dhivehi)<textarea rows="4" formControlName="resolutionNotesDv" placeholder="Optional Dhivehi resolution notes"></textarea></label>
+        </section>
+      </form>
+    </div>
+
+    <div class="dialog-foot">
+      <app-button type="button" variant="secondary" [disabled]="busy()" (clicked)="downloadEnglishPdfFromChoice()">Download English PDF</app-button>
+      <app-button *ngIf="model.hasSavedPdf" type="button" variant="secondary" [loading]="dhivehiDownloadLoading()" [disabled]="busy()" (clicked)="downloadSavedDhivehiPdfFromEditor()">Download Saved Dhivehi PDF</app-button>
+      <app-button type="button" variant="secondary" [loading]="dhivehiSaveLoading()" [disabled]="busy()" (clicked)="saveDhivehiContent()">Save Dhivehi Content</app-button>
+      <app-button type="button" [loading]="dhivehiGenerateLoading()" [disabled]="busy()" (clicked)="generateDhivehiPdf()">Generate Dhivehi PDF</app-button>
+    </div>
+  </app-card>
+</section>
