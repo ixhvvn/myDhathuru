@@ -5,6 +5,7 @@ using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Common.Models;
 using MyDhathuru.Application.PortalAdmin.Dtos;
+using MyDhathuru.Domain.Common;
 using MyDhathuru.Domain.Constants;
 using MyDhathuru.Domain.Entities;
 using MyDhathuru.Domain.Enums;
@@ -73,6 +74,9 @@ public class PortalAdminService : IPortalAdminService
 
     public Task<PortalAdminDemoDataSeedResultDto> GenerateBusinessDemoDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
         => GenerateBusinessDemoDataInternalAsync(tenantId, cancellationToken);
+
+    public Task DeleteBusinessPermanentlyAsync(Guid tenantId, PortalAdminDeleteBusinessRequest request, CancellationToken cancellationToken = default)
+        => DeleteBusinessPermanentlyInternalAsync(tenantId, request, cancellationToken);
 
     public Task UpdateBusinessLoginDetailsAsync(Guid tenantId, PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken = default)
         => UpdateBusinessLoginDetailsInternalAsync(tenantId, request, cancellationToken);
@@ -568,7 +572,6 @@ public class PortalAdminService : IPortalAdminService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
-
     private async Task SetBusinessDataTestingInternalAsync(Guid tenantId, PortalAdminSetBusinessDataTestingRequest request, CancellationToken cancellationToken)
     {
         var reviewer = await EnsureSuperAdminAsync(cancellationToken);
@@ -622,6 +625,124 @@ public class PortalAdminService : IPortalAdminService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return result;
+    }
+
+    private async Task DeleteBusinessPermanentlyInternalAsync(Guid tenantId, PortalAdminDeleteBusinessRequest request, CancellationToken cancellationToken)
+    {
+        var reviewer = await EnsureSuperAdminAsync(cancellationToken);
+        var superAdminTenantIds = SuperAdminTenantIdsQuery();
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted && !superAdminTenantIds.Contains(x.Id), cancellationToken)
+            ?? throw new NotFoundException("Business not found.");
+
+        if (!string.Equals(
+                tenant.CompanyName.Trim(),
+                request.CompanyNameConfirmation.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AppException("Company name confirmation does not match the selected business.");
+        }
+
+        var tenantUserIds = _dbContext.Users.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .Select(x => x.Id);
+
+        var adminInvoiceIds = _dbContext.AdminInvoices.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .Select(x => x.Id);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await RemoveTenantDocumentLinksAsync(tenantId, cancellationToken);
+
+        await _dbContext.AdminInvoiceEmailLogs.IgnoreQueryFilters()
+            .Where(x => adminInvoiceIds.Contains(x.AdminInvoiceId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.AdminInvoiceLineItems.IgnoreQueryFilters()
+            .Where(x => adminInvoiceIds.Contains(x.AdminInvoiceId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.RefreshTokens.IgnoreQueryFilters()
+            .Where(x => tenantUserIds.Contains(x.UserId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.PasswordResetTokens.IgnoreQueryFilters()
+            .Where(x => tenantUserIds.Contains(x.UserId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.AdminEmailCampaignRecipients.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await DeleteTenantRowsAsync<SalarySlip>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<StaffConductForm>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PayrollEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoicePayment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoiceAttachment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoiceItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<InvoicePayment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<InvoiceItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<QuotationItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PurchaseOrderItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DeliveryNoteItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<CustomerContact>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<CustomerOpeningBalance>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptAdjustment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptMappingRule>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PaymentVoucher>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExpenseEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<RentEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<SalesAdjustment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<OtherIncomeEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Invoice>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Quotation>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PurchaseOrder>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DeliveryNote>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoice>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PayrollPeriod>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Staff>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Customer>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Supplier>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Vessel>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExchangeRate>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DocumentSequence>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExpenseCategory>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptCategory>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BusinessAuditLog>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<TenantSettings>(tenantId, cancellationToken);
+
+        await _dbContext.AdminInvoices.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.BusinessCustomRates.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.AdminAuditLogs.IgnoreQueryFilters()
+            .Where(x => x.RelatedTenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.SignupRequests.IgnoreQueryFilters()
+            .Where(x => x.ApprovedTenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.Users.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _dbContext.Tenants.IgnoreQueryFilters()
+            .Where(x => x.Id == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        _logger.LogWarning(
+            "Portal admin {ReviewerUserId} permanently deleted business {TenantId} ({CompanyName}) from the database.",
+            reviewer.Id,
+            tenantId,
+            tenant.CompanyName);
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task UpdateBusinessLoginDetailsInternalAsync(Guid tenantId, PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken)
@@ -852,6 +973,39 @@ public class PortalAdminService : IPortalAdminService
             PerformedByName = actors.GetValueOrDefault(log.PerformedByUserId),
             Details = log.Details
         }).ToList();
+    }
+
+    private async Task RemoveTenantDocumentLinksAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var deliveryNotes = await _dbContext.DeliveryNotes.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId && x.InvoiceId != null)
+            .ToListAsync(cancellationToken);
+        foreach (var deliveryNote in deliveryNotes)
+        {
+            deliveryNote.InvoiceId = null;
+        }
+
+        var invoices = await _dbContext.Invoices.IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId && x.DeliveryNoteId != null)
+            .ToListAsync(cancellationToken);
+        foreach (var invoice in invoices)
+        {
+            invoice.DeliveryNoteId = null;
+        }
+
+        if (deliveryNotes.Count > 0 || invoices.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private Task DeleteTenantRowsAsync<TEntity>(Guid tenantId, CancellationToken cancellationToken)
+        where TEntity : TenantEntity
+    {
+        return _dbContext.Set<TEntity>()
+            .IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     private async Task<User> EnsureSuperAdminAsync(CancellationToken cancellationToken)

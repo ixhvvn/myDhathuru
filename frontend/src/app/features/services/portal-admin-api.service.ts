@@ -83,6 +83,10 @@ export class PortalAdminApiService {
     return this.api.post<PortalAdminDemoDataSeedResult>(`portal-admin/businesses/${tenantId}/generate-demo-data`, {});
   }
 
+  deleteBusinessPermanently(tenantId: string, companyNameConfirmation: string): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>(`portal-admin/businesses/${tenantId}/permanent-delete`, { companyNameConfirmation });
+  }
+
   updateBusinessLoginDetails(
     tenantId: string,
     payload: { adminFullName: string; adminLoginEmail: string; companyEmail: string; companyPhone: string }

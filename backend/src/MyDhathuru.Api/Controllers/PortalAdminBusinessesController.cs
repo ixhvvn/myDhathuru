@@ -64,6 +64,13 @@ public class PortalAdminBusinessesController : BaseApiController
         return OkResponse(result, "Demo data generated.");
     }
 
+    [HttpPost("{tenantId:guid}/permanent-delete")]
+    public async Task<ActionResult<ApiResponse<object>>> PermanentDelete(Guid tenantId, [FromBody] PortalAdminDeleteBusinessRequest request, CancellationToken cancellationToken)
+    {
+        await _portalAdminService.DeleteBusinessPermanentlyAsync(tenantId, request, cancellationToken);
+        return SuccessMessage("Business account and all related data permanently deleted.");
+    }
+
     [HttpPut("{tenantId:guid}/login-details")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateLoginDetails(Guid tenantId, [FromBody] PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken)
     {

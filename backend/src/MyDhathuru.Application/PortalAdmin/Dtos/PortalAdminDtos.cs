@@ -149,6 +149,11 @@ public class PortalAdminSetBusinessDataTestingRequest
     public bool IsDataTesting { get; set; }
 }
 
+public class PortalAdminDeleteBusinessRequest
+{
+    public required string CompanyNameConfirmation { get; set; }
+}
+
 public class PortalAdminSendResetLinkRequest
 {
     public string? AdminEmail { get; set; }

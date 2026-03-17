@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyDhathuru.Api.Common;
 using MyDhathuru.Api.Filters;
+using MyDhathuru.Application.Common.Dtos;
 using MyDhathuru.Application.Common.Exceptions;
 using MyDhathuru.Application.Common.Interfaces;
 using MyDhathuru.Application.Common.Models;
@@ -81,6 +82,14 @@ public class SettingsController : BaseApiController
     {
         await _settingsService.ChangePasswordAsync(request, cancellationToken);
         return SuccessMessage("Password changed successfully.");
+    }
+
+    [HttpPost("delete-data")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteData([FromBody] ConfirmPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _settingsService.DeleteDataAsync(request.Password, cancellationToken);
+        return SuccessMessage("Business data deleted.");
     }
 
     private async Task<ActionResult<ApiResponse<TenantLogoUploadDto>>> UploadTenantImageAsync(

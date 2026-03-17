@@ -124,6 +124,52 @@ public class SettingsService : ISettingsService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeleteDataAsync(string password, CancellationToken cancellationToken = default)
+    {
+        var tenantId = await ValidateCurrentUserPasswordAsync(password, cancellationToken);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await DeleteTenantRowsAsync<SalarySlip>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<StaffConductForm>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PayrollEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoicePayment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoiceAttachment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoiceItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<InvoicePayment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<InvoiceItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<QuotationItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PurchaseOrderItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DeliveryNoteItem>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<CustomerContact>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<CustomerOpeningBalance>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptAdjustment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptMappingRule>(tenantId, cancellationToken);
+
+        await DeleteTenantRowsAsync<PaymentVoucher>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExpenseEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<RentEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<SalesAdjustment>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<OtherIncomeEntry>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Invoice>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Quotation>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PurchaseOrder>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DeliveryNote>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ReceivedInvoice>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<PayrollPeriod>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Staff>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Customer>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Supplier>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<Vessel>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExchangeRate>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<DocumentSequence>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<ExpenseCategory>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BptCategory>(tenantId, cancellationToken);
+        await DeleteTenantRowsAsync<BusinessAuditLog>(tenantId, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private static TenantSettingsDto Map(Domain.Entities.TenantSettings settings)
     {
         return new TenantSettingsDto
@@ -167,6 +213,38 @@ public class SettingsService : ISettingsService
             CompanyStampUrl = settings.CompanyStampUrl,
             CompanySignatureUrl = settings.CompanySignatureUrl
         };
+    }
+
+    private async Task<Guid> ValidateCurrentUserPasswordAsync(string password, CancellationToken cancellationToken)
+    {
+        var context = _currentUserService.GetContext();
+        if (!context.UserId.HasValue || !context.TenantId.HasValue)
+        {
+            throw new UnauthorizedException("Unauthorized.");
+        }
+
+        var user = await _dbContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                x => x.Id == context.UserId.Value && x.TenantId == context.TenantId.Value && !x.IsDeleted,
+                cancellationToken)
+            ?? throw new UnauthorizedException("User not found.");
+
+        if (!_passwordHasher.Verify(password, user.PasswordHash, user.PasswordSalt))
+        {
+            throw new AppException("Invalid password.");
+        }
+
+        return context.TenantId.Value;
+    }
+
+    private Task<int> DeleteTenantRowsAsync<TEntity>(Guid tenantId, CancellationToken cancellationToken)
+        where TEntity : MyDhathuru.Domain.Common.TenantEntity
+    {
+        return _dbContext.Set<TEntity>()
+            .IgnoreQueryFilters()
+            .Where(x => x.TenantId == tenantId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     private async Task RemoveTenantDocumentTaxAsync(Guid tenantId, CancellationToken cancellationToken)

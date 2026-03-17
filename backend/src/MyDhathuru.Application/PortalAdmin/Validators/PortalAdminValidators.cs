@@ -69,6 +69,14 @@ public class PortalAdminSetBusinessDataTestingRequestValidator : AbstractValidat
     }
 }
 
+public class PortalAdminDeleteBusinessRequestValidator : AbstractValidator<PortalAdminDeleteBusinessRequest>
+{
+    public PortalAdminDeleteBusinessRequestValidator()
+    {
+        RuleFor(x => x.CompanyNameConfirmation).NotEmpty().MaximumLength(200);
+    }
+}
+
 public class PortalAdminSendResetLinkRequestValidator : AbstractValidator<PortalAdminSendResetLinkRequest>
 {
     public PortalAdminSendResetLinkRequestValidator()

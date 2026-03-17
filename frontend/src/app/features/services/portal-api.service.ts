@@ -694,6 +694,10 @@ export class PortalApiService {
     return this.api.post<Record<string, never>>('settings/change-password', payload);
   }
 
+  deleteTenantData(password: string): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>('settings/delete-data', { password });
+  }
+
   reportBug(payload: BugReportRequest, attachment?: File | null): Observable<Record<string, never>> {
     const formData = new FormData();
     formData.append('subject', payload.subject);
