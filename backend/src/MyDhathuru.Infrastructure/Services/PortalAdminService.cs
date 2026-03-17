@@ -17,6 +17,7 @@ public class PortalAdminService : IPortalAdminService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IPortalAdminDemoDataService _portalAdminDemoDataService;
     private readonly IJwtTokenGenerator _tokenGenerator;
     private readonly INotificationService _notificationService;
     private readonly ILogger<PortalAdminService> _logger;
@@ -24,12 +25,14 @@ public class PortalAdminService : IPortalAdminService
     public PortalAdminService(
         ApplicationDbContext dbContext,
         ICurrentUserService currentUserService,
+        IPortalAdminDemoDataService portalAdminDemoDataService,
         IJwtTokenGenerator tokenGenerator,
         INotificationService notificationService,
         ILogger<PortalAdminService> logger)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _portalAdminDemoDataService = portalAdminDemoDataService;
         _tokenGenerator = tokenGenerator;
         _notificationService = notificationService;
         _logger = logger;
@@ -65,6 +68,12 @@ public class PortalAdminService : IPortalAdminService
     public Task EnableBusinessAsync(Guid tenantId, CancellationToken cancellationToken = default)
         => EnableBusinessInternalAsync(tenantId, cancellationToken);
 
+    public Task SetBusinessDataTestingAsync(Guid tenantId, PortalAdminSetBusinessDataTestingRequest request, CancellationToken cancellationToken = default)
+        => SetBusinessDataTestingInternalAsync(tenantId, request, cancellationToken);
+
+    public Task<PortalAdminDemoDataSeedResultDto> GenerateBusinessDemoDataAsync(Guid tenantId, CancellationToken cancellationToken = default)
+        => GenerateBusinessDemoDataInternalAsync(tenantId, cancellationToken);
+
     public Task UpdateBusinessLoginDetailsAsync(Guid tenantId, PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken = default)
         => UpdateBusinessLoginDetailsInternalAsync(tenantId, request, cancellationToken);
 
@@ -82,10 +91,13 @@ public class PortalAdminService : IPortalAdminService
         await EnsureSuperAdminAsync(cancellationToken);
 
         var superAdminTenantIds = SuperAdminTenantIdsQuery();
-        var businessesQuery = _dbContext.Tenants.IgnoreQueryFilters()
+        var allBusinessesQuery = _dbContext.Tenants.IgnoreQueryFilters()
             .Where(x => !x.IsDeleted && !superAdminTenantIds.Contains(x.Id));
+        var businessesQuery = allBusinessesQuery.Where(x => !x.IsDataTesting);
         var totalBusinesses = await businessesQuery.CountAsync(cancellationToken);
+        var excludedDataTestingBusinesses = await allBusinessesQuery.CountAsync(x => x.IsDataTesting, cancellationToken);
         var activeBusinesses = await businessesQuery.CountAsync(x => x.IsActive && x.AccountStatus == BusinessAccountStatus.Active, cancellationToken);
+        var visibleTenantIds = businessesQuery.Select(x => x.Id);
 
         var pendingSignupRequests = await _dbContext.SignupRequests.IgnoreQueryFilters()
             .CountAsync(x => !x.IsDeleted && x.Status == SignupRequestStatus.Pending, cancellationToken);
@@ -106,7 +118,7 @@ public class PortalAdminService : IPortalAdminService
 
         var recentLogs = await BuildAuditLogDtosAsync(
             _dbContext.AdminAuditLogs.IgnoreQueryFilters()
-                .Where(x => !x.IsDeleted)
+                .Where(x => !x.IsDeleted && (!x.RelatedTenantId.HasValue || visibleTenantIds.Contains(x.RelatedTenantId.Value)))
                 .OrderByDescending(x => x.PerformedAt)
                 .Take(5),
             cancellationToken);
@@ -114,11 +126,12 @@ public class PortalAdminService : IPortalAdminService
         return new PortalAdminDashboardDto
         {
             TotalBusinesses = totalBusinesses,
+            ExcludedDataTestingBusinesses = excludedDataTestingBusinesses,
             PendingSignupRequests = pendingSignupRequests,
             ActiveBusinesses = activeBusinesses,
             DisabledBusinesses = totalBusinesses - activeBusinesses,
-            TotalStaffAcrossBusinesses = await _dbContext.Staff.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted, cancellationToken),
-            TotalVesselsAcrossBusinesses = await _dbContext.Vessels.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted, cancellationToken),
+            TotalStaffAcrossBusinesses = await _dbContext.Staff.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted && visibleTenantIds.Contains(x.TenantId), cancellationToken),
+            TotalVesselsAcrossBusinesses = await _dbContext.Vessels.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted && visibleTenantIds.Contains(x.TenantId), cancellationToken),
             RecentSignupRequests = recentRequests,
             RecentActions = recentLogs
         };
@@ -386,6 +399,11 @@ public class PortalAdminService : IPortalAdminService
                 : tenantsQuery.Where(x => !x.IsActive || x.AccountStatus == BusinessAccountStatus.Disabled);
         }
 
+        if (query.IsDataTesting.HasValue)
+        {
+            tenantsQuery = tenantsQuery.Where(x => x.IsDataTesting == query.IsDataTesting.Value);
+        }
+
         var search = query.Search?.Trim().ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -432,10 +450,12 @@ public class PortalAdminService : IPortalAdminService
             TinNumber = tenant.TinNumber,
             BusinessRegistrationNumber = tenant.BusinessRegistrationNumber,
             Status = ResolveStatus(tenant),
+            IsDataTesting = tenant.IsDataTesting,
             StaffCount = staffCounts.GetValueOrDefault(tenant.Id),
             VesselCount = vesselCounts.GetValueOrDefault(tenant.Id),
             CreatedAt = tenant.CreatedAt,
-            LastActivityAt = lastActivity.GetValueOrDefault(tenant.Id)
+            LastActivityAt = lastActivity.GetValueOrDefault(tenant.Id),
+            DemoDataGeneratedAt = tenant.DemoDataGeneratedAt
         }).ToList();
 
         return new PagedResult<PortalAdminBusinessListItemDto>
@@ -481,12 +501,14 @@ public class PortalAdminService : IPortalAdminService
             TinNumber = tenant.TinNumber,
             BusinessRegistrationNumber = tenant.BusinessRegistrationNumber,
             Status = ResolveStatus(tenant),
+            IsDataTesting = tenant.IsDataTesting,
             StaffCount = await _dbContext.Staff.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted && x.TenantId == tenantId, cancellationToken),
             VesselCount = await _dbContext.Vessels.IgnoreQueryFilters().CountAsync(x => !x.IsDeleted && x.TenantId == tenantId, cancellationToken),
             CreatedAt = tenant.CreatedAt,
             LastActivityAt = await _dbContext.Users.IgnoreQueryFilters()
                 .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.Role.Name != UserRoleName.SuperAdmin)
                 .MaxAsync(x => x.LastLoginAt, cancellationToken),
+            DemoDataGeneratedAt = tenant.DemoDataGeneratedAt,
             ApprovedAt = tenant.ApprovedAt,
             DisabledReason = tenant.DisabledReason,
             DisabledAt = tenant.DisabledAt,
@@ -545,6 +567,61 @@ public class PortalAdminService : IPortalAdminService
             tenant.Id));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SetBusinessDataTestingInternalAsync(Guid tenantId, PortalAdminSetBusinessDataTestingRequest request, CancellationToken cancellationToken)
+    {
+        var reviewer = await EnsureSuperAdminAsync(cancellationToken);
+        var superAdminTenantIds = SuperAdminTenantIdsQuery();
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted && !superAdminTenantIds.Contains(x.Id), cancellationToken)
+            ?? throw new NotFoundException("Business not found.");
+
+        if (tenant.IsDataTesting == request.IsDataTesting)
+        {
+            return;
+        }
+
+        tenant.IsDataTesting = request.IsDataTesting;
+
+        _dbContext.AdminAuditLogs.Add(CreateAuditLog(
+            reviewer.Id,
+            request.IsDataTesting ? AdminAuditActionType.BusinessMarkedDataTesting : AdminAuditActionType.BusinessUnmarkedDataTesting,
+            nameof(Tenant),
+            tenant.Id.ToString(),
+            tenant.CompanyName,
+            tenant.Id,
+            new { tenant.IsDataTesting, tenant.DemoDataGeneratedAt }));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<PortalAdminDemoDataSeedResultDto> GenerateBusinessDemoDataInternalAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var reviewer = await EnsureSuperAdminAsync(cancellationToken);
+        var superAdminTenantIds = SuperAdminTenantIdsQuery();
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted && !superAdminTenantIds.Contains(x.Id), cancellationToken)
+            ?? throw new NotFoundException("Business not found.");
+
+        if (!tenant.IsDataTesting)
+        {
+            throw new AppException("Only data testing businesses can be seeded with demo data.");
+        }
+
+        var result = await _portalAdminDemoDataService.SeedBusinessDemoDataAsync(tenantId, reviewer.Id, cancellationToken);
+
+        _dbContext.AdminAuditLogs.Add(CreateAuditLog(
+            reviewer.Id,
+            AdminAuditActionType.BusinessDemoDataGenerated,
+            nameof(Tenant),
+            tenant.Id.ToString(),
+            tenant.CompanyName,
+            tenant.Id,
+            result));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return result;
     }
 
     private async Task UpdateBusinessLoginDetailsInternalAsync(Guid tenantId, PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken)

@@ -1255,6 +1255,7 @@ export type BusinessAccountStatus = 'Active' | 'Disabled';
 
 export interface PortalAdminDashboard {
   totalBusinesses: number;
+  excludedDataTestingBusinesses: number;
   pendingSignupRequests: number;
   activeBusinesses: number;
   disabledBusinesses: number;
@@ -1308,10 +1309,12 @@ export interface PortalAdminBusinessListItem {
   tinNumber: string;
   businessRegistrationNumber: string;
   status: BusinessAccountStatus;
+  isDataTesting: boolean;
   staffCount: number;
   vesselCount: number;
   createdAt: string;
   lastActivityAt?: string;
+  demoDataGeneratedAt?: string;
 }
 
 export interface PortalAdminBusinessDetail extends PortalAdminBusinessListItem {
@@ -1321,6 +1324,29 @@ export interface PortalAdminBusinessDetail extends PortalAdminBusinessListItem {
   customerCount: number;
   invoiceCount: number;
   primaryAdmin?: PortalAdminBusinessUser;
+}
+
+export interface PortalAdminDemoDataSeedResult {
+  tenantId: string;
+  companyName: string;
+  customersCreated: number;
+  suppliersCreated: number;
+  vesselsCreated: number;
+  staffCreated: number;
+  quotationsCreated: number;
+  deliveryNotesCreated: number;
+  invoicesCreated: number;
+  receivedInvoicesCreated: number;
+  purchaseOrdersCreated: number;
+  paymentVouchersCreated: number;
+  expenseEntriesCreated: number;
+  rentEntriesCreated: number;
+  payrollPeriodsCreated: number;
+  staffConductFormsCreated: number;
+  exchangeRatesCreated: number;
+  otherIncomeEntriesCreated: number;
+  salesAdjustmentsCreated: number;
+  generatedAt: string;
 }
 
 export interface PortalAdminBusinessUser {

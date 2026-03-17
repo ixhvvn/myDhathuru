@@ -48,6 +48,22 @@ public class PortalAdminBusinessesController : BaseApiController
         return SuccessMessage("Business account enabled.");
     }
 
+    [HttpPost("{tenantId:guid}/data-testing")]
+    public async Task<ActionResult<ApiResponse<object>>> SetDataTesting(Guid tenantId, [FromBody] PortalAdminSetBusinessDataTestingRequest request, CancellationToken cancellationToken)
+    {
+        await _portalAdminService.SetBusinessDataTestingAsync(tenantId, request, cancellationToken);
+        return SuccessMessage(request.IsDataTesting
+            ? "Business marked as data testing."
+            : "Business returned to live reporting.");
+    }
+
+    [HttpPost("{tenantId:guid}/generate-demo-data")]
+    public async Task<ActionResult<ApiResponse<PortalAdminDemoDataSeedResultDto>>> GenerateDemoData(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var result = await _portalAdminService.GenerateBusinessDemoDataAsync(tenantId, cancellationToken);
+        return OkResponse(result, "Demo data generated.");
+    }
+
     [HttpPut("{tenantId:guid}/login-details")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateLoginDetails(Guid tenantId, [FromBody] PortalAdminUpdateBusinessLoginRequest request, CancellationToken cancellationToken)
     {

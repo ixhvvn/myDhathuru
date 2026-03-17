@@ -5,6 +5,7 @@ namespace MyDhathuru.Application.PortalAdmin.Dtos;
 public class PortalAdminDashboardDto
 {
     public int TotalBusinesses { get; set; }
+    public int ExcludedDataTestingBusinesses { get; set; }
     public int PendingSignupRequests { get; set; }
     public int ActiveBusinesses { get; set; }
     public int DisabledBusinesses { get; set; }
@@ -78,6 +79,7 @@ public class PortalAdminBusinessListQuery
 {
     public string? Search { get; set; }
     public BusinessAccountStatus? Status { get; set; }
+    public bool? IsDataTesting { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 10;
 }
@@ -91,10 +93,12 @@ public class PortalAdminBusinessListItemDto
     public string TinNumber { get; set; } = string.Empty;
     public string BusinessRegistrationNumber { get; set; } = string.Empty;
     public BusinessAccountStatus Status { get; set; }
+    public bool IsDataTesting { get; set; }
     public int StaffCount { get; set; }
     public int VesselCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastActivityAt { get; set; }
+    public DateTimeOffset? DemoDataGeneratedAt { get; set; }
 }
 
 public class PortalAdminBusinessDetailDto : PortalAdminBusinessListItemDto
@@ -140,9 +144,38 @@ public class PortalAdminSetBusinessStatusRequest
     public string? Reason { get; set; }
 }
 
+public class PortalAdminSetBusinessDataTestingRequest
+{
+    public bool IsDataTesting { get; set; }
+}
+
 public class PortalAdminSendResetLinkRequest
 {
     public string? AdminEmail { get; set; }
+}
+
+public class PortalAdminDemoDataSeedResultDto
+{
+    public Guid TenantId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
+    public int CustomersCreated { get; set; }
+    public int SuppliersCreated { get; set; }
+    public int VesselsCreated { get; set; }
+    public int StaffCreated { get; set; }
+    public int QuotationsCreated { get; set; }
+    public int DeliveryNotesCreated { get; set; }
+    public int InvoicesCreated { get; set; }
+    public int ReceivedInvoicesCreated { get; set; }
+    public int PurchaseOrdersCreated { get; set; }
+    public int PaymentVouchersCreated { get; set; }
+    public int ExpenseEntriesCreated { get; set; }
+    public int RentEntriesCreated { get; set; }
+    public int PayrollPeriodsCreated { get; set; }
+    public int StaffConductFormsCreated { get; set; }
+    public int ExchangeRatesCreated { get; set; }
+    public int OtherIncomeEntriesCreated { get; set; }
+    public int SalesAdjustmentsCreated { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; }
 }
 
 public class PortalAdminAuditLogQuery

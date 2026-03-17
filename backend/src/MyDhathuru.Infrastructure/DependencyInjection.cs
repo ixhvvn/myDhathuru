@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IPortalAdminAuthService, PortalAdminAuthService>();
         services.AddScoped<IPortalAdminService, PortalAdminService>();
+        services.AddScoped<IPortalAdminDemoDataService, PortalAdminDemoDataService>();
         services.AddScoped<IPortalAdminEmailService, PortalAdminEmailService>();
         services.AddScoped<IPortalAdminBillingService, PortalAdminBillingService>();
         services.AddScoped<IBusinessAuditLogService, BusinessAuditLogService>();

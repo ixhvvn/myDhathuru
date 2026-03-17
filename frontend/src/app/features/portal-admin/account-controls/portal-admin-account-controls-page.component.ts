@@ -36,6 +36,14 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
             <option value="Disabled">Disabled</option>
           </select>
         </label>
+        <label>
+          Account Mode
+          <select formControlName="accountMode">
+            <option value="">All accounts</option>
+            <option value="Live">Live businesses</option>
+            <option value="Testing">Data testing</option>
+          </select>
+        </label>
         <label class="per-page">
           Per Page
           <select formControlName="pageSize">
@@ -77,8 +85,10 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
             <tr *ngFor="let row of rows()">
               <td class="company-cell">
                 <strong>{{ row.companyName }}</strong>
+                <span class="mode-tag" *ngIf="row.isDataTesting">Data testing</span>
                 <small>Registration: {{ row.businessRegistrationNumber || '-' }}</small>
                 <small>TIN: {{ row.tinNumber || '-' }}</small>
+                <small *ngIf="row.demoDataGeneratedAt">Demo data refreshed {{ row.demoDataGeneratedAt | date:'yyyy-MM-dd HH:mm' }}</small>
               </td>
               <td class="contact-cell">
                 <span>{{ row.companyEmail || '-' }}</span>
@@ -115,6 +125,28 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
                       variant="success"
                       (clicked)="enableBusiness(row)">Enable</app-button>
                   </div>
+                  <div class="control-row control-row--testing">
+                    <app-button
+                      *ngIf="!row.isDataTesting"
+                      class="action-btn action-btn--testing"
+                      size="sm"
+                      variant="secondary"
+                      [loading]="rowActionTenantId() === row.tenantId && rowActionKey() === 'testing'"
+                      (clicked)="setBusinessDataTesting(row, true)">Mark Test Data</app-button>
+                    <app-button
+                      *ngIf="row.isDataTesting"
+                      class="action-btn action-btn--live"
+                      size="sm"
+                      variant="secondary"
+                      [loading]="rowActionTenantId() === row.tenantId && rowActionKey() === 'testing'"
+                      (clicked)="setBusinessDataTesting(row, false)">Set Live</app-button>
+                    <app-button
+                      *ngIf="row.isDataTesting"
+                      class="action-btn action-btn--seed"
+                      size="sm"
+                      [loading]="rowActionTenantId() === row.tenantId && rowActionKey() === 'seed'"
+                      (clicked)="generateDemoData(row)">Load Demo Data</app-button>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -146,9 +178,11 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
         <div><dt>Email</dt><dd>{{ selected.companyEmail }}</dd></div>
         <div><dt>Phone</dt><dd>{{ selected.companyPhone }}</dd></div>
         <div><dt>Status</dt><dd>{{ selected.status }}</dd></div>
+        <div><dt>Account Mode</dt><dd>{{ selected.isDataTesting ? 'Data testing' : 'Live' }}</dd></div>
         <div><dt>Primary Admin</dt><dd>{{ selected.primaryAdmin?.fullName || '-' }} ({{ selected.primaryAdmin?.email || '-' }})</dd></div>
         <div><dt>Registration</dt><dd>{{ selected.businessRegistrationNumber || '-' }}</dd></div>
         <div><dt>TIN</dt><dd>{{ selected.tinNumber || '-' }}</dd></div>
+        <div *ngIf="selected.demoDataGeneratedAt"><dt>Demo Data Refreshed</dt><dd>{{ selected.demoDataGeneratedAt | date:'yyyy-MM-dd HH:mm' }}</dd></div>
         <div *ngIf="selected.disabledReason"><dt>Disabled Reason</dt><dd>{{ selected.disabledReason }}</dd></div>
       </dl>
       <div class="modal-actions">
@@ -322,6 +356,20 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
       line-height: 1.35;
       overflow-wrap: anywhere;
     }
+    .mode-tag {
+      display: inline-flex;
+      margin: .22rem 0;
+      padding: .18rem .44rem;
+      border-radius: 999px;
+      border: 1px solid rgba(101, 186, 160, .45);
+      background: rgba(219, 247, 239, .82);
+      color: #2f8e72;
+      font-family: var(--font-heading);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
     .status {
       display: inline-flex;
       border-radius: 999px;
@@ -407,6 +455,16 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
     :host ::ng-deep .actions-cell .action-btn--enable .app-btn {
       background: linear-gradient(135deg, #56ba91, #419d77);
       box-shadow: 0 8px 16px rgba(68, 160, 123, .18);
+    }
+    :host ::ng-deep .actions-cell .action-btn--testing .app-btn,
+    :host ::ng-deep .actions-cell .action-btn--live .app-btn {
+      background: linear-gradient(145deg, rgba(246,249,255,.97), rgba(234,241,255,.92));
+      border-color: #d2dcf3;
+      color: #51648d;
+    }
+    :host ::ng-deep .actions-cell .action-btn--seed .app-btn {
+      background: linear-gradient(135deg, #6f7ff5, #5aa7eb);
+      box-shadow: 0 8px 16px rgba(88, 112, 228, .22);
     }
     :host ::ng-deep .actions-cell app-button .app-btn:not(:disabled):hover {
       transform: translateY(-1px);
@@ -535,6 +593,8 @@ export class PortalAdminAccountControlsPageComponent {
 
   readonly loading = signal(true);
   readonly actionLoading = signal(false);
+  readonly rowActionTenantId = signal<string | null>(null);
+  readonly rowActionKey = signal<'testing' | 'seed' | null>(null);
   readonly rows = signal<PortalAdminBusinessListItem[]>([]);
   readonly detail = signal<PortalAdminBusinessDetail | null>(null);
   readonly editDetail = signal<PortalAdminBusinessDetail | null>(null);
@@ -547,6 +607,7 @@ export class PortalAdminAccountControlsPageComponent {
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
     status: [''],
+    accountMode: [''],
     pageSize: [10]
   });
 
@@ -574,6 +635,7 @@ export class PortalAdminAccountControlsPageComponent {
     this.filterForm.reset({
       search: '',
       status: '',
+      accountMode: '',
       pageSize: 10
     });
     this.page.set(1);
@@ -674,6 +736,57 @@ export class PortalAdminAccountControlsPageComponent {
       });
   }
 
+  setBusinessDataTesting(row: PortalAdminBusinessListItem, isDataTesting: boolean): void {
+    const actionLabel = isDataTesting ? 'mark as data testing' : 'return to live reporting';
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`${actionLabel.charAt(0).toUpperCase()}${actionLabel.slice(1)} for ${row.companyName}?`)
+      : true;
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.rowActionTenantId.set(row.tenantId);
+    this.rowActionKey.set('testing');
+    this.api.setBusinessDataTesting(row.tenantId, isDataTesting)
+      .pipe(finalize(() => {
+        this.rowActionTenantId.set(null);
+        this.rowActionKey.set(null);
+      }))
+      .subscribe({
+        next: () => {
+          this.toast.success(isDataTesting ? 'Business marked as data testing.' : 'Business returned to live reporting.');
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to update account mode.'))
+      });
+  }
+
+  generateDemoData(row: PortalAdminBusinessListItem): void {
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`Load fresh demo data for ${row.companyName}? Existing testing data for this business will be replaced.`)
+      : true;
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.rowActionTenantId.set(row.tenantId);
+    this.rowActionKey.set('seed');
+    this.api.generateBusinessDemoData(row.tenantId)
+      .pipe(finalize(() => {
+        this.rowActionTenantId.set(null);
+        this.rowActionKey.set(null);
+      }))
+      .subscribe({
+        next: (result) => {
+          this.toast.success(`Demo data loaded: ${result.customersCreated} customers, ${result.invoicesCreated} invoices, ${result.receivedInvoicesCreated} received invoices.`);
+          this.load();
+        },
+        error: (error) => this.toast.error(extractApiError(error, 'Unable to load demo data.'))
+      });
+  }
+
   sendResetLink(tenantId: string): void {
     this.actionLoading.set(true);
     this.api.sendBusinessResetLink(tenantId)
@@ -693,6 +806,7 @@ export class PortalAdminAccountControlsPageComponent {
     this.api.getBusinesses({
       search: filter.search.trim(),
       status: filter.status || undefined,
+      isDataTesting: filter.accountMode === 'Testing' ? true : filter.accountMode === 'Live' ? false : undefined,
       pageNumber: this.page(),
       pageSize: selectedPageSize
     })

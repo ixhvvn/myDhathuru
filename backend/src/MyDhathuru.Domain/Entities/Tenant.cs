@@ -10,6 +10,8 @@ public class Tenant : AuditableEntity
     public required string BusinessRegistrationNumber { get; set; }
     public bool IsActive { get; set; } = true;
     public BusinessAccountStatus AccountStatus { get; set; } = BusinessAccountStatus.Active;
+    public bool IsDataTesting { get; set; }
+    public DateTimeOffset? DemoDataGeneratedAt { get; set; }
     public string? DisabledReason { get; set; }
     public DateTimeOffset? DisabledAt { get; set; }
     public Guid? DisabledByUserId { get; set; }

@@ -62,6 +62,13 @@ public class PortalAdminSetBusinessStatusRequestValidator : AbstractValidator<Po
     }
 }
 
+public class PortalAdminSetBusinessDataTestingRequestValidator : AbstractValidator<PortalAdminSetBusinessDataTestingRequest>
+{
+    public PortalAdminSetBusinessDataTestingRequestValidator()
+    {
+    }
+}
+
 public class PortalAdminSendResetLinkRequestValidator : AbstractValidator<PortalAdminSendResetLinkRequest>
 {
     public PortalAdminSendResetLinkRequestValidator()

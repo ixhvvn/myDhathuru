@@ -88,6 +88,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.BusinessRegistrationNumber).HasMaxLength(100);
             entity.Property(x => x.AccountStatus).HasConversion<string>().HasMaxLength(30);
             entity.Property(x => x.DisabledReason).HasMaxLength(300);
+            entity.HasIndex(x => x.IsDataTesting);
         });
 
         modelBuilder.Entity<Role>(entity =>

@@ -22,6 +22,7 @@ import {
   PortalAdminBusinessListItem,
   PortalAdminBusinessUser,
   PortalAdminDashboard,
+  PortalAdminDemoDataSeedResult,
   PortalAdminEmailBusinessOption,
   PortalAdminEmailCampaign,
   PortalAdminEmailCampaignSendResult,
@@ -72,6 +73,14 @@ export class PortalAdminApiService {
 
   enableBusiness(tenantId: string): Observable<Record<string, never>> {
     return this.api.post<Record<string, never>>(`portal-admin/businesses/${tenantId}/enable`, {});
+  }
+
+  setBusinessDataTesting(tenantId: string, isDataTesting: boolean): Observable<Record<string, never>> {
+    return this.api.post<Record<string, never>>(`portal-admin/businesses/${tenantId}/data-testing`, { isDataTesting });
+  }
+
+  generateBusinessDemoData(tenantId: string): Observable<PortalAdminDemoDataSeedResult> {
+    return this.api.post<PortalAdminDemoDataSeedResult>(`portal-admin/businesses/${tenantId}/generate-demo-data`, {});
   }
 
   updateBusinessLoginDetails(
