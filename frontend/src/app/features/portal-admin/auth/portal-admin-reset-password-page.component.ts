@@ -17,7 +17,7 @@ import { extractApiError } from '../../../core/utils/api-error.util';
     <div class="reset-shell">
       <app-card class="reset-card">
         <div class="header">
-          <img src="/logo.svg" alt="myDhathuru logo">
+          <img src="/newlogo.png" alt="myDhathuru logo">
           <div>
             <h1>Portal Admin Password Reset</h1>
             <p>Set a new password to continue accessing the portal admin workspace.</p>

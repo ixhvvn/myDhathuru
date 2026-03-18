@@ -22,19 +22,12 @@ interface CapabilityCluster {
   readonly title: string;
   readonly description: string;
   readonly heroSummary: string;
-  readonly heroSlot: string;
   readonly token: string;
   readonly tone: AccentTone;
   readonly heroChips: readonly string[];
   readonly capabilities: readonly string[];
   readonly lane: readonly string[];
   readonly emphasis: string;
-}
-
-interface HeroOrbitNode {
-  readonly label: string;
-  readonly slot: string;
-  readonly tone: AccentTone;
 }
 
 interface WorkflowStage {
@@ -120,28 +113,22 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
 
   readonly heroSignals: readonly HeroSignal[] = [
     {
-      label: 'Sales & receivables',
-      title: 'Delivery notes, quotations, invoices, and customer statements stay connected.',
-      detail: 'Move from issued work to billed work and collection follow-up without re-entering the same record.',
+      label: 'One source of truth',
+      title: 'Documents, finance activity, payroll, and reporting stay tied to the same live records.',
+      detail: 'Follow work from source document to summary view without rebuilding totals in side files.',
       tone: 'indigo'
     },
     {
-      label: 'Purchases & expenses',
-      title: 'Received invoices, payment vouchers, rent, and expense tracking sit in one flow.',
-      detail: 'Keep supplier-side records and operating expense visibility inside the same finance workspace.',
+      label: 'Period review',
+      title: 'Month-end, quarter-end, and compliance checks are easier to review from one workspace.',
+      detail: 'See statements, expenses, payroll totals, and tax outputs by period instead of stitching reports together.',
       tone: 'mint'
     },
     {
-      label: 'Payroll & HR',
-      title: 'Payroll cycles sit beside staff records, salary visibility, and conduct forms.',
-      detail: 'Salary processing and disciplinary documentation stay organized in one controlled system.',
+      label: 'Built to scale',
+      title: 'Role-based access, multi-business structure, and exports are already part of the workflow.',
+      detail: 'Keep teams organized as operations grow without losing control over visibility or output.',
       tone: 'lilac'
-    },
-    {
-      label: 'Tax & compliance',
-      title: 'MIRA input tax, output tax, and BPT reporting pull from live records.',
-      detail: 'Review period-based compliance views and export-ready statements without stitching together manual totals.',
-      tone: 'amber'
     }
   ];
 
@@ -151,7 +138,6 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
       title: 'Run the full customer-side document lane.',
       description: 'Manage customers, quotations, invoices issued, statements, and collections visibility from the same live workflow.',
       heroSummary: 'Customers, quotations, invoices issued, and statements.',
-      heroSlot: 'north-west',
       token: 'SR',
       tone: 'indigo',
       heroChips: ['Customers', 'Quotations', 'Statements'],
@@ -164,7 +150,6 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
       title: 'Bring supplier-side control into daily finance work.',
       description: 'Record received invoices, issue payment vouchers, manage rent, and classify operating expenses with cleaner visibility.',
       heroSummary: 'Received invoices, vouchers, rent, and expenses.',
-      heroSlot: 'north-east',
       token: 'PE',
       tone: 'mint',
       heroChips: ['Received Invoices', 'Vouchers', 'Expense Ledger'],
@@ -177,7 +162,6 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
       title: 'Keep payroll, staff records, and conduct handling together.',
       description: 'Run payroll periods, review salary visibility, manage staff master data, and issue discipline or warning forms from one workspace.',
       heroSummary: 'Staff records, payroll, salary visibility, and warning forms.',
-      heroSlot: 'south-west',
       token: 'PH',
       tone: 'lilac',
       heroChips: ['Staff Records', 'Payroll', 'Warning Forms'],
@@ -190,7 +174,6 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
       title: 'Translate live finance records into compliance-ready output.',
       description: 'Prepare MIRA input tax, output tax, and BPT statements with period filters, exports, and reporting visibility tied to stored records.',
       heroSummary: 'MIRA input tax, output tax, BPT, and exports.',
-      heroSlot: 'south-east',
       token: 'TC',
       tone: 'amber',
       heroChips: ['MIRA Input Tax', 'MIRA Output Tax', 'BPT'],
@@ -198,15 +181,6 @@ export class LandingPageComponent implements AfterViewInit, OnDestroy {
       lane: ['Classify', 'Review', 'Generate', 'Export'],
       emphasis: 'Compliance reporting sits on top of the live system rather than after-the-fact workarounds.'
     }
-  ];
-
-  readonly heroOrbitNodes: readonly HeroOrbitNode[] = [
-    { label: 'Statements', slot: 'top', tone: 'indigo' },
-    { label: 'Received Invoices', slot: 'upper-right', tone: 'mint' },
-    { label: 'Payment Vouchers', slot: 'mid-right', tone: 'amber' },
-    { label: 'BPT', slot: 'bottom', tone: 'amber' },
-    { label: 'Discipline Forms', slot: 'lower-left', tone: 'lilac' },
-    { label: 'Rent & Expenses', slot: 'upper-left', tone: 'mint' }
   ];
 
   readonly workflowStages: readonly WorkflowStage[] = [

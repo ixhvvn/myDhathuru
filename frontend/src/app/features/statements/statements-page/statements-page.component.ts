@@ -7,7 +7,8 @@ import { AppCurrencyPipe } from '../../../shared/pipes/currency.pipe';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
 import { AppDateBadgeComponent } from '../../../shared/components/app-date-badge/app-date-badge.component';
 import { AppPageHeaderComponent } from '../../../shared/components/app-page-header/app-page-header.component';
-import { AccountStatement, Customer, StatementRow } from '../../../core/models/app.models';
+import { AppStatusChipComponent } from '../../../shared/components/app-status-chip/app-status-chip.component';
+import { AccountStatement, Customer, StatementCurrencyTotals, StatementRow } from '../../../core/models/app.models';
 import { PortalApiService } from '../../services/portal-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -22,7 +23,8 @@ import { ToastService } from '../../../core/services/toast.service';
     AppCurrencyPipe,
     AppDataTableComponent,
     AppDateBadgeComponent,
-    AppPageHeaderComponent
+    AppPageHeaderComponent,
+    AppStatusChipComponent
   ],
   template: `
     <app-page-header title="Account Statements" subtitle="Customer account history, opening balances and running totals"></app-page-header>
@@ -68,6 +70,14 @@ import { ToastService } from '../../../core/services/toast.service';
         </div>
       </div>
 
+      <div *ngIf="statement() as summary" class="aging-grid">
+        <div *ngFor="let bucket of overdueBuckets(summary)" class="aging-card" [class.red]="bucket.tone === 'red'" [class.amber]="bucket.tone === 'amber'" [class.blue]="bucket.tone === 'blue'">
+          <label>{{ bucket.label }}</label>
+          <strong>{{ bucket.invoiceCount }} {{ bucket.invoiceCount === 1 ? 'invoice' : 'invoices' }}</strong>
+          <span>{{ formatDualCurrency(bucket.totals.mvr, bucket.totals.usd) }}</span>
+        </div>
+      </div>
+
       <app-data-table [hasData]="(statement()?.rows?.length || 0) > 0" emptyTitle="No statement rows" emptyDescription="Select customer and year to generate statement.">
         <thead>
           <tr>
@@ -75,10 +85,12 @@ import { ToastService } from '../../../core/services/toast.service';
             <th>Date</th>
             <th>Description</th>
             <th>Reference</th>
+            <th>Due Date</th>
             <th>Currency</th>
             <th>Amount</th>
             <th>Payments</th>
             <th>Received On</th>
+            <th>Overdue</th>
             <th>Balance (MVR | USD)</th>
           </tr>
         </thead>
@@ -88,6 +100,12 @@ import { ToastService } from '../../../core/services/toast.service';
             <td><app-date-badge [value]="row.date || ''"></app-date-badge></td>
             <td>{{ row.description }}</td>
             <td>{{ row.reference || '-' }}</td>
+            <td>
+              <ng-container *ngIf="row.dueDate; else noDueDate">
+                <app-date-badge [value]="row.dueDate || ''"></app-date-badge>
+              </ng-container>
+              <ng-template #noDueDate>-</ng-template>
+            </td>
             <td>{{ row.currency }}</td>
             <td>{{ row.amount | appCurrency: row.currency }}</td>
             <td>{{ row.payments | appCurrency: row.currency }}</td>
@@ -96,6 +114,16 @@ import { ToastService } from '../../../core/services/toast.service';
                 <app-date-badge [value]="row.receivedOn || ''"></app-date-badge>
               </ng-container>
               <ng-template #noReceivedDate>-</ng-template>
+            </td>
+            <td>
+              <app-status-chip
+                *ngIf="row.isOverdue; else rowOnTime"
+                [label]="overdueLabel(row)"
+                [variant]="overdueVariant(row.daysOverdue)">
+              </app-status-chip>
+              <ng-template #rowOnTime>
+                <span class="inline-muted">{{ row.dueDate ? 'On time' : '-' }}</span>
+              </ng-template>
             </td>
             <td>{{ formatDualCurrency(row.balanceMvr, row.balanceUsd) }}</td>
           </tr>
@@ -131,6 +159,46 @@ import { ToastService } from '../../../core/services/toast.service';
     }
     .summary-grid label { font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; }
     .summary-grid strong { font-size: .97rem; }
+    .aging-grid {
+      margin-bottom: .85rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .6rem;
+    }
+    .aging-card {
+      display: grid;
+      gap: .22rem;
+      border: 1px solid #dce7f8;
+      border-radius: 14px;
+      padding: .8rem;
+      background: rgba(255, 255, 255, .88);
+    }
+    .aging-card label {
+      font-size: .74rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .aging-card strong {
+      font-size: .96rem;
+      color: var(--text-main);
+    }
+    .aging-card span,
+    .inline-muted {
+      font-size: .76rem;
+      color: var(--text-muted);
+    }
+    .aging-card.blue {
+      background: linear-gradient(145deg, rgba(241, 247, 255, .96), rgba(233, 243, 255, .9));
+      border-color: #d7e4fb;
+    }
+    .aging-card.amber {
+      background: linear-gradient(145deg, rgba(255, 248, 232, .96), rgba(255, 241, 212, .9));
+      border-color: #f4d9a8;
+    }
+    .aging-card.red {
+      background: linear-gradient(145deg, rgba(255, 241, 244, .96), rgba(255, 232, 238, .92));
+      border-color: #f1cad4;
+    }
     @media (max-width: 900px) {
       .filters {
         grid-template-columns: 1fr 1fr 1fr;
@@ -147,6 +215,9 @@ import { ToastService } from '../../../core/services/toast.service';
         width: 100%;
       }
       .summary-grid {
+        grid-template-columns: 1fr;
+      }
+      .aging-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -268,6 +339,35 @@ export class StatementsPageComponent implements OnInit {
     return `MVR ${this.formatAmount(mvr)} | USD ${this.formatAmount(usd)}`;
   }
 
+  overdueBuckets(statement: AccountStatement): StatementOverdueCard[] {
+    return [
+      { label: statement.overdueAging.totalOverdue.label, invoiceCount: statement.overdueAging.totalOverdue.invoiceCount, totals: statement.overdueAging.totalOverdue.totals, tone: 'blue' },
+      { label: statement.overdueAging.over30Days.label, invoiceCount: statement.overdueAging.over30Days.invoiceCount, totals: statement.overdueAging.over30Days.totals, tone: 'amber' },
+      { label: statement.overdueAging.over60Days.label, invoiceCount: statement.overdueAging.over60Days.invoiceCount, totals: statement.overdueAging.over60Days.totals, tone: 'red' },
+      { label: statement.overdueAging.over90Days.label, invoiceCount: statement.overdueAging.over90Days.invoiceCount, totals: statement.overdueAging.over90Days.totals, tone: 'red' }
+    ];
+  }
+
+  overdueVariant(daysOverdue: number): 'blue' | 'amber' | 'red' {
+    if (daysOverdue > 60) {
+      return 'red';
+    }
+
+    if (daysOverdue > 30) {
+      return 'amber';
+    }
+
+    return 'blue';
+  }
+
+  overdueLabel(row: StatementRow): string {
+    if (!row.isOverdue) {
+      return 'On time';
+    }
+
+    return row.overdueBucket?.trim() || 'Past due';
+  }
+
   private formatAmount(value: number): string {
     return Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -280,6 +380,13 @@ export class StatementsPageComponent implements OnInit {
 interface StatementRowWithDualBalance extends StatementRow {
   balanceMvr: number;
   balanceUsd: number;
+}
+
+interface StatementOverdueCard {
+  label: string;
+  invoiceCount: number;
+  totals: StatementCurrencyTotals;
+  tone: 'blue' | 'amber' | 'red';
 }
 
 

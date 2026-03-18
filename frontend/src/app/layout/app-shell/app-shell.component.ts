@@ -42,7 +42,7 @@ type NavSection = {
           <span></span>
         </button>
         <div class="mobile-brand">
-          <img class="logo" src="/logo.svg" alt="myDhathuru logo">
+          <img class="logo" src="/newlogo.png" alt="myDhathuru logo">
           <strong>myDhathuru</strong>
         </div>
         <button class="logout-mini" type="button" (click)="logout()">Logout</button>
@@ -57,7 +57,7 @@ type NavSection = {
         [class.sidebar-collapsed]="isDesktopCollapsed()">
         <div class="sidebar-top" [class.compact-top]="isDesktopCollapsed()">
           <div class="brand">
-            <img class="logo" src="/logo.svg" alt="myDhathuru logo">
+            <img class="logo" src="/newlogo.png" alt="myDhathuru logo">
             <div class="brand-copy">
               <h2>myDhathuru</h2>
               <p>{{ authService.user()?.companyName }}</p>

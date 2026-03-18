@@ -21,7 +21,7 @@ type AdminNavItem = {
           <span></span><span></span><span></span>
         </button>
         <div class="mobile-brand">
-          <img src="/logo.svg" alt="myDhathuru logo">
+          <img src="/newlogo.png" alt="myDhathuru logo">
           <strong>Portal Admin</strong>
         </div>
         <button type="button" class="top-logout" (click)="logout()">Logout</button>
@@ -32,7 +32,7 @@ type AdminNavItem = {
       <aside class="sidebar" [class.mobile-open]="mobileMenuOpen()">
         <div class="sidebar-header">
           <div class="brand">
-            <img src="/logo.svg" alt="myDhathuru logo">
+            <img src="/newlogo.png" alt="myDhathuru logo">
             <div>
               <h2>myDhathuru</h2>
               <p>Portal Admin</p>

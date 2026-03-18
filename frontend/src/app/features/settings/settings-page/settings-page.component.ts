@@ -84,7 +84,7 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
           </div>
           <label>
             Logo URL
-            <input formControlName="logoUrl" type="text" placeholder="/logo-name.svg">
+            <input formControlName="logoUrl" type="text" placeholder="/newlogo.png">
           </label>
 
           <div class="asset-panel">
@@ -589,7 +589,7 @@ type SettingsImageKind = 'logo' | 'stamp' | 'signature';
 export class SettingsPageComponent implements OnInit {
   private static readonly maxImageSizeBytes = 5 * 1024 * 1024;
   private static readonly allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
-  private static readonly defaultInvoiceLogoUrl = '/logo-name.svg';
+  private static readonly defaultInvoiceLogoUrl = '/newlogo.png';
 
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(PortalApiService);
@@ -1069,7 +1069,7 @@ export class SettingsPageComponent implements OnInit {
   private validateImageUrl(kind: SettingsImageKind, value: string): boolean {
     if (value && !SettingsPageComponent.isPersistableLogoUrl(value)) {
       this.getImageControl(kind).markAsTouched();
-      this.toast.error(`${this.getImageLabel(kind)} URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /logo-name.svg.`);
+      this.toast.error(`${this.getImageLabel(kind)} URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /newlogo.png.`);
       return false;
     }
 

@@ -65,6 +65,7 @@ import { ToastService } from '../../../core/services/toast.service';
             <th>Date Issued</th>
             <th>Date Due</th>
             <th>Payment Status</th>
+            <th>Overdue</th>
             <th>Email Status</th>
             <th>Actions</th>
           </tr>
@@ -74,28 +75,45 @@ import { ToastService } from '../../../core/services/toast.service';
             <td>{{ invoice.invoiceNo }}</td>
             <td>{{ invoice.customer }}</td>
             <td>{{ invoice.currency }}</td>
-            <td>{{ invoice.amount | appCurrency: invoice.currency }}</td>
+            <td>
+              <div class="amount-stack">
+                <strong>{{ invoice.amount | appCurrency: invoice.currency }}</strong>
+                <span *ngIf="invoice.balance > 0">Open {{ invoice.balance | appCurrency: invoice.currency }}</span>
+              </div>
+            </td>
             <td><app-date-badge [value]="invoice.dateIssued"></app-date-badge></td>
             <td><app-date-badge [value]="invoice.dateDue"></app-date-badge></td>
             <td>
               <app-status-chip [label]="invoice.paymentStatus" [variant]="statusVariant(invoice.paymentStatus)"></app-status-chip>
             </td>
+            <td class="status-stack">
+              <app-status-chip
+                *ngIf="invoice.isOverdue; else onTimeStatus"
+                [label]="overdueLabel(invoice)"
+                [variant]="overdueVariant(invoice.daysOverdue)">
+              </app-status-chip>
+              <ng-template #onTimeStatus>
+                <span class="inline-muted">On time</span>
+              </ng-template>
+            </td>
             <td>
               <app-status-chip [label]="invoice.emailStatus === 'Emailed' ? 'Emailed' : 'Email Pending'" [variant]="emailStatusVariant(invoice.emailStatus)"></app-status-chip>
             </td>
-            <td class="actions">
-              <app-button size="sm" variant="secondary" (clicked)="openDetail(invoice)">View</app-button>
-              <app-button size="sm" variant="secondary" (clicked)="edit(invoice)">Edit</app-button>
-              <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(invoice)">Delete</app-button>
-              <app-button
-                size="sm"
-                [variant]="paymentButtonVariant(invoice.paymentStatus)"
-                [disabled]="invoice.paymentStatus === 'Paid'"
-                (clicked)="openPayment(invoice)">
-                {{ paymentButtonLabel(invoice.paymentStatus) }}
-              </app-button>
-              <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(invoice)">Email</app-button>
-              <app-button size="sm" variant="secondary" (clicked)="exportInvoice(invoice)">PDF</app-button>
+            <td class="actions-cell">
+              <div class="actions">
+                <app-button size="sm" variant="secondary" (clicked)="openDetail(invoice)">View</app-button>
+                <app-button size="sm" variant="secondary" (clicked)="edit(invoice)">Edit</app-button>
+                <app-button *ngIf="isAdmin()" size="sm" variant="danger" (clicked)="confirmDelete(invoice)">Delete</app-button>
+                <app-button
+                  size="sm"
+                  [variant]="paymentButtonVariant(invoice.paymentStatus)"
+                  [disabled]="invoice.paymentStatus === 'Paid'"
+                  (clicked)="openPayment(invoice)">
+                  {{ paymentButtonLabel(invoice.paymentStatus) }}
+                </app-button>
+                <app-button size="sm" variant="secondary" (clicked)="openEmailDialog(invoice)">Email</app-button>
+                <app-button size="sm" variant="secondary" (clicked)="exportInvoice(invoice)">PDF</app-button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -199,24 +217,25 @@ import { ToastService } from '../../../core/services/toast.service';
       </app-card>
     </div>
 
-    <div class="drawer" *ngIf="detail()">
+    <div class="drawer" *ngIf="detail() as currentDetail">
       <app-card>
-        <h3>Invoice {{ detail()?.invoiceNo }}</h3>
-        <p><strong>Customer:</strong> {{ detail()?.customerName }}</p>
-        <p *ngIf="detail()?.quotationNo"><strong>Source Quote:</strong> {{ detail()?.quotationNo }}</p>
-        <p><strong>Courier:</strong> {{ detail()?.courierName || '-' }}</p>
-        <p><strong>PO No:</strong> {{ detail()?.poNumber || '-' }}</p>
-        <p><strong>Currency:</strong> {{ detail()?.currency }}</p>
-        <p><strong>Issued:</strong> {{ detail()?.dateIssued }} | <strong>Due:</strong> {{ detail()?.dateDue }}</p>
-        <p *ngIf="taxApplicable()"><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>GST:</strong> {{ detail()?.taxAmount || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
-        <p *ngIf="!taxApplicable()"><strong>Subtotal:</strong> {{ detail()?.subtotal || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
-        <p><strong>Grand Total:</strong> {{ detail()?.grandTotal || 0 | appCurrency: (detail()?.currency || 'MVR') }} | <strong>Balance:</strong> {{ detail()?.balance || 0 | appCurrency: (detail()?.currency || 'MVR') }}</p>
+        <h3>Invoice {{ currentDetail.invoiceNo }}</h3>
+        <p><strong>Customer:</strong> {{ currentDetail.customerName }}</p>
+        <p *ngIf="currentDetail.quotationNo"><strong>Source Quote:</strong> {{ currentDetail.quotationNo }}</p>
+        <p><strong>Courier:</strong> {{ currentDetail.courierName || '-' }}</p>
+        <p><strong>PO No:</strong> {{ currentDetail.poNumber || '-' }}</p>
+        <p><strong>Currency:</strong> {{ currentDetail.currency }}</p>
+        <p><strong>Issued:</strong> {{ currentDetail.dateIssued }} | <strong>Due:</strong> {{ currentDetail.dateDue }}</p>
+        <p><strong>Overdue:</strong> {{ overdueDetailLabel(currentDetail) }}</p>
+        <p *ngIf="taxApplicable()"><strong>Subtotal:</strong> {{ currentDetail.subtotal || 0 | appCurrency: (currentDetail.currency || 'MVR') }} | <strong>GST:</strong> {{ currentDetail.taxAmount || 0 | appCurrency: (currentDetail.currency || 'MVR') }}</p>
+        <p *ngIf="!taxApplicable()"><strong>Subtotal:</strong> {{ currentDetail.subtotal || 0 | appCurrency: (currentDetail.currency || 'MVR') }}</p>
+        <p><strong>Grand Total:</strong> {{ currentDetail.grandTotal || 0 | appCurrency: (currentDetail.currency || 'MVR') }} | <strong>Balance:</strong> {{ currentDetail.balance || 0 | appCurrency: (currentDetail.currency || 'MVR') }}</p>
         <div class="detail-list">
-          <div *ngFor="let item of detail()?.items">{{ item.description }} - {{ item.qty }} x {{ item.rate | appCurrency: (detail()?.currency || 'MVR') }} = {{ item.total || 0 | appCurrency: (detail()?.currency || 'MVR') }}</div>
+          <div *ngFor="let item of currentDetail.items">{{ item.description }} - {{ item.qty }} x {{ item.rate | appCurrency: (currentDetail.currency || 'MVR') }} = {{ item.total || 0 | appCurrency: (currentDetail.currency || 'MVR') }}</div>
         </div>
         <div class="detail-list">
           <h4>Payments</h4>
-          <div *ngFor="let payment of detail()?.payments">{{ payment.paymentDate }} | {{ payment.method }} | {{ payment.amount | appCurrency: (payment.currency || detail()?.currency || 'MVR') }}</div>
+          <div *ngFor="let payment of currentDetail.payments">{{ payment.paymentDate }} | {{ payment.method }} | {{ payment.amount | appCurrency: (payment.currency || currentDetail.currency || 'MVR') }}</div>
         </div>
         <div class="form-actions">
           <app-button variant="secondary" (clicked)="detail.set(null)">Close</app-button>
@@ -318,6 +337,24 @@ import { ToastService } from '../../../core/services/toast.service';
       font-size: .84rem;
       color: var(--text-muted);
       font-weight: 600;
+    }
+    .amount-stack {
+      display: grid;
+      gap: .14rem;
+    }
+    .amount-stack strong {
+      font-size: .88rem;
+    }
+    .amount-stack span,
+    .inline-muted {
+      font-size: .74rem;
+      color: var(--text-muted);
+    }
+    .status-stack {
+      min-width: 128px;
+    }
+    .actions-cell {
+      vertical-align: middle;
     }
     .actions {
       display: flex;
@@ -566,6 +603,38 @@ export class InvoicesPageComponent implements OnInit {
 
   emailStatusVariant(status: DocumentEmailStatus): 'green' | 'amber' {
     return status === 'Emailed' ? 'green' : 'amber';
+  }
+
+  overdueVariant(daysOverdue: number): 'blue' | 'amber' | 'red' {
+    if (daysOverdue > 60) {
+      return 'red';
+    }
+
+    if (daysOverdue > 30) {
+      return 'amber';
+    }
+
+    return 'blue';
+  }
+
+  overdueLabel(invoice: Invoice | InvoiceListItem): string {
+    if (!invoice.isOverdue) {
+      return 'On time';
+    }
+
+    return invoice.overdueBucket?.trim() || 'Past due';
+  }
+
+  overdueDetailLabel(invoice: Invoice): string {
+    if (!invoice.isOverdue) {
+      return 'On time';
+    }
+
+    const label = this.overdueLabel(invoice);
+    const dayLabel = invoice.daysOverdue === 1 ? 'day' : 'days';
+    return invoice.daysOverdue > 0
+      ? `${label} (${invoice.daysOverdue} ${dayLabel})`
+      : label;
   }
 
   onSearch(value: string): void {

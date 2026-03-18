@@ -46,6 +46,7 @@ public class InvoiceService : IInvoiceService
             query.CreatedDatePreset,
             query.CreatedDateFrom,
             query.CreatedDateTo);
+        var today = InvoiceAgingHelper.GetToday();
 
         var invoices = _dbContext.Invoices
             .AsNoTracking()
@@ -71,7 +72,7 @@ public class InvoiceService : IInvoiceService
             ? invoices.OrderBy(x => x.DateIssued)
             : invoices.OrderByDescending(x => x.DateIssued).ThenByDescending(x => x.CreatedAt);
 
-        return await invoices.Select(x => new InvoiceListItemDto
+        var pagedResult = await invoices.Select(x => new InvoiceListItemDto
             {
                 Id = x.Id,
                 InvoiceNo = x.InvoiceNo,
@@ -82,6 +83,7 @@ public class InvoiceService : IInvoiceService
                 CourierName = x.CourierVessel != null ? x.CourierVessel.Name : null,
                 Currency = x.Currency,
                 Amount = x.GrandTotal,
+                Balance = x.Balance,
                 DateIssued = x.DateIssued,
                 DateDue = x.DateDue,
                 PaymentStatus = x.PaymentStatus,
@@ -89,6 +91,22 @@ public class InvoiceService : IInvoiceService
                 LastEmailedAt = x.LastEmailedAt
             })
             .ToPagedResultAsync(query, cancellationToken);
+
+        var items = pagedResult.Items
+            .Select(item =>
+            {
+                ApplyInvoiceAging(item, item.DateDue, item.Balance, today);
+                return item;
+            })
+            .ToList();
+
+        return new PagedResult<InvoiceListItemDto>
+        {
+            Items = items,
+            PageNumber = pagedResult.PageNumber,
+            PageSize = pagedResult.PageSize,
+            TotalCount = pagedResult.TotalCount
+        };
     }
 
     public async Task<InvoiceDetailDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -562,7 +580,7 @@ public class InvoiceService : IInvoiceService
 
     private static InvoiceDetailDto MapInvoice(Invoice invoice)
     {
-        return new InvoiceDetailDto
+        var dto = new InvoiceDetailDto
         {
             Id = invoice.Id,
             InvoiceNo = invoice.InvoiceNo,
@@ -610,6 +628,25 @@ public class InvoiceService : IInvoiceService
                 Notes = payment.Notes
             }).ToList()
         };
+
+        ApplyInvoiceAging(dto, invoice.DateDue, invoice.Balance);
+        return dto;
+    }
+
+    private static void ApplyInvoiceAging(InvoiceListItemDto invoice, DateOnly dueDate, decimal balance, DateOnly? today = null)
+    {
+        var aging = InvoiceAgingHelper.Evaluate(dueDate, balance, today);
+        invoice.IsOverdue = aging.IsOverdue;
+        invoice.DaysOverdue = aging.DaysOverdue;
+        invoice.OverdueBucket = aging.Bucket;
+    }
+
+    private static void ApplyInvoiceAging(InvoiceDetailDto invoice, DateOnly dueDate, decimal balance, DateOnly? today = null)
+    {
+        var aging = InvoiceAgingHelper.Evaluate(dueDate, balance, today);
+        invoice.IsOverdue = aging.IsOverdue;
+        invoice.DaysOverdue = aging.DaysOverdue;
+        invoice.OverdueBucket = aging.Bucket;
     }
 
     private async Task<TenantSettings> GetTenantSettingsAsync(CancellationToken cancellationToken)

@@ -78,7 +78,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
             </ng-template>
           </button>
         </div>
-        <label>Logo URL <input type="url" formControlName="logoUrl" placeholder="/logo-name.svg"></label>
+        <label>Logo URL <input type="url" formControlName="logoUrl" placeholder="/newlogo.png"></label>
 
         <h2>Email Defaults</h2>
         <label>Email From Name <input type="text" formControlName="emailFromName"></label>
@@ -250,7 +250,7 @@ import { PortalAdminApiService } from '../../services/portal-admin-api.service';
 export class PortalAdminBillingSettingsPageComponent {
   private static readonly maxLogoSizeBytes = 5 * 1024 * 1024;
   private static readonly allowedLogoMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
-  private static readonly defaultInvoiceLogoUrl = '/logo-name.svg';
+  private static readonly defaultInvoiceLogoUrl = '/newlogo.png';
 
   private readonly api = inject(PortalAdminApiService);
   private readonly toast = inject(ToastService);
@@ -415,7 +415,7 @@ export class PortalAdminBillingSettingsPageComponent {
     const logoUrl = this.form.controls.logoUrl.value.trim();
     if (logoUrl && !PortalAdminBillingSettingsPageComponent.isPersistableLogoUrl(logoUrl)) {
       this.form.controls.logoUrl.markAsTouched();
-      this.toast.error('Logo URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /logo-name.svg.');
+      this.toast.error('Logo URL must be an HTTP/HTTPS URL, /uploads path, or root static path like /newlogo.png.');
       return;
     }
 

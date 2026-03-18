@@ -651,6 +651,9 @@ export interface Invoice {
   amountPaid: number;
   balance: number;
   paymentStatus: PaymentStatus;
+  isOverdue: boolean;
+  daysOverdue: number;
+  overdueBucket?: string;
   emailStatus: DocumentEmailStatus;
   lastEmailedAt?: string;
   notes?: string;
@@ -668,9 +671,13 @@ export interface InvoiceListItem {
   courierName?: string;
   currency: string;
   amount: number;
+  balance: number;
   dateIssued: string;
   dateDue: string;
   paymentStatus: PaymentStatus;
+  isOverdue: boolean;
+  daysOverdue: number;
+  overdueBucket?: string;
   emailStatus: DocumentEmailStatus;
   lastEmailedAt?: string;
 }
@@ -1021,16 +1028,33 @@ export interface StatementRow {
   date?: string;
   description: string;
   reference?: string;
+  dueDate?: string;
   currency: 'MVR' | 'USD';
   amount: number;
   payments: number;
   receivedOn?: string;
   balance: number;
+  isOverdue: boolean;
+  daysOverdue: number;
+  overdueBucket?: string;
 }
 
 export interface StatementCurrencyTotals {
   mvr: number;
   usd: number;
+}
+
+export interface StatementOverdueBucket {
+  label: string;
+  invoiceCount: number;
+  totals: StatementCurrencyTotals;
+}
+
+export interface StatementOverdueAging {
+  totalOverdue: StatementOverdueBucket;
+  over30Days: StatementOverdueBucket;
+  over60Days: StatementOverdueBucket;
+  over90Days: StatementOverdueBucket;
 }
 
 export interface AccountStatement {
@@ -1042,6 +1066,7 @@ export interface AccountStatement {
   totalInvoiced: StatementCurrencyTotals;
   totalReceived: StatementCurrencyTotals;
   totalPending: StatementCurrencyTotals;
+  overdueAging: StatementOverdueAging;
   rows: StatementRow[];
 }
 

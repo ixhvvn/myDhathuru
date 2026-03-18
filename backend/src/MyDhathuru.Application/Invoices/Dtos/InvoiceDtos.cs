@@ -52,9 +52,13 @@ public class InvoiceListItemDto
     public string? CourierName { get; set; }
     public string Currency { get; set; } = "MVR";
     public decimal Amount { get; set; }
+    public decimal Balance { get; set; }
     public DateOnly DateIssued { get; set; }
     public DateOnly DateDue { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
+    public bool IsOverdue { get; set; }
+    public int DaysOverdue { get; set; }
+    public string? OverdueBucket { get; set; }
     public DocumentEmailStatus EmailStatus { get; set; }
     public DateTimeOffset? LastEmailedAt { get; set; }
 }
@@ -86,6 +90,9 @@ public class InvoiceDetailDto
     public decimal AmountPaid { get; set; }
     public decimal Balance { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
+    public bool IsOverdue { get; set; }
+    public int DaysOverdue { get; set; }
+    public string? OverdueBucket { get; set; }
     public DocumentEmailStatus EmailStatus { get; set; }
     public DateTimeOffset? LastEmailedAt { get; set; }
     public string? Notes { get; set; }

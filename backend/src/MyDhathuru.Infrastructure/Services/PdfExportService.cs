@@ -26,8 +26,8 @@ public class PdfExportService : IPdfExportService
     private static readonly TimeSpan MaldivesOffset = TimeSpan.FromHours(5);
     private const int MaxPortalAdminLogoBytes = 5 * 1024 * 1024;
     private const string FarumaFontFamily = "Faruma";
-    private const string DefaultAppLogoFileName = "logo.svg";
-    private const string DefaultInvoiceLogoFileName = "logo-name.svg";
+    private const string DefaultAppLogoFileName = "newlogo.png";
+    private const string DefaultInvoiceLogoFileName = "newlogo.png";
     private static readonly HttpClient LogoHttpClient = new() { Timeout = TimeSpan.FromSeconds(6) };
     private static readonly object FarumaFontSync = new();
     private static bool FarumaFontRegistrationAttempted;

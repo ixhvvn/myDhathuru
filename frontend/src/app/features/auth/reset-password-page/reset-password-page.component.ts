@@ -20,7 +20,7 @@ import { AppCardComponent } from '../../../shared/components/app-card/app-card.c
 
       <app-card class="reset-card">
         <div class="brand">
-          <img src="/logo.svg" alt="myDhathuru logo">
+          <img src="/newlogo.png" alt="myDhathuru logo">
           <div>
             <h1>Reset Password</h1>
             <p>Create a new password for your account.</p>

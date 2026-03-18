@@ -17,7 +17,7 @@ public class PortalAdminBillingService : IPortalAdminBillingService
     private const decimal DefaultVesselFee = 1000m;
     private const decimal DefaultStaffFee = 250m;
     private const int DefaultDueDays = 14;
-    private const string DefaultInvoiceLogoUrl = "/logo-name.svg";
+    private const string DefaultInvoiceLogoUrl = "/newlogo.png";
     private const int SequenceLockKey = 73190511;
 
     private readonly ApplicationDbContext _dbContext;

@@ -26,6 +26,7 @@ public class StatementService : IStatementService
 
     public async Task<AccountStatementDto> GetStatementAsync(Guid customerId, int year, CancellationToken cancellationToken = default)
     {
+        var today = InvoiceAgingHelper.GetToday();
         var customer = await _dbContext.Customers.FirstOrDefaultAsync(x => x.Id == customerId, cancellationToken)
             ?? throw new NotFoundException("Customer not found.");
 
@@ -45,6 +46,17 @@ public class StatementService : IStatementService
             .AsNoTracking()
             .Where(x => x.CustomerId == customerId && x.DateIssued.Year == year)
             .OrderBy(x => x.DateIssued)
+            .ToListAsync(cancellationToken);
+
+        var overdueInvoices = await _dbContext.Invoices
+            .AsNoTracking()
+            .Where(x => x.CustomerId == customerId && x.Balance > 0m && x.DateDue < today)
+            .Select(x => new OverdueInvoiceSnapshot
+            {
+                Currency = x.Currency,
+                Balance = x.Balance,
+                DateDue = x.DateDue
+            })
             .ToListAsync(cancellationToken);
 
         var invoiceIds = invoices.Select(x => x.Id).ToList();
@@ -119,9 +131,11 @@ public class StatementService : IStatementService
             Date = i.DateIssued,
             Description = "Invoice",
             Reference = i.InvoiceNo,
+            DueDate = i.DateDue,
             Currency = NormalizeCurrency(i.Currency, "MVR"),
             Amount = i.GrandTotal,
             Payments = 0,
+            Aging = InvoiceAgingHelper.Evaluate(i.DateDue, i.Balance, today),
             Priority = 1
         }));
 
@@ -174,13 +188,17 @@ public class StatementService : IStatementService
                 Date = evt.Date,
                 Description = evt.Description,
                 Reference = evt.Reference,
+                DueDate = evt.DueDate,
                 Currency = evt.Currency,
                 Amount = evt.Amount,
                 Payments = evt.Payments,
                 ReceivedOn = evt.ReceivedOn,
                 Balance = evt.Currency == "USD"
                     ? Round2(runningUsd)
-                    : Round2(runningMvr)
+                    : Round2(runningMvr),
+                IsOverdue = evt.Aging.IsOverdue,
+                DaysOverdue = evt.Aging.DaysOverdue,
+                OverdueBucket = evt.Aging.Bucket
             });
         }
 
@@ -213,6 +231,7 @@ public class StatementService : IStatementService
                 Mvr = Round2(runningMvr),
                 Usd = Round2(runningUsd)
             },
+            OverdueAging = BuildOverdueAging(overdueInvoices, today),
             Rows = rows
         };
     }
@@ -301,15 +320,73 @@ public class StatementService : IStatementService
             : "MVR";
     }
 
+    private static StatementOverdueAgingDto BuildOverdueAging(
+        IEnumerable<OverdueInvoiceSnapshot> overdueInvoices,
+        DateOnly today)
+    {
+        var aging = new StatementOverdueAgingDto();
+
+        foreach (var invoice in overdueInvoices)
+        {
+            var currency = NormalizeCurrency(invoice.Currency, "MVR");
+            var amount = Round2(invoice.Balance);
+            var snapshot = InvoiceAgingHelper.Evaluate(invoice.DateDue, amount, today);
+            if (!snapshot.IsOverdue)
+            {
+                continue;
+            }
+
+            AddToBucket(aging.TotalOverdue, currency, amount);
+
+            if (snapshot.DaysOverdue > 30)
+            {
+                AddToBucket(aging.Over30Days, currency, amount);
+            }
+
+            if (snapshot.DaysOverdue > 60)
+            {
+                AddToBucket(aging.Over60Days, currency, amount);
+            }
+
+            if (snapshot.DaysOverdue > 90)
+            {
+                AddToBucket(aging.Over90Days, currency, amount);
+            }
+        }
+
+        return aging;
+    }
+
+    private static void AddToBucket(StatementOverdueBucketDto bucket, string currency, decimal amount)
+    {
+        bucket.InvoiceCount++;
+        if (currency == "USD")
+        {
+            bucket.Totals.Usd = Round2(bucket.Totals.Usd + amount);
+            return;
+        }
+
+        bucket.Totals.Mvr = Round2(bucket.Totals.Mvr + amount);
+    }
+
     private sealed class StatementEvent
     {
         public DateOnly Date { get; set; }
         public string Description { get; set; } = string.Empty;
         public string? Reference { get; set; }
+        public DateOnly? DueDate { get; set; }
         public string Currency { get; set; } = "MVR";
         public decimal Amount { get; set; }
         public decimal Payments { get; set; }
         public DateOnly? ReceivedOn { get; set; }
+        public InvoiceAgingSnapshot Aging { get; set; }
         public int Priority { get; set; }
+    }
+
+    private sealed class OverdueInvoiceSnapshot
+    {
+        public string? Currency { get; set; }
+        public decimal Balance { get; set; }
+        public DateOnly DateDue { get; set; }
     }
 }

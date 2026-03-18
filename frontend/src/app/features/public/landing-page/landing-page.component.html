@@ -6,7 +6,7 @@
   <header class="top-nav" aria-label="Primary">
     <a class="brand" routerLink="/" aria-label="myDhathuru home">
       <span class="brand-logo">
-        <img src="/logo.svg" alt="myDhathuru logo">
+        <img src="/newlogo.png" alt="myDhathuru logo">
       </span>
       <span class="brand-name">myDhathuru</span>
     </a>
@@ -47,81 +47,68 @@
           }
         </div>
 
-        <div class="hero-signal-grid">
-          @for (signal of heroSignals; track signal.label; let idx = $index) {
-            <article
-              class="hero-signal-card"
-              [attr.data-tone]="signal.tone"
-              data-reveal="up"
-              [style.--reveal-delay]="(300 + idx * 55) + 'ms'">
-              <small>{{ signal.label }}</small>
-              <strong>{{ signal.title }}</strong>
-              <p>{{ signal.detail }}</p>
-            </article>
-          }
-        </div>
       </div>
 
       <div class="hero-visual" data-reveal="right">
         <article class="hero-board" aria-hidden="true">
           <div class="hero-board__chrome">
-            <span>Live product map</span>
-            <span>Premium workspace</span>
+            <span>Live workspace</span>
+            <span>Shared records</span>
           </div>
 
-          <svg class="hero-board__routes" viewBox="0 0 720 640" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M360 320 C302 266 262 228 186 164" />
-            <path d="M360 320 C424 264 470 224 554 162" />
-            <path d="M360 320 C302 372 254 420 182 476" />
-            <path d="M360 320 C428 374 474 418 558 478" />
-          </svg>
-
-          <article class="hero-board__core">
+          <article class="hero-board__intro">
             <small>myDhathuru</small>
-            <strong>One live control system</strong>
+            <strong>One clean workspace for operations, finance, payroll, and compliance.</strong>
             <p>
-              Operations, finance flow, staff processes, reporting, and compliance sit on one
-              connected data spine.
+              Keep customer work, supplier-side records, staff processes, and reporting connected
+              without splitting them across disconnected tools.
             </p>
 
-            <div class="hero-board__core-chips">
+            <div class="hero-board__intro-chips">
               <span>Tenant-scoped</span>
               <span>Role-aware</span>
               <span>Export-ready</span>
             </div>
           </article>
 
-          @for (cluster of capabilityClusters; track cluster.kicker; let idx = $index) {
-            <article
-              class="hero-cluster-card"
-              [attr.data-slot]="cluster.heroSlot"
-              [attr.data-tone]="cluster.tone"
-              data-reveal="scale"
-              [style.--reveal-delay]="(140 + idx * 70) + 'ms'">
-              <div class="hero-cluster-card__top">
-                <span class="cluster-token">{{ cluster.token }}</span>
-                <small>{{ cluster.kicker }}</small>
-              </div>
-              <strong>{{ cluster.title }}</strong>
-              <p>{{ cluster.heroSummary }}</p>
+          <div class="hero-board__lane-list" aria-label="Platform lanes">
+            @for (cluster of capabilityClusters; track cluster.kicker; let idx = $index) {
+              <article
+                class="hero-board__lane"
+                [attr.data-tone]="cluster.tone"
+                data-reveal="scale"
+                [style.--reveal-delay]="(140 + idx * 70) + 'ms'">
+                <div class="hero-board__lane-head">
+                  <span class="cluster-token">{{ cluster.token }}</span>
+                  <div>
+                    <small>{{ cluster.kicker }}</small>
+                    <p>{{ cluster.heroSummary }}</p>
+                  </div>
+                </div>
 
-              <div class="hero-cluster-card__chips">
-                @for (chip of cluster.heroChips; track chip) {
-                  <span>{{ chip }}</span>
-                }
-              </div>
-            </article>
-          }
-
-          @for (node of heroOrbitNodes; track node.label) {
-            <span
-              class="hero-orbit-node"
-              [attr.data-slot]="node.slot"
-              [attr.data-tone]="node.tone">
-              {{ node.label }}
-            </span>
-          }
+                <div class="hero-board__lane-chips">
+                  @for (chip of cluster.heroChips; track chip) {
+                    <span>{{ chip }}</span>
+                  }
+                </div>
+              </article>
+            }
+          </div>
         </article>
+      </div>
+
+      <div class="hero-signal-grid" aria-label="Platform outcomes">
+        @for (signal of heroSignals; track signal.label; let idx = $index) {
+          <article
+            class="hero-signal-card"
+            [attr.data-tone]="signal.tone"
+            data-reveal="up"
+            [style.--reveal-delay]="(300 + idx * 55) + 'ms'">
+            <small>{{ signal.label }}</small>
+            <strong>{{ signal.title }}</strong>
+            <p>{{ signal.detail }}</p>
+          </article>
+        }
       </div>
     </section>
 
@@ -472,14 +459,11 @@
       <div class="footer-brand">
         <a class="brand" routerLink="/" aria-label="myDhathuru home">
           <span class="brand-logo">
-            <img src="/logo.svg" alt="myDhathuru logo">
+              <img src="/newlogo.png" alt="myDhathuru logo">
           </span>
           <span class="brand-name">myDhathuru</span>
         </a>
-        <p>
-          One live system for delivery notes, billing, expenses, payroll, reporting,
-          MIRA workflows, and BPT visibility.
-        </p>
+        <p>Run with ease</p>
       </div>
 
       <div class="footer-column">

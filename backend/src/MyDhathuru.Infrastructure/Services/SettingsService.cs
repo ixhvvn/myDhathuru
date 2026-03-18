@@ -12,7 +12,7 @@ namespace MyDhathuru.Infrastructure.Services;
 
 public class SettingsService : ISettingsService
 {
-    private const string DefaultInvoiceLogoUrl = "/logo-name.svg";
+    private const string DefaultInvoiceLogoUrl = "/newlogo.png";
     private readonly ApplicationDbContext _dbContext;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ICurrentUserService _currentUserService;

@@ -1153,7 +1153,7 @@ public class PortalAdminService : IPortalAdminService
             QuotationEmailBodyTemplate = DocumentEmailTemplateDefaults.Quotation,
             InvoiceEmailBodyTemplate = DocumentEmailTemplateDefaults.Invoice,
             PurchaseOrderEmailBodyTemplate = DocumentEmailTemplateDefaults.PurchaseOrder,
-            LogoUrl = "/logo-name.svg",
+            LogoUrl = "/newlogo.png",
             CompanyStampUrl = null,
             CompanySignatureUrl = null
         };

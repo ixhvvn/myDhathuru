@@ -24,7 +24,7 @@ type AuthMode = 'login' | 'forgot';
 
       <app-card class="auth-card">
         <div class="brand-strip">
-          <img src="/logo.svg" alt="myDhathuru logo">
+          <img src="/newlogo.png" alt="myDhathuru logo">
           <div>
             <strong>myDhathuru Portal Admin</strong>
             <small>Platform control center</small>
