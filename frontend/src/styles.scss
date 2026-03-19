@@ -92,6 +92,29 @@ body.app-scroll-locked .shell .content,
 body.app-scroll-locked .admin-shell .content {
   overflow: hidden !important;
   overscroll-behavior: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+.shell .content:has(div.drawer),
+.shell .content:has(aside.drawer),
+.shell .content:has(.drawer-backdrop),
+.shell .content:has(.dialog-backdrop),
+.shell .content:has(.bug-modal),
+.shell .content:has(.overlay),
+.admin-shell .content:has(div.drawer),
+.admin-shell .content:has(aside.drawer),
+.admin-shell .content:has(.drawer-backdrop),
+.admin-shell .content:has(.dialog-backdrop),
+.admin-shell .content:has(.overlay) {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
+  animation: none !important;
 }
 
 app-root {
@@ -287,7 +310,7 @@ body .overlay {
 body div.drawer {
   display: grid !important;
   place-items: center !important;
-  overflow-y: auto !important;
+  overflow: hidden !important;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: clamp(1rem, 2.5vh, 1.5rem) 1rem !important;
@@ -380,10 +403,11 @@ body section.dhivehi-dialog app-card.dialog-card .card {
   overflow: hidden !important;
 }
 
-@media (max-width: 900px), (max-height: 860px) {
+@media (max-width: 900px) {
   body div.drawer {
     place-items: start center !important;
     align-content: start;
+    overflow-y: auto !important;
   }
 }
 

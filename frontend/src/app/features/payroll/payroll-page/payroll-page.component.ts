@@ -196,7 +196,7 @@ import { ToastService } from '../../../core/services/toast.service';
       </app-data-table>
     </app-card>
 
-    <div class="drawer" *ngIf="staffFormOpen()">
+    <div class="payroll-modal" *ngIf="staffFormOpen()">
       <app-card>
         <h3>{{ editingStaffId() ? 'Edit Staff' : 'Create Staff' }}</h3>
         <form [formGroup]="staffForm" class="form-grid" (ngSubmit)="saveStaff()" novalidate>
@@ -300,7 +300,7 @@ import { ToastService } from '../../../core/services/toast.service';
       </app-card>
     </div>
 
-    <div class="drawer" *ngIf="entryFormOpen()">
+    <div class="payroll-modal" *ngIf="entryFormOpen()">
       <app-card>
         <h3>Edit Payroll Entry</h3>
         <form [formGroup]="entryForm" class="form-grid" (ngSubmit)="saveEntry()" novalidate>
@@ -473,7 +473,7 @@ import { ToastService } from '../../../core/services/toast.service';
       padding: .52rem .6rem;
       background: rgba(255,255,255,.92);
     }
-    .drawer {
+    .payroll-modal {
       position: fixed;
       inset: 0;
       z-index: 1200;
@@ -482,12 +482,20 @@ import { ToastService } from '../../../core/services/toast.service';
       display: grid;
       place-items: center;
       padding: 1rem;
+      overflow: hidden;
     }
-    .drawer app-card {
+    .payroll-modal app-card {
       width: min(720px, 100%);
       max-height: 95dvh;
       overflow: auto;
       --card-bg: linear-gradient(160deg, rgba(255,255,255,.95), rgba(245,248,255,.9));
+      --card-border: #d5e2fb;
+      --card-shadow: 0 30px 70px rgba(52, 72, 126, .32);
+      --card-overflow: auto;
+      --card-shimmer-display: none;
+      --card-hover-transform: none;
+      --card-hover-shadow: 0 30px 70px rgba(52, 72, 126, .32);
+      --card-hover-border: #d5e2fb;
     }
     .form-grid { display: grid; gap: .75rem; }
     .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .72rem; }
@@ -519,7 +527,7 @@ import { ToastService } from '../../../core/services/toast.service';
       .actions app-button {
         flex: 1 1 120px;
       }
-      .drawer {
+      .payroll-modal {
         padding: .6rem;
         place-items: start center;
         overflow: auto;

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
@@ -10,6 +10,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ExpenseCategory, PagedResult } from '../../../core/models/app.models';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { setAppScrollLock } from '../../../core/utils/app-scroll-lock.util';
 import { PortalApiService } from '../../services/portal-api.service';
 
 @Component({
@@ -132,8 +133,7 @@ import { PortalApiService } from '../../services/portal-api.service';
     }
     .drawer app-card {
       width: min(760px, 100%);
-      max-height: calc(100vh - 2rem);
-      overflow: auto;
+      max-width: 100%;
     }
     .form-grid {
       display: grid;
@@ -166,6 +166,7 @@ export class ExpenseCategoriesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
+  private readonly scrollLockOwner = {};
 
   readonly page = signal<PagedResult<ExpenseCategory> | null>(null);
   readonly search = signal('');
@@ -174,6 +175,10 @@ export class ExpenseCategoriesPageComponent implements OnInit {
   readonly editId = signal<string | null>(null);
   readonly deleteDialogOpen = signal(false);
   readonly deleting = signal<ExpenseCategory | null>(null);
+  private readonly overlayScrollLockEffect = effect((onCleanup) => {
+    setAppScrollLock(this.scrollLockOwner, this.formOpen());
+    onCleanup(() => setAppScrollLock(this.scrollLockOwner, false));
+  });
   readonly bptOptions = [
     'Salary',
     'Rent',

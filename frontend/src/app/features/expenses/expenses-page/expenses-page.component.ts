@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
@@ -14,6 +14,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ExpenseCategoryLookup, ExpenseEntryDetail, ExpenseLedgerRow, ExpenseSummary, PagedResult, SupplierLookup } from '../../../core/models/app.models';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { setAppScrollLock } from '../../../core/utils/app-scroll-lock.util';
 import { PortalApiService } from '../../services/portal-api.service';
 
 @Component({
@@ -273,6 +274,7 @@ export class ExpensesPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
+  private readonly scrollLockOwner = {};
 
   readonly page = signal<PagedResult<ExpenseLedgerRow> | null>(null);
   readonly summary = signal<ExpenseSummary | null>(null);
@@ -287,6 +289,10 @@ export class ExpensesPageComponent implements OnInit {
   readonly deleteDialogOpen = signal(false);
   readonly deleting = signal<ExpenseLedgerRow | null>(null);
   readonly exportLoading = signal<'excel' | 'pdf' | null>(null);
+  private readonly overlayScrollLockEffect = effect((onCleanup) => {
+    setAppScrollLock(this.scrollLockOwner, this.formOpen());
+    onCleanup(() => setAppScrollLock(this.scrollLockOwner, false));
+  });
 
   readonly form = this.fb.nonNullable.group({
     transactionDate: [new Date().toISOString().slice(0, 10), Validators.required],

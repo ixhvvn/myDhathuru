@@ -469,9 +469,15 @@ public class PortalAdminDemoDataService : IPortalAdminDemoDataService
     {
         return
         [
-            CreateDemoUser(tenantId, staffRole, staff[0].StaffName, "mydhathuru+opsdemo@gmail.com"),
-            CreateDemoUser(tenantId, staffRole, staff[1].StaffName, "mydhathuru+financedemo@gmail.com")
+            CreateDemoUser(tenantId, staffRole, staff[0].StaffName, BuildDemoUserEmail(tenantId, "opsdemo")),
+            CreateDemoUser(tenantId, staffRole, staff[1].StaffName, BuildDemoUserEmail(tenantId, "financedemo"))
         ];
+    }
+
+    private static string BuildDemoUserEmail(Guid tenantId, string alias)
+    {
+        var tenantKey = tenantId.ToString("N")[..12];
+        return $"mydhathuru+{alias}-{tenantKey}@gmail.com";
     }
 
     private User CreateDemoUser(Guid tenantId, Role role, string fullName, string email)
