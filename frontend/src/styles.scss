@@ -83,6 +83,17 @@ body {
   overflow-x: hidden;
 }
 
+html.app-scroll-locked,
+body.app-scroll-locked {
+  overflow: hidden;
+}
+
+body.app-scroll-locked .shell .content,
+body.app-scroll-locked .admin-shell .content {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
 app-root {
   display: block;
   min-height: 100vh;

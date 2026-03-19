@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize, map, switchMap } from 'rxjs';
 import {
@@ -16,6 +16,7 @@ import {
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { setAppScrollLock } from '../../../core/utils/app-scroll-lock.util';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
 import { AppDataTableComponent } from '../../../shared/components/app-data-table/app-data-table.component';
@@ -44,6 +45,7 @@ export class StaffConductPageComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly authService = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly scrollLockOwner = {};
 
   readonly page = signal<PagedResult<StaffConductListItem> | null>(null);
   readonly summary = signal<StaffConductSummary>({ totalForms: 0, warningCount: 0, disciplinaryCount: 0, openCount: 0, acknowledgedCount: 0, resolvedCount: 0 });
@@ -150,6 +152,11 @@ export class StaffConductPageComponent implements OnInit {
     employeeRemarksDv: ['', Validators.maxLength(1000)],
     acknowledgementDv: ['', Validators.maxLength(1000)],
     resolutionNotesDv: ['', Validators.maxLength(1000)]
+  });
+  private readonly overlayScrollLockEffect = effect((onCleanup) => {
+    const overlayOpen = this.drawerMode() !== null || this.exportChoiceOpen() || this.dhivehiEditorOpen();
+    setAppScrollLock(this.scrollLockOwner, overlayOpen);
+    onCleanup(() => setAppScrollLock(this.scrollLockOwner, false));
   });
 
   ngOnInit(): void {

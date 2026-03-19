@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppButtonComponent } from '../../../shared/components/app-button/app-button.component';
 import { AppCardComponent } from '../../../shared/components/app-card/app-card.component';
@@ -10,6 +10,7 @@ import { AppPageHeaderComponent } from '../../../shared/components/app-page-head
 import { AuthService } from '../../../core/services/auth.service';
 import { PagedResult, PayrollEntry, PayrollPeriod, PayrollPeriodDetail, Staff } from '../../../core/models/app.models';
 import { extractApiError } from '../../../core/utils/api-error.util';
+import { setAppScrollLock } from '../../../core/utils/app-scroll-lock.util';
 import { ACCOUNT_NUMBER_REGEX, NAME_REGEX, PHONE_REGEX } from '../../../core/validators/input-patterns';
 import { PortalApiService } from '../../services/portal-api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -553,11 +554,16 @@ export class PayrollPageComponent implements OnInit {
 
   readonly entryFormOpen = signal(false);
   readonly editingEntry = signal<PayrollEntry | null>(null);
+  private readonly scrollLockOwner = {};
 
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(PortalApiService);
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
+  private readonly overlayScrollLockEffect = effect((onCleanup) => {
+    setAppScrollLock(this.scrollLockOwner, this.staffFormOpen() || this.entryFormOpen());
+    onCleanup(() => setAppScrollLock(this.scrollLockOwner, false));
+  });
 
   readonly staffForm = this.fb.nonNullable.group({
     staffId: ['', Validators.required],
