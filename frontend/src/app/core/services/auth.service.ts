@@ -11,12 +11,13 @@ const USER_KEY = 'myDhathuru_user';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private static readonly tokenExpiryLeewaySeconds = 15;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
   readonly user = signal<UserProfile | null>(this.getStoredUser());
-  readonly isAuthenticated = computed(() => !!this.user());
+  readonly isAuthenticated = computed(() => !!this.user() && this.hasValidAccessToken());
 
   login(payload: { email: string; password: string }): Observable<AuthResponse> {
     return this.api.post<AuthResponse>('auth/login', payload).pipe(
@@ -86,6 +87,19 @@ export class AuthService {
     return localStorage.getItem(REFRESH_TOKEN_KEY);
   }
 
+  hasValidAccessToken(): boolean {
+    const token = this.getAccessToken();
+    if (!token) {
+      return false;
+    }
+
+    return !this.isTokenExpired(token);
+  }
+
+  hasRefreshToken(): boolean {
+    return !!this.getRefreshToken();
+  }
+
   private storeAuth(response: AuthResponse): void {
     localStorage.setItem(ACCESS_TOKEN_KEY, response.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
@@ -101,6 +115,40 @@ export class AuthService {
 
     try {
       return JSON.parse(raw) as UserProfile;
+    } catch {
+      return null;
+    }
+  }
+
+  private isTokenExpired(token: string): boolean {
+    const payload = this.decodeJwtPayload(token);
+    if (!payload) {
+      return false;
+    }
+
+    const expClaim = payload['exp'];
+    const expiry = typeof expClaim === 'number' ? expClaim : Number(expClaim);
+    if (!Number.isFinite(expiry) || expiry <= 0) {
+      return false;
+    }
+
+    const expiresAtMs = (expiry - AuthService.tokenExpiryLeewaySeconds) * 1000;
+    return Date.now() >= expiresAtMs;
+  }
+
+  private decodeJwtPayload(token: string): Record<string, unknown> | null {
+    const parts = token.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const encodedPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padding = encodedPayload.length % 4;
+    const paddedPayload = padding ? encodedPayload + '='.repeat(4 - padding) : encodedPayload;
+
+    try {
+      const json = atob(paddedPayload);
+      return JSON.parse(json) as Record<string, unknown>;
     } catch {
       return null;
     }

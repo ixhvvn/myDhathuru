@@ -48,12 +48,11 @@ type NavSection = {
         <button class="logout-mini" type="button" (click)="logout()">Logout</button>
       </header>
 
-      <div class="mobile-backdrop" [class.visible]="mobileMenuVisible()" (click)="onMobileBackdropClick($event)"></div>
+      <div class="mobile-backdrop" [class.visible]="mobileMenuOpen()" (click)="onMobileBackdropClick($event)"></div>
 
       <aside
         class="sidebar"
         [class.mobile-open]="mobileMenuOpen()"
-        [class.mobile-closing]="mobileMenuClosing()"
         [class.sidebar-collapsed]="isDesktopCollapsed()">
         <div class="sidebar-top" [class.compact-top]="isDesktopCollapsed()">
           <div class="brand">
@@ -222,8 +221,7 @@ type NavSection = {
       padding: 1rem;
       align-items: stretch;
       overflow: hidden;
-      transition: grid-template-columns .26s cubic-bezier(.2,.8,.2,1);
-      will-change: grid-template-columns;
+      transition: grid-template-columns .15s cubic-bezier(.25,.8,.25,1);
     }
     .shell.shell-collapsed {
       grid-template-columns: 90px 1fr;
@@ -249,13 +247,28 @@ type NavSection = {
       overflow: hidden;
       animation: soft-rise .45s ease both;
       contain: layout paint;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+    .shell.sidebar-resizing {
+      transition-duration: .12s;
     }
     .shell.sidebar-resizing .sidebar,
     .shell.sidebar-resizing .content {
       backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
     .shell.sidebar-resizing .sidebar {
-      box-shadow: 0 10px 22px rgba(61, 81, 132, .08);
+      box-shadow: none;
+    }
+    .shell.sidebar-resizing .content {
+      box-shadow: none;
+    }
+    .shell.sidebar-resizing nav a,
+    .shell.sidebar-resizing .collapse-btn,
+    .shell.sidebar-resizing .collapse-btn svg,
+    .shell.sidebar-resizing .nav-icon {
+      transition: none !important;
     }
     .sidebar-top {
       display: flex;
@@ -547,12 +560,14 @@ type NavSection = {
       overflow-x: hidden;
       overflow-y: auto;
       min-height: 0;
+      min-width: 0;
       border-radius: 24px;
       border: 1px solid rgba(255,255,255,.8);
       background: linear-gradient(165deg, rgba(255,255,255,.82), rgba(247,250,255,.72));
       backdrop-filter: blur(8px);
       box-shadow: var(--shadow-soft);
       animation: soft-rise .5s ease both;
+      contain: layout paint;
     }
     .bug-backdrop {
       position: fixed;
@@ -638,6 +653,16 @@ type NavSection = {
       cursor: not-allowed;
       transform: none;
     }
+    @keyframes mobile-sidebar-enter {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
     @media (max-height: 900px) and (min-width: 981px) {
       .sidebar {
@@ -696,10 +721,12 @@ type NavSection = {
         justify-content: space-between;
         gap: .65rem;
         padding: .62rem .72rem;
-        border: 1px solid rgba(255,255,255,.85);
-        border-radius: 16px;
-        background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(244,248,255,.8));
-        box-shadow: var(--shadow-soft);
+        border: 1px solid rgba(255,255,255,.84);
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at 10% 20%, rgba(139, 159, 255, .16), transparent 32%),
+          linear-gradient(150deg, rgba(255,255,255,.96), rgba(241,247,255,.9));
+        box-shadow: 0 18px 30px rgba(73, 94, 148, .12);
       }
       .icon-btn {
         width: 40px;
@@ -767,11 +794,11 @@ type NavSection = {
         position: fixed;
         inset: 0;
         z-index: 70;
-        background: rgba(38, 49, 84, .3);
+        background: rgba(30, 41, 68, .38);
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition: opacity .24s ease, visibility 0s linear .24s;
+        transition: opacity .18s ease, visibility 0s linear .18s;
       }
       .mobile-backdrop.visible {
         opacity: 1;
@@ -782,25 +809,34 @@ type NavSection = {
       .sidebar {
         position: fixed;
         inset: 0 auto 0 0;
-        width: min(84vw, 320px);
+        width: min(86vw, 340px);
         height: 100dvh;
         top: 0;
         z-index: 90;
-        border-right: 1px solid #dce4f6;
-        box-shadow: 0 20px 44px rgba(86, 104, 156, .32);
+        border: 1px solid rgba(208, 220, 246, .9);
+        box-shadow: 0 24px 48px rgba(69, 92, 150, .32);
+        background:
+          radial-gradient(circle at 12% 10%, rgba(143, 161, 255, .18), transparent 34%),
+          radial-gradient(circle at 88% 90%, rgba(108, 220, 206, .16), transparent 30%),
+          linear-gradient(168deg, rgba(255,255,255,.98), rgba(239,245,255,.96));
         overflow: hidden;
-        border-radius: 0 22px 22px 0;
-        gap: .62rem;
-        padding: .72rem;
+        border-radius: 0 20px 20px 0;
+        gap: .68rem;
+        padding: .78rem;
+        animation: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transform: translateX(-106%);
+        transform: translate3d(-104%, 0, 0);
         will-change: transform, opacity;
+        backface-visibility: hidden;
+        contain: layout paint;
         transition:
-          transform .36s cubic-bezier(.22, 1, .36, 1),
-          opacity .26s ease,
-          visibility 0s linear .36s;
+          transform .2s cubic-bezier(.25, .8, .25, 1),
+          opacity .16s ease,
+          visibility 0s linear .2s;
       }
       .desktop-only {
         display: none;
@@ -809,20 +845,17 @@ type NavSection = {
         display: inline-flex;
       }
       .sidebar.mobile-open {
-        transform: translateX(0);
+        transform: translate3d(0, 0, 0);
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
         transition-delay: 0s;
       }
-      .sidebar.mobile-closing {
-        transform: translateX(-106%);
-        opacity: 0;
-        visibility: visible;
-        pointer-events: none;
-        transition:
-          transform .36s cubic-bezier(.22, 1, .36, 1),
-          opacity .26s ease;
+      .sidebar.mobile-open nav {
+        animation: mobile-sidebar-enter .2s ease both;
+      }
+      .sidebar.mobile-open .sidebar-footer {
+        animation: mobile-sidebar-enter .24s ease both;
       }
       nav {
         grid-template-columns: 1fr;
@@ -914,7 +947,7 @@ type NavSection = {
 })
 export class AppShellComponent implements OnInit, OnDestroy {
   private static readonly maxBugAttachmentSizeBytes = 4 * 1024 * 1024;
-  private static readonly sidebarResizeAnimationDurationMs = 280;
+  private static readonly sidebarResizeAnimationDurationMs = 140;
   private static readonly allowedBugAttachmentMimeTypes = new Set([
     'image/png',
     'image/jpeg',
@@ -929,8 +962,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly inactivityService = inject(InactivityService);
   private readonly formBuilder = inject(FormBuilder);
   readonly mobileMenuOpen = signal(false);
-  readonly mobileMenuClosing = signal(false);
-  readonly mobileMenuVisible = computed(() => this.mobileMenuOpen() || this.mobileMenuClosing());
   readonly sidebarCollapsed = signal(false);
   readonly sidebarResizeAnimating = signal(false);
   readonly isMobileView = signal(false);
@@ -944,8 +975,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
   readonly supportPhoneLink = 'tel:+9607515618';
   private readonly sidebarStorageKey = 'mydhathuru-sidebar-collapsed';
   private readonly usernameStorageKey = 'mydhathuru-username';
-  private mobileMenuReopenBlockedUntil = 0;
-  private mobileMenuCloseTimeout: ReturnType<typeof setTimeout> | null = null;
   private sidebarResizeTimeout: ReturnType<typeof setTimeout> | null = null;
   private bugAttachmentObjectUrl: string | null = null;
   readonly preferredUsername = signal<string>('');
@@ -1097,7 +1126,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.inactivityService.stop();
-    this.clearMobileMenuTimeout();
     this.clearSidebarResizeTimeout();
     this.setBodyScrollLock(false);
     this.clearBugAttachment();
@@ -1112,13 +1140,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
     if (!this.isMobileView()) {
       return;
     }
-
-    if (Date.now() < this.mobileMenuReopenBlockedUntil) {
-      return;
-    }
-
-    this.clearMobileMenuTimeout();
-    this.mobileMenuClosing.set(false);
     this.mobileMenuOpen.set(true);
     this.setBodyScrollLock(true);
   }
@@ -1140,10 +1161,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.sidebarResizeAnimating()) {
-      return;
-    }
-
     this.startSidebarResizeAnimation();
 
     this.sidebarCollapsed.update((value) => {
@@ -1155,30 +1172,19 @@ export class AppShellComponent implements OnInit, OnDestroy {
     });
   }
 
-  closeMobileMenu(withReopenDelay = true): void {
+  closeMobileMenu(): void {
     if (!this.isMobileView()) {
       this.mobileMenuOpen.set(false);
-      this.mobileMenuClosing.set(false);
       this.setBodyScrollLock(false);
       return;
     }
 
-    if (!this.mobileMenuOpen() && !this.mobileMenuClosing()) {
+    if (!this.mobileMenuOpen()) {
       return;
     }
 
-    this.clearMobileMenuTimeout();
     this.mobileMenuOpen.set(false);
-    this.mobileMenuClosing.set(true);
     this.setBodyScrollLock(false);
-    this.mobileMenuCloseTimeout = setTimeout(() => {
-      this.mobileMenuClosing.set(false);
-      this.mobileMenuCloseTimeout = null;
-    }, 340);
-
-    if (withReopenDelay) {
-      this.mobileMenuReopenBlockedUntil = Date.now() + 280;
-    }
   }
 
   onMobileCloseClick(event: Event): void {
@@ -1471,7 +1477,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.closeMobileMenu(false);
+    this.closeMobileMenu();
   }
 
   private setBodyScrollLock(locked: boolean): void {
@@ -1480,15 +1486,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
     }
 
     document.body.style.overflow = locked ? 'hidden' : '';
-  }
-
-  private clearMobileMenuTimeout(): void {
-    if (!this.mobileMenuCloseTimeout) {
-      return;
-    }
-
-    clearTimeout(this.mobileMenuCloseTimeout);
-    this.mobileMenuCloseTimeout = null;
   }
 
   private startSidebarResizeAnimation(): void {

@@ -100,6 +100,7 @@ type AdminNavItem = {
       max-height: 100dvh;
       padding: 1rem;
       overflow: hidden;
+      min-width: 0;
       background:
         radial-gradient(circle at 8% 8%, rgba(126, 140, 247, .16), transparent 36%),
         radial-gradient(circle at 90% 10%, rgba(114, 219, 225, .16), transparent 40%),
@@ -126,6 +127,8 @@ type AdminNavItem = {
       position: sticky;
       top: 1rem;
       overflow: hidden;
+      transform: translateZ(0);
+      backface-visibility: hidden;
     }
     .sidebar-header {
       display: flex;
@@ -385,6 +388,7 @@ type AdminNavItem = {
       height: calc(100dvh - 2rem);
       max-height: calc(100dvh - 2rem);
       min-height: 0;
+      min-width: 0;
       overflow: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
@@ -392,12 +396,14 @@ type AdminNavItem = {
     @media (max-width: 980px) {
       .admin-shell {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto minmax(0, 1fr);
         padding: .7rem;
         gap: .7rem;
         height: 100dvh;
         max-height: 100dvh;
         overflow: hidden;
+        min-width: 0;
       }
       .mobile-topbar {
         display: flex;
@@ -471,17 +477,19 @@ type AdminNavItem = {
         position: fixed;
         inset: 0;
         background: rgba(30, 41, 68, .35);
-        backdrop-filter: blur(2px);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition: opacity .25s ease;
+        transition: opacity .2s ease, visibility 0s linear .2s;
         z-index: 80;
       }
       .mobile-overlay.visible {
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
+        transition-delay: 0s;
       }
       .sidebar {
         position: fixed;
@@ -491,26 +499,32 @@ type AdminNavItem = {
         height: 100dvh;
         border-radius: 0 20px 20px 0;
         z-index: 95;
-        transform: translateX(-104%);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        transform: translate3d(-104%, 0, 0);
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition: transform .34s cubic-bezier(.22, 1, .36, 1), opacity .24s ease;
+        will-change: transform, opacity;
+        backface-visibility: hidden;
+        transition: transform .24s cubic-bezier(.25, .8, .25, 1), opacity .18s ease, visibility 0s linear .24s;
       }
       .sidebar-close {
         display: inline-flex;
       }
       .sidebar.mobile-open {
-        transform: translateX(0);
+        transform: translate3d(0, 0, 0);
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
+        transition-delay: 0s;
       }
       .content {
         padding: .82rem .75rem;
         height: auto;
         max-height: none;
         min-height: 0;
+        min-width: 0;
       }
     }
     @media (max-width: 560px) {
