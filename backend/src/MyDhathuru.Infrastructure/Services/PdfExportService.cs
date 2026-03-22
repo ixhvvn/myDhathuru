@@ -77,6 +77,14 @@ public class PdfExportService : IPdfExportService
 
         static string Safe(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
         static string Money(string currencyCode, decimal amount) => $"{currencyCode} {amount:N2}";
+        static (string Fill, string Outline, string Text) StatusColors(string status) => status switch
+        {
+            "Settled" => ("#DCF6E8", "#95D8B0", "#0F8B57"),
+            "Invoiced" => ("#E7EDFF", "#AFC1F8", "#4157B2"),
+            _ => ("#FFF1D8", "#F2C37E", "#B46A00")
+        };
+
+        var statusColors = StatusColors(documentStatus);
 
         return Document.Create(container =>
             {
@@ -100,12 +108,13 @@ public class PdfExportService : IPdfExportService
                                     left.Row(brand =>
                                     {
                                         brand.Spacing(8);
-                                        brand.ConstantItem(60)
-                                            .Height(60)
+                                        brand.ConstantItem(68)
+                                            .Height(68)
                                             .Border(1)
                                             .BorderColor(Border)
                                             .Background(Colors.White)
-                                            .Padding(4)
+                                            .CornerRadius(12)
+                                            .Padding(5)
                                             .AlignCenter()
                                             .AlignMiddle()
                                             .Element(container => RenderLogo(container, logoAsset));
@@ -130,23 +139,38 @@ public class PdfExportService : IPdfExportService
                                 }
                             });
 
-                            row.ConstantItem(220)
+                            row.ConstantItem(230)
                                 .Border(1)
                                 .BorderColor(Border)
                                 .Background(Panel)
-                                .Padding(10)
+                                .CornerRadius(14)
+                                .Padding(12)
                                 .Column(meta =>
                                 {
-                                    meta.Spacing(3);
+                                    meta.Spacing(4);
                                     meta.Item().AlignRight().Text("DELIVERY NOTE").Bold().FontSize(16).FontColor(Ink);
+                                    meta.Item().AlignRight().Element(chip =>
+                                        chip.Border(1)
+                                            .BorderColor(statusColors.Outline)
+                                            .Background(statusColors.Fill)
+                                            .CornerRadius(12)
+                                            .PaddingHorizontal(10)
+                                            .PaddingVertical(4)
+                                            .Text(documentStatus)
+                                            .SemiBold()
+                                            .FontSize(8.8f)
+                                            .FontColor(statusColors.Text));
                                     meta.Item().AlignRight().Text($"DN No: {Safe(model.DeliveryNoteNo)}").SemiBold();
                                     meta.Item().AlignRight().Text($"Date: {model.Date:yyyy-MM-dd}");
                                     meta.Item().AlignRight().Text($"Currency: {currency}");
-                                    meta.Item().AlignRight().Text($"Status: {documentStatus}");
                                 });
                         });
 
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        header.Item().Text(
+                                $"Dispatch prepared for {Safe(model.CustomerName)} | Vessel / Courier: {Safe(model.VesselName)} | Linked invoice: {Safe(model.InvoiceNo)}")
+                            .FontSize(8.6f)
+                            .FontColor(Muted);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -161,6 +185,7 @@ public class PdfExportService : IPdfExportService
                                 .Border(1)
                                 .BorderColor(Border)
                                 .Background(Colors.White)
+                                .CornerRadius(14)
                                 .Padding(10)
                                 .Column(details =>
                                 {
@@ -180,6 +205,7 @@ public class PdfExportService : IPdfExportService
                                 .Border(1)
                                 .BorderColor(Border)
                                 .Background(Colors.White)
+                                .CornerRadius(14)
                                 .Padding(10)
                                 .Table(table =>
                                 {
@@ -201,6 +227,33 @@ public class PdfExportService : IPdfExportService
                                     table.Cell().Element(LabelCell).Text("Vessel Paid").SemiBold().FontColor(Muted);
                                     table.Cell().Element(ValueCell).Text(Money(currency, vesselPaymentTotal));
                                 });
+                        });
+
+                        column.Item().Row(row =>
+                        {
+                            row.Spacing(8);
+
+                            void Metric(IContainer container, string label, string value)
+                            {
+                                container
+                                    .Border(1)
+                                    .BorderColor(Border)
+                                    .Background(Panel)
+                                    .CornerRadius(12)
+                                    .PaddingVertical(7)
+                                    .PaddingHorizontal(9)
+                                    .Column(metric =>
+                                    {
+                                        metric.Spacing(2);
+                                        metric.Item().Text(label).FontSize(7.4f).SemiBold().FontColor(Muted);
+                                        metric.Item().Text(value).FontSize(10.2f).Bold().FontColor(Ink);
+                                    });
+                            }
+
+                            row.RelativeItem().Element(c => Metric(c, "Document Total", Money(currency, model.TotalAmount)));
+                            row.RelativeItem().Element(c => Metric(c, "Items / Qty", $"{model.Items.Count} / {model.Items.Sum(x => x.Qty):N2}"));
+                            row.RelativeItem().Element(c => Metric(c, "Recorded Paid", Money(currency, recordedPaymentTotal)));
+                            row.RelativeItem().Element(c => Metric(c, "Balance", Money(currency, balanceAmount)));
                         });
 
                         column.Item().Table(table =>
@@ -238,7 +291,7 @@ public class PdfExportService : IPdfExportService
                                 for (var i = 0; i < model.Items.Count; i++)
                                 {
                                     var item = model.Items[i];
-                                    var rowBackground = i % 2 == 0 ? "#FFFFFF" : "#FBFCFF";
+                                    var rowBackground = i % 2 == 0 ? "#FFFFFF" : Panel;
 
                                     table.Cell().Element(c => BodyCell(c, rowBackground)).AlignCenter().Text((i + 1).ToString());
                                     table.Cell().Element(c => BodyCell(c, rowBackground)).Text(item.Details);
@@ -257,6 +310,7 @@ public class PdfExportService : IPdfExportService
                                 .Border(1)
                                 .BorderColor(Border)
                                 .Background(Colors.White)
+                                .CornerRadius(14)
                                 .Padding(10)
                                 .Column(notes =>
                                 {
@@ -269,10 +323,11 @@ public class PdfExportService : IPdfExportService
                                         .FontColor(Muted);
                                 });
 
-                            row.ConstantItem(220)
+                            row.ConstantItem(230)
                                 .Border(1)
                                 .BorderColor(Border)
-                                .Background(Panel)
+                                .Background(Colors.White)
+                                .CornerRadius(14)
                                 .Padding(10)
                                 .Column(summary =>
                                 {
@@ -303,7 +358,7 @@ public class PdfExportService : IPdfExportService
                                         });
                                     }
 
-                                    summary.Item().LineHorizontal(1).LineColor(Border);
+                                    summary.Item().PaddingVertical(2).LineHorizontal(1).LineColor(Border);
 
                                     summary.Item().Row(item =>
                                     {
@@ -314,27 +369,22 @@ public class PdfExportService : IPdfExportService
                         });
                     });
 
-                    page.Footer().Column(footer =>
+                    page.Footer().Row(footer =>
                     {
-                        footer.Spacing(4);
-                        footer.Item().LineHorizontal(1).LineColor(Border);
-                        footer.Item().Row(row =>
+                        footer.RelativeItem().Text(text =>
                         {
-                            row.RelativeItem().Text(text =>
-                            {
-                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
-                                text.Span("Generated by myDhathuru");
-                                text.Span(" | ");
-                                text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
-                            });
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.Span("Generated by myDhathuru");
+                            text.Span(" | ");
+                            text.Span($"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                        });
 
-                            row.ConstantItem(64).AlignRight().Text(text =>
-                            {
-                                text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
-                                text.CurrentPageNumber();
-                                text.Span(" / ");
-                                text.TotalPages();
-                            });
+                        footer.ConstantItem(54).AlignRight().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
+                            text.CurrentPageNumber();
+                            text.Span(" / ");
+                            text.TotalPages();
                         });
                     });
                 });
@@ -473,7 +523,7 @@ public class PdfExportService : IPdfExportService
                                 $"Customer invoice for {Safe(model.CustomerName)} | Delivery Note: {Safe(model.DeliveryNoteNo)} | Due in {dueDays} day(s)")
                             .FontSize(8.6f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -853,7 +903,7 @@ public class PdfExportService : IPdfExportService
                                 $"Order for {Safe(model.SupplierName)} | Lead time {leadDays} day(s) | Courier: {Safe(model.CourierName)}")
                             .FontSize(8.6f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -1136,7 +1186,7 @@ public class PdfExportService : IPdfExportService
                                 $"Prepared for {Safe(model.CustomerName)} | Valid for {validityDays} day(s) | Courier: {Safe(model.CourierName)}")
                             .FontSize(8.6f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -1397,7 +1447,7 @@ public class PdfExportService : IPdfExportService
                                 });
                         });
 
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -1643,7 +1693,7 @@ public class PdfExportService : IPdfExportService
                             .Text($"Activity summary: {invoiceCount:N0} invoice line(s), {paymentCount:N0} payment line(s), {model.Rows.Count:N0} total statement row(s).")
                             .FontSize(8.5f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -1964,7 +2014,7 @@ public class PdfExportService : IPdfExportService
                                 $"Payroll period {model.PeriodStart:yyyy-MM-dd} to {model.PeriodEnd:yyyy-MM-dd} | Net payable: {Money(model.TotalPayable)}")
                             .FontSize(8.6f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -2337,7 +2387,7 @@ public class PdfExportService : IPdfExportService
                             .Text("Customer contact records exported in a cleaner management-ready directory format.")
                             .FontSize(8.5f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -2759,7 +2809,7 @@ public class PdfExportService : IPdfExportService
                             .Text("Daily billing, receipts, and exposure trends aligned into one management-ready reporting sheet.")
                             .FontSize(8.5f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -3082,7 +3132,7 @@ public class PdfExportService : IPdfExportService
                             .Text("Invoice-level activity with payment state, receipt timing, and balance exposure across every exported transaction.")
                             .FontSize(8.2f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -3369,7 +3419,7 @@ public class PdfExportService : IPdfExportService
                             .Text("Vessel contribution, collections, and outstanding balances grouped by currency for operator-level decision making.")
                             .FontSize(8.5f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -3652,7 +3702,7 @@ public class PdfExportService : IPdfExportService
                                 $"Platform billing for {Safe(model.CompanyName)} | Staff: {model.StaffCount:N0} | Vessels: {model.VesselCount:N0}")
                             .FontSize(8.6f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -4085,7 +4135,7 @@ public class PdfExportService : IPdfExportService
                                     : $"Source coverage: {string.Join(" | ", sourceBreakdown)}")
                             .FontSize(8.4f)
                             .FontColor(Muted);
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -4448,7 +4498,7 @@ public class PdfExportService : IPdfExportService
                                 subject.Item().Text(Safe(model.Subject)).Bold().FontSize(13).FontColor(Ink);
                             });
 
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -4756,7 +4806,7 @@ public class PdfExportService : IPdfExportService
                                 });
                             });
 
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -5001,7 +5051,7 @@ public class PdfExportService : IPdfExportService
                                 });
                         });
 
-                        header.Item().LineHorizontal(1).LineColor(Border);
+                        AddHeaderDivider(header, Border);
                     });
 
                     page.Content().Column(column =>
@@ -5391,6 +5441,15 @@ public class PdfExportService : IPdfExportService
             .GeneratePdf();
     }
 
+    private static void AddHeaderDivider(ColumnDescriptor header, string borderColor)
+    {
+        header.Item()
+            .PaddingTop(2)
+            .PaddingBottom(6)
+            .LineHorizontal(1)
+            .LineColor(borderColor);
+    }
+
     private static void ComposeMiraHeader(
         IContainer container,
         LogoAsset? logoAsset,
@@ -5459,7 +5518,7 @@ public class PdfExportService : IPdfExportService
                     });
             });
 
-            header.Item().LineHorizontal(1).LineColor(border);
+            AddHeaderDivider(header, border);
         });
     }
 

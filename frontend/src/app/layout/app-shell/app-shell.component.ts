@@ -567,7 +567,6 @@ type NavSection = {
       backdrop-filter: blur(8px);
       box-shadow: var(--shadow-soft);
       animation: soft-rise .5s ease both;
-      contain: layout paint;
     }
     .bug-backdrop {
       position: fixed;
